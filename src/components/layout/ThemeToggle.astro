@@ -1,0 +1,51 @@
+---
+/**
+ * ThemeToggle — cycles system → light → dark → system.
+ *
+ * "System" is a real, distinct state (no `data-theme` attribute), not an alias
+ * for light. The inline script in BaseLayout applies the stored choice before
+ * first paint; this component only handles the click-to-change interaction.
+ */
+import Icon from '../ui/Icon.astro';
+---
+
+<button
+  type="button"
+  id="theme-toggle"
+  class="text-muted hover:text-fg hover:bg-raised inline-flex size-9 items-center justify-center rounded-md border border-transparent transition-colors duration-[var(--dur-fast)]"
+  aria-label="Change colour theme"
+  title="Change colour theme"
+>
+  <span data-theme-icon="system"><Icon name="monitor" size={16} /></span>
+  <span data-theme-icon="light" hidden><Icon name="sun" size={16} /></span>
+  <span data-theme-icon="dark" hidden><Icon name="moon" size={16} /></span>
+</button>
+
+<script>
+  import { THEME_KEY, type Theme, applyTheme, readTheme } from '../../lib/theme';
+
+  const ORDER: readonly Theme[] = ['system', 'light', 'dark'] as const;
+
+  function syncIcons(theme: Theme): void {
+    document.querySelectorAll<HTMLElement>('[data-theme-icon]').forEach((el) => {
+      el.hidden = el.dataset.themeIcon !== theme;
+    });
+  }
+
+  function init(): void {
+    const button = document.getElementById('theme-toggle');
+    if (!button) return;
+
+    syncIcons(readTheme());
+
+    button.addEventListener('click', () => {
+      const next = ORDER[(ORDER.indexOf(readTheme()) + 1) % ORDER.length] ?? 'system';
+      localStorage.setItem(THEME_KEY, next);
+      applyTheme(next);
+      syncIcons(next);
+    });
+  }
+
+  init();
+  document.addEventListener('astro:page-load', init);
+</script>

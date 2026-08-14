@@ -1,0 +1,14 @@
+---
+/**
+ * Token Counter tool page.
+ *
+ * `client:load` rather than `client:visible`: the island *is* the page, and it
+ * sits above the fold, so deferring hydration would only add a visible delay.
+ */
+import ToolLayout from '../../layouts/ToolLayout.astro';
+import TokenCounter from '../../components/tools/TokenCounter';
+---
+
+<ToolLayout slug="token-counter">
+  <TokenCounter client:load />
+</ToolLayout>

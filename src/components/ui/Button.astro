@@ -1,0 +1,71 @@
+---
+/**
+ * Button — renders as `<a>` when `href` is present, `<button>` otherwise.
+ * One component so that link-actions and form-actions can never drift apart.
+ */
+import Icon from './Icon.astro';
+import type { IconName } from './icons';
+
+interface Props {
+  href?: string;
+  variant?: 'primary' | 'secondary' | 'ghost';
+  size?: 'sm' | 'md';
+  /** Trailing icon, drawn after the label. */
+  icon?: IconName;
+  /** Marks the link external: opens in a new tab with safe rel attributes. */
+  external?: boolean;
+  type?: 'button' | 'submit' | 'reset';
+  disabled?: boolean;
+  class?: string;
+  [key: string]: unknown;
+}
+
+const {
+  href,
+  variant = 'primary',
+  size = 'md',
+  icon,
+  external = false,
+  type = 'button',
+  disabled = false,
+  class: className,
+  ...rest
+} = Astro.props;
+
+const VARIANT = {
+  primary:
+    'bg-accent text-[var(--c-accent-contrast)] border-transparent hover:bg-accent-hover font-medium',
+  secondary: 'bg-surface text-fg border-line hover:border-[var(--c-accent)] hover:text-accent',
+  ghost: 'bg-transparent text-muted border-transparent hover:text-fg hover:bg-raised',
+} as const;
+
+const SIZE = {
+  sm: 'h-8 px-3 text-xs gap-1.5',
+  md: 'h-10 px-4 text-sm gap-2',
+} as const;
+
+const classes = [
+  'inline-flex items-center justify-center rounded-md border select-none',
+  'transition-colors duration-[var(--dur-fast)]',
+  'disabled:pointer-events-none disabled:opacity-45',
+  VARIANT[variant],
+  SIZE[size],
+  className,
+];
+
+const externalAttrs = external ? { target: '_blank', rel: 'noopener noreferrer' } : {};
+---
+
+{
+  href ? (
+    <a href={href} class:list={classes} {...externalAttrs} {...rest}>
+      <slot />
+      {icon && <Icon name={icon} size={size === 'sm' ? 13 : 15} />}
+    </a>
+  ) : (
+    <button type={type} disabled={disabled} class:list={classes} {...rest}>
+      <slot />
+      {icon && <Icon name={icon} size={size === 'sm' ? 13 : 15} />}
+    </button>
+  )
+}

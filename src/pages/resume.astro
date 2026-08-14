@@ -1,0 +1,149 @@
+---
+/**
+ * Resume — experience, education, and achievements on one timeline.
+ *
+ * Grouped by `kind` so the page reads as sections, but every entry shares one
+ * row component. Ordered newest-first within each group.
+ */
+import { getCollection, type CollectionEntry } from 'astro:content';
+import PageLayout from '../layouts/PageLayout.astro';
+import Panel from '../components/ui/Panel.astro';
+import Tag from '../components/ui/Tag.astro';
+import Button from '../components/ui/Button.astro';
+import Reveal from '../components/ui/Reveal.astro';
+import Icon from '../components/ui/Icon.astro';
+import { monthYear } from '../lib/format';
+
+type Entry = CollectionEntry<'experience'>;
+
+const all = await getCollection('experience');
+
+/** Newest first; entries with no `end` (current roles) sort to the top. */
+function byRecency(a: Entry, b: Entry): number {
+  const aEnd = a.data.end?.getTime() ?? Number.POSITIVE_INFINITY;
+  const bEnd = b.data.end?.getTime() ?? Number.POSITIVE_INFINITY;
+  if (aEnd !== bEnd) return bEnd - aEnd;
+  return b.data.start.getTime() - a.data.start.getTime();
+}
+
+const SECTIONS = [
+  { kind: 'work', index: '01', title: 'Experience' },
+  { kind: 'education', index: '02', title: 'Education' },
+  { kind: 'award', index: '03', title: 'Achievements' },
+  { kind: 'certification', index: '04', title: 'Certifications' },
+] as const;
+
+const grouped = SECTIONS.map((section) => ({
+  ...section,
+  entries: all.filter((e) => e.data.kind === section.kind).sort(byRecency),
+})).filter((section) => section.entries.length > 0);
+
+function period(entry: Entry): string {
+  const start = monthYear(entry.data.start);
+  const end = entry.data.end ? monthYear(entry.data.end) : 'Present';
+  return `${start} — ${end}`;
+}
+---
+
+<PageLayout
+  index="02"
+  eyebrow="Resume"
+  title="Resume"
+  description="Experience, education, achievements, and certifications."
+  lede="The condensed version. For the long version, the projects page has the actual artifacts."
+>
+  <Button
+    slot="action"
+    href="/resume.pdf"
+    variant="secondary"
+    size="sm"
+    icon="arrow-up-right"
+    external
+  >
+    Download PDF
+  </Button>
+
+  {
+    grouped.length > 0 ? (
+      <div class="space-y-20">
+        {grouped.map((section) => (
+          <section aria-labelledby={`section-${section.kind}`}>
+            <div class="mb-8 flex items-center gap-3">
+              <span class="eyebrow text-accent tabular">{section.index}</span>
+              <h2 id={`section-${section.kind}`} class="text-xl">
+                {section.title}
+              </h2>
+              <span aria-hidden="true" class="bg-line h-px flex-1" />
+              <span class="text-faint font-mono text-[11px]">{section.entries.length}</span>
+            </div>
+
+            <ul class="space-y-4">
+              {section.entries.map((entry, i) => (
+                <Reveal as="li" delay={i * 60}>
+                  <Panel pad="lg">
+                    <div class="flex flex-col gap-1 sm:flex-row sm:items-baseline sm:justify-between sm:gap-6">
+                      <div class="min-w-0">
+                        <h3 class="text-lg">{entry.data.role}</h3>
+                        <p class="text-accent mt-1 text-sm">{entry.data.organization}</p>
+                      </div>
+                      <div class="text-faint shrink-0 font-mono text-[11px] sm:text-right">
+                        <p class="tabular">{period(entry)}</p>
+                        {entry.data.location && <p class="mt-1">{entry.data.location}</p>}
+                      </div>
+                    </div>
+
+                    {entry.data.highlights.length > 0 && (
+                      <ul class="text-muted mt-5 space-y-2 text-sm leading-relaxed">
+                        {entry.data.highlights.map((h) => (
+                          <li class="flex gap-3">
+                            <span
+                              aria-hidden="true"
+                              class="bg-accent mt-2 size-1 shrink-0 rounded-full"
+                            />
+                            <span>{h}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+
+                    {(entry.data.tech.length > 0 || entry.data.links.length > 0) && (
+                      <div class="border-line mt-6 flex flex-wrap items-center gap-x-4 gap-y-2 border-t pt-5">
+                        <ul class="flex flex-wrap gap-1.5">
+                          {entry.data.tech.map((t) => (
+                            <li>
+                              <Tag>{t}</Tag>
+                            </li>
+                          ))}
+                        </ul>
+                        {entry.data.links.map((link) => (
+                          <a
+                            href={link.href}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            class="text-muted hover:text-accent inline-flex items-center gap-1 font-mono text-[11px] transition-colors"
+                          >
+                            {link.label}
+                            <Icon name="arrow-up-right" size={11} />
+                          </a>
+                        ))}
+                      </div>
+                    )}
+                  </Panel>
+                </Reveal>
+              ))}
+            </ul>
+          </section>
+        ))}
+      </div>
+    ) : (
+      <Panel tone="inset" pad="lg">
+        <p class="text-muted text-sm">
+          No entries yet. Add Markdown files under{' '}
+          <code class="text-accent font-mono">src/content/experience/</code> with a{' '}
+          <code class="text-accent font-mono">kind</code> of work, education, award, or
+          certification.
+        </p>
+      </Panel>
+    )
+  }
+</PageLayout>

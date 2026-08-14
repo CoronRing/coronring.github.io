@@ -1,0 +1,32 @@
+---
+/**
+ * Backdrop — the fixed atmospheric layer behind all page content.
+ *
+ * Three stacked, purely decorative elements:
+ *   1. blueprint grid    — structure, scaled by --grid-alpha per theme
+ *   2. corona bloom      — a soft accent glow anchored top-centre
+ *   3. film grain        — SVG feTurbulence, kills banding on the gradients
+ *
+ * Fixed + `pointer-events-none` + aria-hidden: it never intercepts input and
+ * never reaches the accessibility tree. Rendered once, in BaseLayout.
+ */
+---
+
+<div aria-hidden="true" class="pointer-events-none fixed inset-0 -z-10 overflow-hidden">
+  <div class="grid-backdrop mask-radial absolute inset-0"></div>
+
+  <div
+    class="absolute top-[-30vh] left-1/2 h-[70vh] w-[110vw] -translate-x-1/2 opacity-[0.45]"
+    style="background: radial-gradient(ellipse at 50% 50%, var(--c-accent-soft) 0%, transparent 65%);"
+  >
+  </div>
+
+  <svg class="absolute inset-0 h-full w-full" style="opacity: var(--noise-alpha);">
+    <filter id="grain">
+      <feTurbulence type="fractalNoise" baseFrequency="0.85" numOctaves="3" stitchTiles="stitch"
+      ></feTurbulence>
+      <feColorMatrix type="saturate" values="0"></feColorMatrix>
+    </filter>
+    <rect width="100%" height="100%" filter="url(#grain)"></rect>
+  </svg>
+</div>

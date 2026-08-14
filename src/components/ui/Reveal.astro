@@ -1,0 +1,62 @@
+---
+/**
+ * Reveal — wraps children in a scroll-triggered fade/rise.
+ *
+ * Progressive enhancement, three ways:
+ *  1. `.no-js` (set on <html> until the shell script clears it) shows content.
+ *  2. If IntersectionObserver is missing, everything is revealed immediately.
+ *  3. `prefers-reduced-motion` collapses the transition to ~0ms in global.css.
+ *
+ * The observer is registered once per page, not once per element.
+ */
+interface Props {
+  /** Stagger in milliseconds, for sequencing siblings. */
+  delay?: number;
+  as?: 'div' | 'section' | 'li' | 'article';
+  class?: string;
+}
+
+const { delay = 0, as: Tag = 'div', class: className } = Astro.props;
+---
+
+<Tag data-reveal class:list={className} style={delay ? `--reveal-delay:${delay}ms` : undefined}>
+  <slot />
+</Tag>
+
+<script>
+  // Guarded so repeated component use doesn't attach duplicate observers.
+  const KEY = '__revealObserverAttached';
+  const w = window as Window & { [KEY]?: boolean };
+
+  if (!w[KEY]) {
+    w[KEY] = true;
+
+    const show = (el: Element) => el.setAttribute('data-shown', 'true');
+
+    const attach = () => {
+      const targets = document.querySelectorAll('[data-reveal]:not([data-shown])');
+
+      if (!('IntersectionObserver' in window)) {
+        targets.forEach(show);
+        return;
+      }
+
+      const observer = new IntersectionObserver(
+        (entries) => {
+          for (const entry of entries) {
+            if (!entry.isIntersecting) continue;
+            show(entry.target);
+            observer.unobserve(entry.target);
+          }
+        },
+        { rootMargin: '0px 0px -12% 0px', threshold: 0.05 },
+      );
+
+      targets.forEach((el) => observer.observe(el));
+    };
+
+    attach();
+    // Astro's client-side router swaps the DOM; re-scan after each navigation.
+    document.addEventListener('astro:page-load', attach);
+  }
+</script>

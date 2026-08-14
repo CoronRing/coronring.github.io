@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <!-- CoronRing mark: an open ring (corona) with a solid core. -->
+  <rect width="32" height="32" rx="7" fill="#0d0f13"/>
+  <circle cx="16" cy="16" r="9" fill="none" stroke="#ffa62b" stroke-width="2.25"/>
+  <circle cx="16" cy="16" r="3.25" fill="#ffa62b"/>
+</svg>

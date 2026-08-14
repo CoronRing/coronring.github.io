@@ -1,0 +1,47 @@
+---
+/**
+ * Icon — renders one entry from the registry in `./icons.ts`.
+ *
+ * Inline SVG only: no icon font, no runtime fetch, nothing that can be blocked
+ * or flash. Icons inherit text colour via `currentColor` in both themes.
+ */
+import { STROKE_ICONS, FILLED_ICONS, type IconName } from './icons';
+
+interface Props {
+  name: IconName;
+  /** Rendered size in pixels, applied to both axes. */
+  size?: number;
+  class?: string;
+  /** Provide when the icon is the only content of an interactive element. */
+  label?: string;
+}
+
+const { name, size = 16, class: className = '', label } = Astro.props;
+
+const filledPath = FILLED_ICONS[name];
+const strokePath = STROKE_ICONS[name];
+
+/**
+ * A labelled icon is announced as an image; an unlabelled one is decorative
+ * and hidden from the accessibility tree.
+ */
+const a11y = label
+  ? ({ role: 'img', 'aria-label': label } as const)
+  : ({ 'aria-hidden': 'true' } as const);
+---
+
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  viewBox="0 0 24 24"
+  width={size}
+  height={size}
+  fill={filledPath ? 'currentColor' : 'none'}
+  stroke={filledPath ? 'none' : 'currentColor'}
+  stroke-width="1.6"
+  stroke-linecap="round"
+  stroke-linejoin="round"
+  class:list={['shrink-0', className]}
+  {...a11y}
+>
+  {filledPath ? <path d={filledPath} /> : strokePath ? <path d={strokePath} /> : null}
+</svg>

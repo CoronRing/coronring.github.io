@@ -1,0 +1,126 @@
+---
+/**
+ * Resources — a curated, categorised index of references and notes.
+ *
+ * Entries with a `url` are outbound pointers; entries without one are original
+ * write-ups whose body is rendered on a detail route later. Both render as the
+ * same row so the list stays scannable.
+ */
+import { getCollection, type CollectionEntry } from 'astro:content';
+import PageLayout from '../layouts/PageLayout.astro';
+import Panel from '../components/ui/Panel.astro';
+import Tag from '../components/ui/Tag.astro';
+import Reveal from '../components/ui/Reveal.astro';
+import Icon from '../components/ui/Icon.astro';
+import { longDate } from '../lib/format';
+
+type Resource = CollectionEntry<'resources'>;
+
+const CATEGORY_LABEL = {
+  agents: 'Agents',
+  'llm-ops': 'LLM Ops',
+  engineering: 'Engineering',
+  reading: 'Reading',
+  tooling: 'Tooling',
+} as const;
+
+const resources = await getCollection('resources', (r) => !r.data.draft);
+
+/** Group by category, preserving the declaration order of CATEGORY_LABEL. */
+const grouped = (Object.keys(CATEGORY_LABEL) as Array<Resource['data']['category']>)
+  .map((category, i) => ({
+    category,
+    index: String(i + 1).padStart(2, '0'),
+    label: CATEGORY_LABEL[category],
+    entries: resources
+      .filter((r) => r.data.category === category)
+      .sort((a, b) => b.data.updated.getTime() - a.data.updated.getTime()),
+  }))
+  .filter((group) => group.entries.length > 0);
+---
+
+<PageLayout
+  index="03"
+  eyebrow="Resources"
+  title="Resources"
+  description="References, notes, and reading on agents, LLM operations, and engineering practice."
+  lede="A working bibliography. Things I return to, plus notes I wrote because the reference I wanted didn't exist."
+>
+  {
+    grouped.length > 0 ? (
+      <div class="space-y-16">
+        {grouped.map((group) => (
+          <section aria-labelledby={`cat-${group.category}`}>
+            <div class="mb-6 flex items-center gap-3">
+              <span class="eyebrow text-accent tabular">{group.index}</span>
+              <h2 id={`cat-${group.category}`} class="text-xl">
+                {group.label}
+              </h2>
+              <span aria-hidden="true" class="bg-line h-px flex-1" />
+              <span class="text-faint font-mono text-[11px]">{group.entries.length}</span>
+            </div>
+
+            <ul class="grid gap-3 lg:grid-cols-2">
+              {group.entries.map((entry, i) => {
+                const external = Boolean(entry.data.url);
+                return (
+                  <Reveal as="li" delay={(i % 2) * 60}>
+                    <Panel
+                      as={external ? 'a' : 'div'}
+                      href={entry.data.url}
+                      target={external ? '_blank' : undefined}
+                      rel={external ? 'noopener noreferrer' : undefined}
+                      interactive={external}
+                      pad="md"
+                      class="flex h-full flex-col"
+                    >
+                      <div class="flex items-start justify-between gap-3">
+                        <h3 class="group-hover:text-accent text-base leading-snug transition-colors">
+                          {entry.data.title}
+                        </h3>
+                        {external && (
+                          <Icon
+                            name="arrow-up-right"
+                            size={14}
+                            class="text-faint group-hover:text-accent mt-1 transition-colors"
+                          />
+                        )}
+                      </div>
+
+                      <p class="text-muted mt-2 flex-1 text-sm leading-relaxed">
+                        {entry.data.summary}
+                      </p>
+
+                      <div class="mt-4 flex flex-wrap items-center gap-x-3 gap-y-2">
+                        <ul class="flex flex-wrap gap-1.5">
+                          {entry.data.tags.slice(0, 3).map((t) => (
+                            <li>
+                              <Tag>{t}</Tag>
+                            </li>
+                          ))}
+                        </ul>
+                        <time
+                          datetime={entry.data.updated.toISOString()}
+                          class="text-faint ml-auto font-mono text-[10px]"
+                        >
+                          {longDate(entry.data.updated)}
+                        </time>
+                      </div>
+                    </Panel>
+                  </Reveal>
+                );
+              })}
+            </ul>
+          </section>
+        ))}
+      </div>
+    ) : (
+      <Panel tone="inset" pad="lg">
+        <p class="text-muted text-sm">
+          No resources yet. Add Markdown files under{' '}
+          <code class="text-accent font-mono">src/content/resources/</code>.
+        </p>
+      </Panel>
+    )
+  }
+</PageLayout>

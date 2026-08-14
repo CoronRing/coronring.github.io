@@ -1,0 +1,47 @@
+---
+/**
+ * 404 — GitHub Pages serves `/404.html` automatically for unmatched routes on
+ * a user site, so this needs no additional configuration.
+ */
+import BaseLayout from '../layouts/BaseLayout.astro';
+import Button from '../components/ui/Button.astro';
+import { SITE } from '../data/site';
+import { href } from '../lib/url';
+---
+
+<BaseLayout title="Not found" description="That page doesn't exist." noindex>
+  <div class="shell flex min-h-[70dvh] flex-col items-center justify-center py-20 text-center">
+    <p class="eyebrow text-accent">Error 404</p>
+    <h1 class="mt-5 text-5xl tracking-tight sm:text-6xl">No route here</h1>
+    <p class="text-muted mt-4 max-w-md text-base leading-relaxed">
+      The page you asked for doesn't exist. It may have been renamed, or the link that brought you
+      here may be out of date.
+    </p>
+
+    <div class="mt-8 flex flex-wrap justify-center gap-3">
+      <Button href={href('/')} variant="primary" icon="arrow-right">Back to index</Button>
+      <Button href={href('/projects')} variant="secondary">Projects</Button>
+    </div>
+
+    <nav aria-label="Site sections" class="mt-14 w-full max-w-lg">
+      <ul class="border-line divide-line grid divide-y overflow-hidden rounded-lg border text-left">
+        {
+          SITE.nav.slice(1).map((item) => (
+            <li>
+              <a
+                href={href(item.href)}
+                class="bg-surface hover:bg-raised flex items-center gap-4 px-4 py-3 transition-colors"
+              >
+                <span class="text-faint font-mono text-[11px]">{item.index}</span>
+                <span class="min-w-0 flex-1">
+                  <span class="block text-sm">{item.label}</span>
+                  <span class="text-faint block text-xs">{item.blurb}</span>
+                </span>
+              </a>
+            </li>
+          ))
+        }
+      </ul>
+    </nav>
+  </div>
+</BaseLayout>

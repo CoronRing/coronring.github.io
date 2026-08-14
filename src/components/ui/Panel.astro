@@ -1,0 +1,70 @@
+---
+/**
+ * Panel — the site's single card surface.
+ *
+ * Deliberately the *only* boxed container in the system. Anything that needs to
+ * look like a card uses this, so elevation and border treatment stay uniform.
+ */
+import type { HTMLTag, Polymorphic } from 'astro/types';
+
+type Props<Tag extends HTMLTag = 'div'> = Polymorphic<{ as: Tag }> & {
+  /** `flat` sits on the page; `raised` reads as lifted; `inset` recedes. */
+  tone?: 'flat' | 'raised' | 'inset';
+  /** Draw the HUD corner brackets in the accent colour. */
+  corners?: boolean;
+  /** Lift + accent border on hover. Use for links and clickable cards. */
+  interactive?: boolean;
+  /** Built-in padding scale; pass `none` to control padding yourself. */
+  pad?: 'none' | 'sm' | 'md' | 'lg';
+
+  /*
+   * Link attributes are declared explicitly rather than left to Polymorphic.
+   * Call sites frequently compute the tag (`as={external ? 'a' : 'div'}`), and
+   * TypeScript cannot narrow anchor props across that union — so it rejects
+   * `href` even on the branch where the tag really is an anchor. Declaring
+   * them here keeps those call sites type-safe; Astro omits any that are
+   * `undefined`, so a `div` renders clean.
+   */
+  href?: string | undefined;
+  target?: string | undefined;
+  rel?: string | undefined;
+};
+
+const {
+  as: Tag = 'div',
+  tone = 'flat',
+  corners = false,
+  interactive = false,
+  pad = 'md',
+  class: className,
+  ...rest
+} = Astro.props;
+
+const TONE = {
+  flat: 'bg-surface',
+  raised: 'bg-surface shadow-[var(--shadow-panel)]',
+  inset: 'bg-sunken',
+} as const;
+
+const PAD = {
+  none: '',
+  sm: 'p-4',
+  md: 'p-5 sm:p-6',
+  lg: 'p-6 sm:p-8',
+} as const;
+---
+
+<Tag
+  class:list={[
+    'panel',
+    TONE[tone],
+    PAD[pad],
+    corners && 'corner-ticks',
+    interactive &&
+      'group transition-[transform,border-color,box-shadow] duration-[var(--dur-base)] ease-[var(--ease-out)] hover:-translate-y-0.5 hover:border-[var(--c-accent)] hover:shadow-[var(--shadow-lift)]',
+    className,
+  ]}
+  {...rest}
+>
+  <slot />
+</Tag>

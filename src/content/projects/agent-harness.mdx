@@ -1,0 +1,34 @@
+---
+title: Agent Harness
+summary: A deterministic orchestration layer for multi-agent workflows — fan-out, adversarial verification, and loop-until-dry discovery.
+order: 10
+status: in-progress
+interactive: true
+demo: placeholder
+featured: true
+role: Design and implementation
+period: 2026 — present
+tech: ['TypeScript', 'Claude API', 'Tool use', 'Evals']
+links:
+  - label: Source
+    href: https://github.com/CoronRing
+---
+
+> **Placeholder content.** This file exists so the projects route renders end to
+> end. Replace the body with the real write-up; the frontmatter above shows
+> every field the schema supports.
+
+## The problem
+
+A single agent loop degrades in predictable ways: it fills its context with
+material it read once and will never use again, and it grades its own work.
+Both failure modes are structural rather than a prompting issue.
+
+## The approach
+
+Decompose the task into independent units, run each in its own context, and
+verify findings with agents that never saw the reasoning that produced them.
+
+## What I'd do differently
+
+To be written.

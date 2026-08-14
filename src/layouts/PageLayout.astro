@@ -1,0 +1,41 @@
+---
+/**
+ * PageLayout — BaseLayout plus the standard interior-page masthead.
+ *
+ * Used by every route except the home page, which has its own bespoke hero.
+ * Guarantees consistent vertical rhythm and a uniform page-title treatment.
+ */
+import BaseLayout from './BaseLayout.astro';
+import SectionHeader from '../components/ui/SectionHeader.astro';
+
+interface Props {
+  title: string;
+  description: string;
+  /** Two-digit HUD index; matches the entry in `SITE.nav`. */
+  index?: string;
+  eyebrow?: string;
+  /** Optional lede shown under the title, defaults to `description`. */
+  lede?: string;
+  noindex?: boolean;
+}
+
+const { title, description, index, eyebrow, lede, noindex = false } = Astro.props;
+---
+
+<BaseLayout title={title} description={description} noindex={noindex}>
+  <div class="shell pt-16 pb-8 sm:pt-24">
+    <SectionHeader as="h1" index={index} eyebrow={eyebrow} title={title} lede={lede ?? description}>
+      {
+        Astro.slots.has('action') && (
+          <Fragment slot="action">
+            <slot name="action" />
+          </Fragment>
+        )
+      }
+    </SectionHeader>
+  </div>
+
+  <div class="shell pb-16">
+    <slot />
+  </div>
+</BaseLayout>

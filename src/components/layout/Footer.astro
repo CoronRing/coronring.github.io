@@ -1,0 +1,98 @@
+---
+/**
+ * Footer — sitemap, social, and a build stamp.
+ *
+ * The build stamp is baked at compile time (this is a static site), which makes
+ * it a useful "is the deploy actually live?" signal.
+ */
+import { SITE } from '../../data/site';
+import { href } from '../../lib/url';
+import Icon from '../ui/Icon.astro';
+
+const builtAt = new Date().toISOString().slice(0, 16).replace('T', ' ');
+const year = new Date().getFullYear();
+---
+
+<footer class="border-line mt-24 border-t">
+  <div class="shell py-12">
+    <div class="grid gap-10 md:grid-cols-[1.5fr_1fr_1fr]">
+      <div>
+        <p class="text-sm font-semibold">{SITE.name}</p>
+        <p class="text-muted mt-2 max-w-sm text-sm leading-relaxed">{SITE.description}</p>
+        <ul class="mt-5 flex gap-2">
+          {
+            SITE.social.map((s) => (
+              <li>
+                <a
+                  href={s.href}
+                  target={s.href.startsWith('mailto:') ? undefined : '_blank'}
+                  rel="noopener noreferrer"
+                  class="border-line text-muted hover:text-accent grid size-9 place-items-center rounded-md border transition-colors duration-[var(--dur-fast)] hover:border-[var(--c-accent)]"
+                  aria-label={s.label}
+                >
+                  <Icon name={s.icon} size={15} />
+                </a>
+              </li>
+            ))
+          }
+        </ul>
+      </div>
+
+      <nav aria-label="Footer">
+        <p class="eyebrow">Sitemap</p>
+        <ul class="mt-4 space-y-2.5">
+          {
+            SITE.nav.map((item) => (
+              <li>
+                <a
+                  href={href(item.href)}
+                  class="text-muted hover:text-accent inline-flex items-baseline gap-2 text-sm transition-colors duration-[var(--dur-fast)]"
+                >
+                  <span class="text-faint font-mono text-[10px]">{item.index}</span>
+                  {item.label}
+                </a>
+              </li>
+            ))
+          }
+        </ul>
+      </nav>
+
+      <div>
+        <p class="eyebrow">Build</p>
+        <dl class="text-faint mt-4 space-y-2.5 font-mono text-xs">
+          <div class="flex justify-between gap-4">
+            <dt>source</dt>
+            <dd>
+              <a
+                href={`https://github.com/${SITE.repo}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                class="hover:text-accent inline-flex items-center gap-1 transition-colors"
+              >
+                repo <Icon name="arrow-up-right" size={11} />
+              </a>
+            </dd>
+          </div>
+          <div class="flex justify-between gap-4">
+            <dt>compiled</dt>
+            <dd class="tabular">{builtAt}Z</dd>
+          </div>
+          <div class="flex justify-between gap-4">
+            <dt>status</dt>
+            <dd class="text-ok inline-flex items-center gap-1.5">
+              <span aria-hidden="true" class="size-1.5 rounded-full bg-current"></span>
+              operational
+            </dd>
+          </div>
+        </dl>
+      </div>
+    </div>
+
+    <div
+      class="border-line text-faint mt-10 flex flex-col gap-2 border-t pt-6 font-mono text-[11px] sm:flex-row sm:items-center sm:justify-between"
+    >
+      <p>© {year} {SITE.name}. Built with Astro. Hosted on GitHub Pages.</p>
+      <p>{SITE.url.replace('https://', '')}</p>
+    </div>
+  </div>
+</footer>

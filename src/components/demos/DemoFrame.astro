@@ -1,0 +1,55 @@
+---
+/**
+ * DemoFrame — chrome around an interactive demo island.
+ *
+ * Gives every demo the same window-like presentation (title bar, status light,
+ * bordered stage) so the gallery reads as one product rather than N widgets.
+ *
+ * Hydration is `client:visible`: a demo below the fold costs nothing until the
+ * visitor scrolls to it.
+ *
+ * The name-to-component mapping is an explicit branch per demo rather than a
+ * lookup table — see the note in `./registry.ts` for why that is required.
+ */
+import { isDemoName } from './registry';
+import PlaceholderDemo from './PlaceholderDemo';
+import Panel from '../ui/Panel.astro';
+
+interface Props {
+  /** Registry key from project frontmatter. */
+  demo: string;
+  /** Hosting project title, passed through to the island. */
+  title: string;
+}
+
+const { demo, title } = Astro.props;
+
+if (!isDemoName(demo)) {
+  // Fail the build rather than shipping a silently empty stage.
+  throw new Error(
+    `Unknown demo "${demo}" for project "${title}". ` +
+      `Add it to DEMO_NAMES in src/components/demos/registry.ts and render it in DemoFrame.astro.`,
+  );
+}
+---
+
+<Panel tone="raised" pad="none" class="overflow-hidden">
+  <!-- Title bar -->
+  <div class="border-line bg-raised flex items-center gap-3 border-b px-4 py-2.5">
+    <span aria-hidden="true" class="flex gap-1.5">
+      <span class="bg-line-strong size-2 rounded-full"></span>
+      <span class="bg-line-strong size-2 rounded-full"></span>
+      <span class="bg-line-strong size-2 rounded-full"></span>
+    </span>
+    <span class="eyebrow flex-1 truncate text-center">{title} — live demo</span>
+    <span class="text-ok inline-flex items-center gap-1.5 font-mono text-[10px]">
+      <span aria-hidden="true" class="size-1.5 animate-pulse rounded-full bg-current"></span>
+      running
+    </span>
+  </div>
+
+  <!-- Stage -->
+  <div class="bg-surface">
+    {demo === 'placeholder' && <PlaceholderDemo client:visible title={title} />}
+  </div>
+</Panel>

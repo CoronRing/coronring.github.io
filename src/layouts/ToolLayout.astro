@@ -1,0 +1,62 @@
+---
+/**
+ * ToolLayout — shared chrome for a single tool page.
+ *
+ * Every tool gets the same header (back link, name, rationale), the same
+ * privacy assertion, and the same bordered stage, so the tools read as one
+ * suite rather than a pile of one-off pages.
+ */
+import BaseLayout from './BaseLayout.astro';
+import Panel from '../components/ui/Panel.astro';
+import Tag from '../components/ui/Tag.astro';
+import Icon from '../components/ui/Icon.astro';
+import { TOOLS } from '../data/tools';
+import { href } from '../lib/url';
+
+interface Props {
+  /** Slug from `src/data/tools.ts`; metadata is looked up from there. */
+  slug: string;
+}
+
+const { slug } = Astro.props;
+const tool = TOOLS.find((t) => t.slug === slug);
+
+if (!tool) {
+  throw new Error(`Unknown tool "${slug}". Add it to src/data/tools.ts.`);
+}
+---
+
+<BaseLayout title={tool.name} description={tool.summary}>
+  <div class="shell-content pt-12 pb-8 sm:pt-16">
+    <a
+      href={href('/tools')}
+      class="text-muted hover:text-accent inline-flex items-center gap-2 font-mono text-xs transition-colors"
+    >
+      <Icon name="arrow-right" size={13} class="rotate-180" />
+      All tools
+    </a>
+
+    <div class="mt-6 flex flex-wrap items-center gap-3">
+      <h1 class="font-mono text-3xl tracking-tight sm:text-4xl">{tool.name}</h1>
+      {
+        tool.offline && (
+          <Tag variant="ok" dot>
+            Runs offline
+          </Tag>
+        )
+      }
+    </div>
+
+    <p class="text-muted mt-4 max-w-2xl text-base leading-relaxed">{tool.rationale}</p>
+  </div>
+
+  <div class="shell-content pb-20">
+    <Panel tone="raised" pad="lg">
+      <slot />
+    </Panel>
+
+    <p class="text-faint mt-6 font-mono text-[11px]">
+      This page makes no network requests. Everything you type stays in this tab.
+    </p>
+  </div>
+</BaseLayout>

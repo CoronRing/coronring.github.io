@@ -1,0 +1,240 @@
+---
+/**
+ * Home — the "index" page.
+ *
+ * Structure (top to bottom):
+ *   Hero          — identity, one-sentence positioning, primary CTAs
+ *   Capabilities  — three pillars of what "agentic developer" means here
+ *   Featured work — pulls `featured: true` projects from the collection
+ *   Contact       — closing call to action
+ */
+import { getCollection } from 'astro:content';
+import BaseLayout from '../layouts/BaseLayout.astro';
+import SectionHeader from '../components/ui/SectionHeader.astro';
+import Panel from '../components/ui/Panel.astro';
+import Button from '../components/ui/Button.astro';
+import Tag from '../components/ui/Tag.astro';
+import Reveal from '../components/ui/Reveal.astro';
+import Icon from '../components/ui/Icon.astro';
+import { SITE } from '../data/site';
+import { href } from '../lib/url';
+
+const featured = (await getCollection('projects', (p) => !p.data.draft && p.data.featured)).sort(
+  (a, b) => a.data.order - b.data.order,
+);
+
+/** The positioning statement. Three pillars, kept parallel in structure. */
+const PILLARS = [
+  {
+    index: '01',
+    title: 'Agent systems',
+    body: 'Multi-step agents that plan, call tools, and recover from their own failures — with the orchestration, retries, and guardrails that make them survive contact with production.',
+    tags: ['Tool use', 'Orchestration', 'Evals'],
+  },
+  {
+    index: '02',
+    title: 'Developer tooling',
+    body: 'The layer underneath the product: CLIs, harnesses, and interfaces that shorten the loop between an idea and a working, measured result.',
+    tags: ['CLI', 'DX', 'Automation'],
+  },
+  {
+    index: '03',
+    title: 'Applied NLP',
+    body: 'Retrieval, extraction, and evaluation pipelines built to be inspected — where every answer traces back to the input that produced it.',
+    tags: ['RAG', 'Extraction', 'Benchmarks'],
+  },
+] as const;
+---
+
+<BaseLayout>
+  <!-- ── Hero ──────────────────────────────────────────────────────── -->
+  <section class="relative">
+    <div class="shell flex min-h-[calc(100dvh-4rem)] flex-col justify-center py-20">
+      <Reveal>
+        <div class="mb-6 flex items-center gap-3">
+          <span class="bg-ok size-1.5 animate-pulse rounded-full"></span>
+          <span class="eyebrow">Available for select work</span>
+        </div>
+
+        <h1 class="max-w-4xl text-5xl leading-[1.05] tracking-tight sm:text-7xl lg:text-8xl">
+          I build systems that
+          <span class="text-accent">act</span>, not just answer.
+        </h1>
+
+        <p class="text-muted mt-8 max-w-2xl text-lg leading-relaxed sm:text-xl">
+          I'm {SITE.name} — an engineer working at the layer where language models stop being a demo and
+          start being infrastructure. Agents, tooling, and the evaluation scaffolding that keeps them
+          honest.
+        </p>
+
+        <div class="mt-10 flex flex-wrap items-center gap-3">
+          <Button href={href('/projects')} variant="primary" icon="arrow-right">
+            See the work
+          </Button>
+          <Button href={href('/resume')} variant="secondary">Resume</Button>
+          <Button href={href('/tools')} variant="ghost" icon="terminal">Tools</Button>
+        </div>
+      </Reveal>
+
+      <!-- HUD readout strip: anchors the hero to the technical aesthetic. -->
+      <Reveal delay={200} class="mt-20">
+        <dl
+          class="border-line text-faint grid grid-cols-2 gap-px overflow-hidden rounded-lg border font-mono text-[11px] sm:grid-cols-4"
+        >
+          {
+            [
+              ['focus', 'agentic systems'],
+              ['based', 'toronto, ca'],
+              ['stack', 'ts · python · rust'],
+              ['status', 'shipping'],
+            ].map(([k, v]) => (
+              <div class="bg-surface px-4 py-3">
+                <dt class="tracking-[0.16em] uppercase">{k}</dt>
+                <dd class="text-fg mt-1.5 text-xs">{v}</dd>
+              </div>
+            ))
+          }
+        </dl>
+      </Reveal>
+    </div>
+
+    <!-- Scroll affordance -->
+    <div
+      aria-hidden="true"
+      class="text-faint absolute inset-x-0 bottom-6 flex justify-center font-mono text-[10px] tracking-[0.2em] uppercase"
+    >
+      scroll
+    </div>
+  </section>
+
+  <!-- ── Capabilities ──────────────────────────────────────────────── -->
+  <section class="shell py-24">
+    <SectionHeader
+      index="01"
+      eyebrow="Capabilities"
+      title="What I actually do"
+      lede="Three areas where I go deep. Everything on this site is an instance of one of them."
+    />
+
+    <ul class="grid gap-4 lg:grid-cols-3">
+      {
+        PILLARS.map((p, i) => (
+          <Reveal as="li" delay={i * 90}>
+            <Panel corners pad="lg" class="h-full">
+              <span class="eyebrow text-accent">{p.index}</span>
+              <h3 class="mt-4 text-xl">{p.title}</h3>
+              <p class="text-muted mt-3 text-sm leading-relaxed">{p.body}</p>
+              <ul class="mt-6 flex flex-wrap gap-1.5">
+                {p.tags.map((t) => (
+                  <li>
+                    <Tag>{t}</Tag>
+                  </li>
+                ))}
+              </ul>
+            </Panel>
+          </Reveal>
+        ))
+      }
+    </ul>
+  </section>
+
+  <!-- ── Featured work ─────────────────────────────────────────────── -->
+  <section class="shell py-24">
+    <SectionHeader
+      index="02"
+      eyebrow="Selected work"
+      title="Things you can poke at"
+      lede="Each of these runs in the browser. No signup, no video walkthrough — press the buttons."
+    >
+      <Button
+        slot="action"
+        href={href('/projects')}
+        variant="secondary"
+        size="sm"
+        icon="arrow-right"
+      >
+        All projects
+      </Button>
+    </SectionHeader>
+
+    {
+      featured.length > 0 ? (
+        <ul class="grid gap-4 md:grid-cols-2">
+          {featured.map((project, i) => (
+            <Reveal as="li" delay={i * 90}>
+              <Panel
+                as="a"
+                href={href(`/projects/${project.id}`)}
+                interactive
+                pad="lg"
+                class="flex h-full flex-col"
+              >
+                <div class="flex items-start justify-between gap-4">
+                  <h3 class="group-hover:text-accent text-xl transition-colors">
+                    {project.data.title}
+                  </h3>
+                  <Icon
+                    name="arrow-up-right"
+                    size={16}
+                    class="text-faint group-hover:text-accent mt-1 transition-colors"
+                  />
+                </div>
+                <p class="text-muted mt-3 flex-1 text-sm leading-relaxed">{project.data.summary}</p>
+                <ul class="mt-6 flex flex-wrap gap-1.5">
+                  {project.data.interactive && (
+                    <li>
+                      <Tag variant="accent" dot>
+                        Interactive
+                      </Tag>
+                    </li>
+                  )}
+                  {project.data.tech.slice(0, 4).map((t) => (
+                    <li>
+                      <Tag>{t}</Tag>
+                    </li>
+                  ))}
+                </ul>
+              </Panel>
+            </Reveal>
+          ))}
+        </ul>
+      ) : (
+        <Panel tone="inset" pad="lg">
+          <p class="text-muted text-sm">
+            No featured projects yet. Mark one with{' '}
+            <code class="text-accent font-mono">featured: true</code> in its frontmatter.
+          </p>
+        </Panel>
+      )
+    }
+  </section>
+
+  <!-- ── Contact ───────────────────────────────────────────────────── -->
+  <section class="shell py-24">
+    <Reveal>
+      <Panel corners tone="raised" pad="lg" class="text-center">
+        <span class="eyebrow">Get in touch</span>
+        <h2 class="mx-auto mt-4 max-w-2xl text-3xl sm:text-4xl">
+          Building something that needs to think for itself?
+        </h2>
+        <p class="text-muted mx-auto mt-4 max-w-xl text-base leading-relaxed">
+          I'm interested in hard problems in agent reliability, evaluation, and developer tooling.
+          The inbox is open.
+        </p>
+        <div class="mt-8 flex flex-wrap justify-center gap-3">
+          <Button href="mailto:guan@railtown.ai" variant="primary" icon="arrow-right">
+            Start a conversation
+          </Button>
+          <Button
+            href={`https://github.com/${SITE.handle}`}
+            variant="secondary"
+            external
+            icon="arrow-up-right"
+          >
+            GitHub
+          </Button>
+        </div>
+      </Panel>
+    </Reveal>
+  </section>
+</BaseLayout>

@@ -1,0 +1,43 @@
+{
+  "name": "coronring.github.io",
+  "type": "module",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Personal site of Guan Zheng Huang — agentic developer.",
+  "engines": {
+    "node": ">=20.11.0"
+  },
+  "scripts": {
+    "dev": "astro dev",
+    "start": "astro dev",
+    "build": "astro check && astro build",
+    "build:fast": "astro build",
+    "preview": "astro preview",
+    "check": "astro check",
+    "typecheck": "tsc --noEmit",
+    "format": "prettier --write \"**/*.{astro,ts,tsx,js,mjs,json,css,md,mdx}\"",
+    "format:check": "prettier --check \"**/*.{astro,ts,tsx,js,mjs,json,css,md,mdx}\"",
+    "astro": "astro"
+  },
+  "dependencies": {
+    "@astrojs/mdx": "^4.2.6",
+    "@astrojs/react": "^4.2.7",
+    "@astrojs/sitemap": "^3.3.1",
+    "@fontsource-variable/inter": "^5.2.5",
+    "@fontsource-variable/jetbrains-mono": "^5.2.5",
+    "astro": "^5.7.13",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0"
+  },
+  "devDependencies": {
+    "@astrojs/check": "^0.9.4",
+    "@tailwindcss/vite": "^4.1.6",
+    "@types/react": "^19.1.4",
+    "@types/react-dom": "^19.1.5",
+    "prettier": "^3.5.3",
+    "prettier-plugin-astro": "^0.14.1",
+    "prettier-plugin-tailwindcss": "^0.6.11",
+    "tailwindcss": "^4.1.6",
+    "typescript": "^5.8.3"
+  }
+}

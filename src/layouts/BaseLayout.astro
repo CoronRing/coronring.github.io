@@ -1,0 +1,97 @@
+---
+/**
+ * BaseLayout — the document shell. Every route renders through this.
+ *
+ * Responsibilities: <head> metadata, font loading, the pre-paint theme script,
+ * the fixed backdrop, header, `<main>` landmark, and footer. Pages supply only
+ * their content and a small metadata object.
+ */
+import '@fontsource-variable/inter';
+import '@fontsource-variable/jetbrains-mono';
+import '../styles/global.css';
+
+import { SITE } from '../data/site';
+import { absolute } from '../lib/url';
+import Backdrop from '../components/decor/Backdrop.astro';
+import Header from '../components/layout/Header.astro';
+import Footer from '../components/layout/Footer.astro';
+
+interface Props {
+  title?: string;
+  description?: string;
+  /** Path to a social preview image under `public/`. */
+  image?: string;
+  /** Adds `noindex` — for drafts and utility routes. */
+  noindex?: boolean;
+}
+
+const {
+  title,
+  description = SITE.description,
+  image = '/og-default.png',
+  noindex = false,
+} = Astro.props;
+
+const pageTitle = title ? `${title} — ${SITE.handle}` : SITE.title;
+const canonical = new URL(Astro.url.pathname, Astro.site ?? SITE.url).toString();
+const ogImage = absolute(image, SITE.url);
+---
+
+<!doctype html>
+<html lang={SITE.locale} class="no-js">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="sitemap" href="/sitemap-index.xml" />
+    <link rel="canonical" href={canonical} />
+
+    <title>{pageTitle}</title>
+    <meta name="description" content={description} />
+    <meta name="author" content={SITE.name} />
+    {noindex && <meta name="robots" content="noindex, nofollow" />}
+
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content={SITE.name} />
+    <meta property="og:title" content={pageTitle} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={canonical} />
+    <meta property="og:image" content={ogImage} />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={pageTitle} />
+    <meta name="twitter:description" content={description} />
+    <meta name="twitter:image" content={ogImage} />
+
+    {
+      /*
+      Runs before first paint so the stored theme is applied with no flash.
+      Inlined on purpose: an external module would arrive too late.
+      Kept tiny and dependency-free — it mirrors `src/lib/theme.ts`.
+    */
+    }
+    <script is:inline>
+      (function () {
+        document.documentElement.classList.remove('no-js');
+        try {
+          var t = localStorage.getItem('coronring:theme');
+          if (t === 'light' || t === 'dark') {
+            document.documentElement.setAttribute('data-theme', t);
+          }
+        } catch (e) {
+          /* localStorage unavailable — fall through to system preference. */
+        }
+      })();
+    </script>
+  </head>
+
+  <body class="flex min-h-dvh flex-col">
+    <Backdrop />
+    <Header />
+
+    <main id="main" class="flex-1">
+      <slot />
+    </main>
+
+    <Footer />
+  </body>
+</html>
