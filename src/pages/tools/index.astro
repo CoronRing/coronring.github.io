@@ -2,110 +2,69 @@
 /**
  * Tools index — browser-local utilities for LLM work.
  *
- * Rendered from `src/data/tools.ts`. Planned tools are shown deliberately: the
- * roadmap is part of the story, and a greyed card is honest about what's real.
+ * Flat grid, no group headings: with five tools, category dividers cost more
+ * vertical space than the grouping saves. Live tools sort first; planned ones
+ * stay visible because a roadmap is more honest than a short list.
  */
 import PageLayout from '../../layouts/PageLayout.astro';
-import Panel from '../../components/ui/Panel.astro';
-import Tag from '../../components/ui/Tag.astro';
-import Reveal from '../../components/ui/Reveal.astro';
 import Icon from '../../components/ui/Icon.astro';
-import { TOOLS, TOOL_GROUPS, type ToolEntry } from '../../data/tools';
+import Reveal from '../../components/ui/Reveal.astro';
+import { TOOLS, TOOL_GROUPS } from '../../data/tools';
 import { href } from '../../lib/url';
 
-const grouped = (Object.keys(TOOL_GROUPS) as Array<ToolEntry['group']>)
-  .map((group, i) => ({
-    group,
-    index: String(i + 1).padStart(2, '0'),
-    label: TOOL_GROUPS[group],
-    // Live tools first within each group.
-    entries: TOOLS.filter((t) => t.group === group).sort((a, b) =>
-      a.status === b.status ? 0 : a.status === 'live' ? -1 : 1,
-    ),
-  }))
-  .filter((g) => g.entries.length > 0);
-
+const tools = [...TOOLS].sort((a, b) => (a.status === b.status ? 0 : a.status === 'live' ? -1 : 1));
 const liveCount = TOOLS.filter((t) => t.status === 'live').length;
 ---
 
 <PageLayout
-  index="04"
   eyebrow="Tools"
   title="Tools"
   description="Small, fast, browser-local utilities for working with language models."
-  lede="Everything here runs entirely in your browser. Nothing you paste leaves the page — no server, no logging, no network call."
+  lede="Everything here runs in your browser. Nothing you paste leaves the page — no server, no logging, no network call."
 >
-  <Fragment slot="action">
-    <div class="flex items-center gap-2">
-      <Tag variant="ok" dot>{liveCount} live</Tag>
-      <Tag>{TOOLS.length - liveCount} planned</Tag>
-    </div>
-  </Fragment>
+  <p slot="action" class="text-faint font-mono text-[11px]">
+    <span class="text-ok">{liveCount} live</span> · {TOOLS.length - liveCount} planned
+  </p>
 
-  <!-- Privacy note: the single most important thing to say on this page. -->
-  <Panel tone="inset" pad="md" class="mb-14 flex items-start gap-3">
-    <Icon name="sparkle" size={16} class="text-accent mt-0.5" />
-    <p class="text-muted text-sm leading-relaxed">
-      <span class="text-fg font-medium">Local by construction.</span> These tools are static pages with
-      no backend. Tokenisation, parsing, and counting all happen on your machine, which is the only way
-      pasting a real production prompt into a stranger's website is a reasonable thing to do.
-    </p>
-  </Panel>
-
-  <div class="space-y-16">
+  <ul class="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
     {
-      grouped.map((group) => (
-        <section aria-labelledby={`tools-${group.group}`}>
-          <div class="mb-6 flex items-center gap-3">
-            <span class="eyebrow text-accent tabular">{group.index}</span>
-            <h2 id={`tools-${group.group}`} class="text-xl">
-              {group.label}
-            </h2>
-            <span aria-hidden="true" class="bg-line h-px flex-1" />
-          </div>
+      tools.map((tool, i) => {
+        const live = tool.status === 'live';
+        const Tag = live ? 'a' : 'div';
+        return (
+          <Reveal as="li" delay={(i % 3) * 70}>
+            <Tag
+              href={live ? href(`/tools/${tool.slug}`) : undefined}
+              class:list={[
+                'group border-line bg-surface relative flex h-full flex-col border p-5',
+                live ? 'hover:border-fg transition-colors' : 'opacity-55',
+              ]}
+            >
+              <div class="flex items-center justify-between">
+                <span class="eyebrow">{TOOL_GROUPS[tool.group]}</span>
+                {live ? (
+                  <Icon
+                    name="arrow-up-right"
+                    size={15}
+                    class="text-faint group-hover:text-accent transition-colors"
+                  />
+                ) : (
+                  <span class="text-faint font-mono text-[10px] uppercase">planned</span>
+                )}
+              </div>
 
-          <ul class="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-            {group.entries.map((tool, i) => {
-              const live = tool.status === 'live';
-              return (
-                <Reveal as="li" delay={(i % 3) * 70}>
-                  <Panel
-                    as={live ? 'a' : 'div'}
-                    href={live ? href(`/tools/${tool.slug}`) : undefined}
-                    interactive={live}
-                    pad="lg"
-                    class:list={['flex h-full flex-col', !live && 'opacity-60']}
-                  >
-                    <div class="mb-4 flex items-center justify-between gap-3">
-                      <Tag variant={live ? 'ok' : 'neutral'} dot={live}>
-                        {live ? 'Live' : 'Planned'}
-                      </Tag>
-                      {live && (
-                        <Icon
-                          name="arrow-up-right"
-                          size={15}
-                          class="text-faint group-hover:text-accent transition-colors"
-                        />
-                      )}
-                    </div>
+              <h2 class="group-hover:text-accent mt-4 font-mono text-lg transition-colors">
+                {tool.name}
+              </h2>
+              <p class="text-muted mt-2 flex-1 text-sm leading-relaxed">{tool.summary}</p>
 
-                    <h3 class="group-hover:text-accent font-mono text-base transition-colors">
-                      {tool.name}
-                    </h3>
-                    <p class="text-muted mt-2.5 flex-1 text-sm leading-relaxed">{tool.summary}</p>
-
-                    {tool.offline && (
-                      <p class="text-faint mt-5 font-mono text-[10px] tracking-wide uppercase">
-                        runs offline
-                      </p>
-                    )}
-                  </Panel>
-                </Reveal>
-              );
-            })}
-          </ul>
-        </section>
-      ))
+              {live && (
+                <span class="bg-accent-fill mt-5 h-[3px] w-10 transition-[width] duration-[var(--dur-base)] group-hover:w-16" />
+              )}
+            </Tag>
+          </Reveal>
+        );
+      })
     }
-  </div>
+  </ul>
 </PageLayout>

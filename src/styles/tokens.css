@@ -1,75 +1,108 @@
 /*
  * Design tokens — the single source of truth for the visual system.
  *
- * Rules of the road:
+ * ## Dual theme, equally weighted
+ *
+ * Neither theme is "the design" with the other bolted on. Dark is the
+ * instrument panel; light is the printed spec sheet. Both are authored, both
+ * are tested, and each ships a *contrasting* loading veil (see --veil-*):
+ * the dark theme opens through a light veil, the light theme through a dark
+ * one, so the reveal is a deliberate moment rather than a flash of nothing.
+ *
+ * ## Rules
  *  - Every colour is defined once on bare `:root` (the LIGHT palette).
  *  - The dark palette re-declares ONLY the same token names. No new names.
- *  - Components never hardcode a hex value. They reference `var(--c-*)`
- *    or the Tailwind utilities generated from `@theme` in `global.css`.
+ *  - Components never hardcode a hex value.
  *
- * Palette rationale lives in docs/.temp/DESIGN.md § 5.
+ * Palette derives from measured values off the reference site's own
+ * stylesheets: ink #191919, hazard yellow #fffa00, crimson #be1414.
+ * Rationale in docs/.temp/DESIGN.md § 5.
  */
 
 :root {
-  /* ── Surfaces: back-to-front stacking order ───────────────────────── */
-  --c-ground: #f4f5f7; /* page floor */
-  --c-surface: #ffffff; /* cards, panels */
-  --c-raised: #eceef2; /* hovered/active panel, inset wells */
-  --c-sunken: #e2e5ea; /* code blocks, form fields */
+  /* ── Surfaces ─────────────────────────────────────────────────────── */
+  --c-ground: #f2f2f2; /* page floor — paper */
+  --c-surface: #ffffff;
+  --c-raised: #e9e9e9;
+  --c-sunken: #e2e2e2;
 
   /* ── Lines ────────────────────────────────────────────────────────── */
-  --c-line: #d5d9e0; /* default hairline */
-  --c-line-strong: #b4bbc6; /* emphasised divider */
-  --c-line-faint: #e6e9ee; /* grid backdrop, table rules */
+  --c-line: #d0d0d0;
+  --c-line-strong: #191919;
+  --c-line-faint: #e4e4e4;
 
   /* ── Text ─────────────────────────────────────────────────────────── */
-  --c-text: #14171d; /* primary */
-  --c-text-muted: #565e6c; /* secondary / body de-emphasis */
-  --c-text-faint: #8a929e; /* metadata, timestamps, captions */
+  --c-text: #191919; /* the ink */
+  --c-text-muted: #5c5c5c;
+  --c-text-faint: #8c8c8c;
 
-  /* ── Accent: "corona" amber. The brand signal. Use sparingly. ─────── */
-  --c-accent: #b96900;
-  --c-accent-hover: #9c5900;
-  --c-accent-contrast: #ffffff; /* text ON an accent fill */
-  --c-accent-soft: rgb(185 105 0 / 0.1); /* tinted wash */
-  --c-accent-ring: rgb(185 105 0 / 0.35); /* focus ring, glow */
+  /*
+   * Accent: hazard yellow. On light ground raw #fffa00 is illegible, so text
+   * and strokes use a darkened olive while *fills* keep the pure hue with ink
+   * text on top — the hazard-tape pairing the reference uses.
+   */
+  --c-accent: #7a7500; /* accent as text/stroke on light */
+  --c-accent-fill: #fffa00; /* accent as a fill */
+  --c-accent-on-fill: #191919; /* text on top of an accent fill */
+  --c-accent-soft: rgb(122 117 0 / 0.1);
+  --c-accent-ring: rgb(122 117 0 / 0.4);
 
-  /* ── Secondary: "signal" cyan. Data, links, live indicators. ──────── */
-  --c-signal: #0b7285;
-  --c-signal-soft: rgb(11 114 133 / 0.1);
+  /* ── Alert: crimson. Errors and the single loudest emphasis. ──────── */
+  --c-alert: #be1414;
+  --c-alert-soft: rgb(190 20 20 / 0.1);
 
   /* ── Status ───────────────────────────────────────────────────────── */
   --c-ok: #1a7f45;
   --c-warn: #96650a;
-  --c-danger: #b42332;
+  --c-danger: #be1414;
+
+  /*
+   * Particles: the point cloud reads as ink on paper.
+   *
+   * Light and dark need different values to carry equal weight. A small
+   * antialiased dark dot on a light ground loses most of its ink to partial
+   * pixel coverage, while a white dot on near-black reads as a light source
+   * and looks stronger than its alpha suggests. Measured on the hero, light
+   * needs roughly 25% more radius and higher alpha to match.
+   */
+  --c-particle: #191919;
+  --particle-opacity: 0.92;
+  --particle-size: 1.9;
+
+  /* ── Loading veil: DARK over the light theme (deliberate contrast). ─ */
+  --veil-bg: #0a0a0b;
+  --veil-fg: #f2f2f2;
 
   /* ── Effects ──────────────────────────────────────────────────────── */
-  --c-overlay: rgb(20 23 29 / 0.45); /* modal scrim */
-  --shadow-panel: 0 1px 2px rgb(20 23 29 / 0.06), 0 8px 24px -12px rgb(20 23 29 / 0.14);
-  --shadow-lift: 0 2px 4px rgb(20 23 29 / 0.08), 0 16px 40px -16px rgb(20 23 29 / 0.2);
-  --grid-alpha: 0.5; /* backdrop grid opacity multiplier */
+  --c-overlay: rgb(25 25 25 / 0.5);
+  --shadow-panel: 0 1px 2px rgb(25 25 25 / 0.05), 0 8px 24px -14px rgb(25 25 25 / 0.14);
+  --shadow-lift: 0 2px 4px rgb(25 25 25 / 0.07), 0 18px 44px -18px rgb(25 25 25 / 0.2);
+  --grid-alpha: 0.55;
   --noise-alpha: 0.02;
+  --bloom-alpha: 0.05;
 
   /* ── Geometry ─────────────────────────────────────────────────────── */
   --r-sm: 2px;
   --r-md: 4px;
   --r-lg: 8px;
-  --r-xl: 14px;
   --hairline: 1px;
 
-  /* Content measure + gutters. Shared by the shell and every section. */
-  --shell-max: 88rem; /* 1408px — the outer frame */
-  --content-max: 72rem; /* 1152px — standard content column */
-  --prose-max: 42rem; /* 672px — long-form reading measure */
+  /** Fixed sidebar width at >=lg. Content is offset by exactly this. */
+  --rail-w: 16.25rem;
+
+  --shell-max: 88rem;
+  --content-max: 68rem;
+  --prose-max: 36rem; /* deliberately narrow — one paragraph, not an essay */
   --gutter: 1.25rem;
 
   /* ── Motion ───────────────────────────────────────────────────────── */
-  --ease-out: cubic-bezier(0.16, 1, 0.3, 1); /* decelerate — entrances */
-  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1); /* symmetric — moves */
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
   --dur-fast: 120ms;
   --dur-base: 220ms;
   --dur-slow: 420ms;
   --dur-reveal: 700ms;
+  --dur-veil: 900ms;
 }
 
 @media (min-width: 48rem) {
@@ -80,83 +113,100 @@
 
 @media (min-width: 80rem) {
   :root {
-    --gutter: 3rem;
+    --gutter: 3.5rem;
   }
 }
 
 /*
  * DARK PALETTE
- * Applied when the user has chosen dark explicitly, or when they are on the
- * "system" default (no data-theme attribute) and their OS prefers dark.
- * Dark is the site's *design intent*; light is the well-supported alternate.
+ * Applied on an explicit dark choice, or on the "system" default when the OS
+ * prefers dark. Guarded so an explicit light choice always wins.
  */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme='light']) {
-    --c-ground: #070809;
-    --c-surface: #0d0f13;
-    --c-raised: #14171d;
-    --c-sunken: #0a0c0f;
+    --c-ground: #0a0a0b;
+    --c-surface: #131315;
+    --c-raised: #1c1c1f;
+    --c-sunken: #070708;
 
-    --c-line: #21262f;
-    --c-line-strong: #333a46;
-    --c-line-faint: #171b22;
+    --c-line: #2a2a2e;
+    --c-line-strong: #4a4a51;
+    --c-line-faint: #1a1a1d;
 
-    --c-text: #e8eaed;
-    --c-text-muted: #99a1ad;
-    --c-text-faint: #6b7280;
+    --c-text: #f5f5f5;
+    --c-text-muted: #a0a0a6;
+    --c-text-faint: #6e6e75;
 
-    --c-accent: #ffa62b;
-    --c-accent-hover: #ffbc5c;
-    --c-accent-contrast: #140d00;
-    --c-accent-soft: rgb(255 166 43 / 0.12);
-    --c-accent-ring: rgb(255 166 43 / 0.4);
+    /* On near-black the pure hazard hue is legible as text — use it raw. */
+    --c-accent: #fffa00;
+    --c-accent-fill: #fffa00;
+    --c-accent-on-fill: #191919;
+    --c-accent-soft: rgb(255 250 0 / 0.1);
+    --c-accent-ring: rgb(255 250 0 / 0.45);
 
-    --c-signal: #3ddcff;
-    --c-signal-soft: rgb(61 220 255 / 0.12);
+    --c-alert: #ff3b3b;
+    --c-alert-soft: rgb(255 59 59 / 0.12);
 
     --c-ok: #4ade80;
     --c-warn: #fbbf24;
-    --c-danger: #ff5f6d;
+    --c-danger: #ff3b3b;
 
-    --c-overlay: rgb(3 4 5 / 0.7);
-    --shadow-panel: 0 1px 0 rgb(255 255 255 / 0.03) inset, 0 12px 32px -16px rgb(0 0 0 / 0.9);
-    --shadow-lift: 0 1px 0 rgb(255 255 255 / 0.05) inset, 0 24px 56px -20px rgb(0 0 0 / 1);
+    --c-particle: #ffffff;
+    --particle-opacity: 0.85;
+    --particle-size: 1.8;
+
+    /* Loading veil: LIGHT over the dark theme. */
+    --veil-bg: #f2f2f2;
+    --veil-fg: #191919;
+
+    --c-overlay: rgb(0 0 0 / 0.72);
+    --shadow-panel: 0 1px 0 rgb(255 255 255 / 0.04) inset, 0 12px 32px -18px rgb(0 0 0 / 0.9);
+    --shadow-lift: 0 1px 0 rgb(255 255 255 / 0.06) inset, 0 24px 56px -22px rgb(0 0 0 / 1);
     --grid-alpha: 1;
-    --noise-alpha: 0.035;
+    --noise-alpha: 0.04;
+    --bloom-alpha: 0.5;
   }
 }
 
 /* Explicit dark choice must beat the light default in both directions. */
 :root[data-theme='dark'] {
-  --c-ground: #070809;
-  --c-surface: #0d0f13;
-  --c-raised: #14171d;
-  --c-sunken: #0a0c0f;
+  --c-ground: #0a0a0b;
+  --c-surface: #131315;
+  --c-raised: #1c1c1f;
+  --c-sunken: #070708;
 
-  --c-line: #21262f;
-  --c-line-strong: #333a46;
-  --c-line-faint: #171b22;
+  --c-line: #2a2a2e;
+  --c-line-strong: #4a4a51;
+  --c-line-faint: #1a1a1d;
 
-  --c-text: #e8eaed;
-  --c-text-muted: #99a1ad;
-  --c-text-faint: #6b7280;
+  --c-text: #f5f5f5;
+  --c-text-muted: #a0a0a6;
+  --c-text-faint: #6e6e75;
 
-  --c-accent: #ffa62b;
-  --c-accent-hover: #ffbc5c;
-  --c-accent-contrast: #140d00;
-  --c-accent-soft: rgb(255 166 43 / 0.12);
-  --c-accent-ring: rgb(255 166 43 / 0.4);
+  --c-accent: #fffa00;
+  --c-accent-fill: #fffa00;
+  --c-accent-on-fill: #191919;
+  --c-accent-soft: rgb(255 250 0 / 0.1);
+  --c-accent-ring: rgb(255 250 0 / 0.45);
 
-  --c-signal: #3ddcff;
-  --c-signal-soft: rgb(61 220 255 / 0.12);
+  --c-alert: #ff3b3b;
+  --c-alert-soft: rgb(255 59 59 / 0.12);
 
   --c-ok: #4ade80;
   --c-warn: #fbbf24;
-  --c-danger: #ff5f6d;
+  --c-danger: #ff3b3b;
 
-  --c-overlay: rgb(3 4 5 / 0.7);
-  --shadow-panel: 0 1px 0 rgb(255 255 255 / 0.03) inset, 0 12px 32px -16px rgb(0 0 0 / 0.9);
-  --shadow-lift: 0 1px 0 rgb(255 255 255 / 0.05) inset, 0 24px 56px -20px rgb(0 0 0 / 1);
+  --c-particle: #ffffff;
+  --particle-opacity: 0.85;
+  --particle-size: 1.8;
+
+  --veil-bg: #f2f2f2;
+  --veil-fg: #191919;
+
+  --c-overlay: rgb(0 0 0 / 0.72);
+  --shadow-panel: 0 1px 0 rgb(255 255 255 / 0.04) inset, 0 12px 32px -18px rgb(0 0 0 / 0.9);
+  --shadow-lift: 0 1px 0 rgb(255 255 255 / 0.06) inset, 0 24px 56px -22px rgb(0 0 0 / 1);
   --grid-alpha: 1;
-  --noise-alpha: 0.035;
+  --noise-alpha: 0.04;
+  --bloom-alpha: 0.5;
 }

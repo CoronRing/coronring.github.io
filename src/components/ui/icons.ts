@@ -17,6 +17,7 @@ export type IconName =
   | 'rss'
   | 'arrow-right'
   | 'arrow-up-right'
+  | 'arrow-left'
   | 'menu'
   | 'close'
   | 'sun'
@@ -25,7 +26,12 @@ export type IconName =
   | 'copy'
   | 'check'
   | 'terminal'
-  | 'sparkle';
+  | 'sparkle'
+  // Sidebar navigation
+  | 'home'
+  | 'grid'
+  | 'file-text'
+  | 'book';
 
 /** Stroke-based paths, rendered with `fill="none"`. */
 export const STROKE_ICONS: Partial<Record<IconName, string>> = {
@@ -33,6 +39,13 @@ export const STROKE_ICONS: Partial<Record<IconName, string>> = {
   rss: 'M5 19a1 1 0 1 0 0-2 1 1 0 0 0 0 2ZM5 11a8 8 0 0 1 8 8M5 5a14 14 0 0 1 14 14',
   'arrow-right': 'M4 12h15m-6-6 6 6-6 6',
   'arrow-up-right': 'M7 17 17 7M8 7h9v9',
+  'arrow-left': 'M20 12H5m6-6-6 6 6 6',
+
+  // Sidebar navigation — drawn to read at 18px in a vertical stack.
+  home: 'M4 10.5 12 4l8 6.5V19a1 1 0 0 1-1 1h-4v-6H9v6H5a1 1 0 0 1-1-1v-8.5Z',
+  grid: 'M4 4h6v6H4V4Zm10 0h6v6h-6V4ZM4 14h6v6H4v-6Zm10 0h6v6h-6v-6Z',
+  'file-text': 'M6 3h8l4 4v14H6V3Zm8 0v4h4M9 12h6M9 16h6',
+  book: 'M4 5.5A1.5 1.5 0 0 1 5.5 4H19v14H5.5A1.5 1.5 0 0 0 4 19.5v-14ZM4 19.5A1.5 1.5 0 0 1 5.5 18H19v2.5H5.5A1.5 1.5 0 0 1 4 19.5Z',
   menu: 'M4 7h16M4 12h16M4 17h16',
   close: 'm6 6 12 12M18 6 6 18',
   sun: 'M12 4V2m0 20v-2m8-8h2M2 12h2m13.66-5.66 1.41-1.41M4.93 19.07l1.41-1.41m11.32 0 1.41 1.41M4.93 4.93l1.41 1.41M16 12a4 4 0 1 1-8 0 4 4 0 0 1 8 0Z',

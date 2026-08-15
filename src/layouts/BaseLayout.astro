@@ -2,18 +2,25 @@
 /**
  * BaseLayout — the document shell. Every route renders through this.
  *
- * Responsibilities: <head> metadata, font loading, the pre-paint theme script,
- * the fixed backdrop, header, `<main>` landmark, and footer. Pages supply only
- * their content and a small metadata object.
+ * Owns: <head> metadata, font loading, the pre-paint theme script, the
+ * contrast veil, the fixed backdrop, the navigation rail, the `<main>`
+ * landmark, and the footer. Pages supply only content and metadata.
+ *
+ * Layout model: the rail is `position: fixed`, and everything else is pushed
+ * right by `.rail-offset` (a padding equal to `--rail-w` at >=lg, zero below).
+ * Keeping the offset in CSS rather than a flex wrapper means page markup is
+ * completely independent of the shell.
  */
 import '@fontsource-variable/inter';
 import '@fontsource-variable/jetbrains-mono';
+import '@fontsource-variable/archivo/wdth.css';
 import '../styles/global.css';
 
 import { SITE } from '../data/site';
 import { absolute } from '../lib/url';
+import Veil from '../components/layout/Veil.astro';
 import Backdrop from '../components/decor/Backdrop.astro';
-import Header from '../components/layout/Header.astro';
+import Sidebar from '../components/layout/Sidebar.astro';
 import Footer from '../components/layout/Footer.astro';
 
 interface Props {
@@ -65,8 +72,8 @@ const ogImage = absolute(image, SITE.url);
     {
       /*
       Runs before first paint so the stored theme is applied with no flash.
-      Inlined on purpose: an external module would arrive too late.
-      Kept tiny and dependency-free — it mirrors `src/lib/theme.ts`.
+      Inlined on purpose: an external module would arrive too late. Kept tiny
+      and dependency-free — it mirrors `src/lib/theme.ts`.
     */
     }
     <script is:inline>
@@ -84,14 +91,17 @@ const ogImage = absolute(image, SITE.url);
     </script>
   </head>
 
-  <body class="flex min-h-dvh flex-col">
+  <body class="min-h-dvh">
+    <Veil />
     <Backdrop />
-    <Header />
+    <Sidebar />
 
-    <main id="main" class="flex-1">
-      <slot />
-    </main>
-
-    <Footer />
+    <!-- Offset from the fixed rail; top padding clears the mobile bar. -->
+    <div class="rail-offset flex min-h-dvh flex-col pt-14 lg:pt-0">
+      <main id="main" class="flex-1">
+        <slot />
+      </main>
+      <Footer />
+    </div>
   </body>
 </html>

@@ -10,7 +10,12 @@ Astro 5 (static) · React 19 islands · TypeScript (strict) · Tailwind CSS v4 �
 MDX content collections · GitHub Pages via Actions.
 
 Zero JavaScript ships by default. Only components that need interactivity
-hydrate, and most of them wait until they scroll into view.
+hydrate, and most wait until they scroll into view.
+
+The hero runs an interactive particle corona on `<canvas>`, powered by the
+[SenseRing](../SenseRing) `particle_wave` engine (vendored in `src/vendor/`).
+Dual theme throughout — dark is the instrument panel, light the printed spec
+sheet — each opening through a loading veil in the _opposite_ tone.
 
 ## Getting started
 
@@ -39,7 +44,9 @@ src/
 ├── layouts/     BaseLayout · PageLayout · ToolLayout
 ├── lib/         url · theme · tokens · format
 ├── pages/       Routes
-└── styles/      tokens.css · global.css
+├── styles/      tokens.css · global.css
+└── vendor/      particle-wave (from SenseRing) + local .d.ts
+scripts/         generate-cloud.mjs → public/clouds/corona.pwcloud
 ```
 
 ## Adding things
@@ -57,6 +64,10 @@ project's frontmatter.
 **A resume entry** — a Markdown file in `src/content/experience/` with `kind`
 set to `work`, `education`, `award`, or `certification`. Omit `end` for a
 current role.
+
+**A particle shape** — edit `scripts/generate-cloud.mjs` and re-run it. The
+seed is fixed so rebuilds are byte-identical; change it only to reshape the
+art.
 
 ## Design system
 

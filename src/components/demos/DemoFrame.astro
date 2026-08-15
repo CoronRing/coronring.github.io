@@ -2,18 +2,17 @@
 /**
  * DemoFrame — chrome around an interactive demo island.
  *
- * Gives every demo the same window-like presentation (title bar, status light,
+ * Gives every demo the same window presentation (title bar, status light,
  * bordered stage) so the gallery reads as one product rather than N widgets.
  *
- * Hydration is `client:visible`: a demo below the fold costs nothing until the
- * visitor scrolls to it.
+ * Hydration is `client:visible`: a demo below the fold costs nothing until
+ * the visitor scrolls to it.
  *
  * The name-to-component mapping is an explicit branch per demo rather than a
  * lookup table — see the note in `./registry.ts` for why that is required.
  */
 import { isDemoName } from './registry';
 import PlaceholderDemo from './PlaceholderDemo';
-import Panel from '../ui/Panel.astro';
 
 interface Props {
   /** Registry key from project frontmatter. */
@@ -33,7 +32,7 @@ if (!isDemoName(demo)) {
 }
 ---
 
-<Panel tone="raised" pad="none" class="overflow-hidden">
+<div class="border-line bg-surface overflow-hidden border">
   <!-- Title bar -->
   <div class="border-line bg-raised flex items-center gap-3 border-b px-4 py-2.5">
     <span aria-hidden="true" class="flex gap-1.5">
@@ -49,7 +48,7 @@ if (!isDemoName(demo)) {
   </div>
 
   <!-- Stage -->
-  <div class="bg-surface">
+  <div>
     {demo === 'placeholder' && <PlaceholderDemo client:visible title={title} />}
   </div>
-</Panel>
+</div>

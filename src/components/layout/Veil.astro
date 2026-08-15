@@ -1,0 +1,108 @@
+---
+/**
+ * Veil — the contrast-wipe loading screen.
+ *
+ * The whole point is tonal opposition: the dark theme opens through a *light*
+ * veil, the light theme through a *dark* one (`--veil-bg` / `--veil-fg` flip
+ * with the palette in tokens.css). The reveal reads as a deliberate curtain
+ * rather than a fade-in from the page's own background.
+ *
+ * Three behaviours that keep it from becoming an annoyance:
+ *
+ *  1. **Fails open.** The element is `hidden` in the markup and only unhidden
+ *     by the inline pre-paint script. No JS, no veil, content visible.
+ *  2. **Once per session.** This is a multi-page app — veiling on every
+ *     internal navigation would be intolerable. A sessionStorage flag limits
+ *     it to the first page view of a visit.
+ *  3. **Floor and ceiling.** A ~500ms floor stops it strobing on a warm cache;
+ *     a 2.5s ceiling guarantees it lifts even if `load` never fires.
+ *
+ * `prefers-reduced-motion` skips it entirely — a full-screen wipe is exactly
+ * the kind of motion that setting is asking us not to do.
+ */
+---
+
+<div id="veil" class="veil" role="status" aria-live="polite" aria-label="Loading" hidden>
+  <div class="veil-inner flex flex-col items-center gap-6">
+    <!-- The CoronRing mark: an open ring with a solid core. -->
+    <svg width="44" height="44" viewBox="0 0 44 44" fill="none" aria-hidden="true">
+      <circle cx="22" cy="22" r="19" stroke="currentColor" stroke-width="1" opacity="0.25"></circle>
+      <circle
+        cx="22"
+        cy="22"
+        r="19"
+        stroke="currentColor"
+        stroke-width="1.5"
+        stroke-linecap="round"
+        stroke-dasharray="30 90"
+      >
+        <animateTransform
+          attributeName="transform"
+          type="rotate"
+          from="0 22 22"
+          to="360 22 22"
+          dur="1.1s"
+          repeatCount="indefinite"></animateTransform>
+      </circle>
+      <circle cx="22" cy="22" r="4" fill="currentColor"></circle>
+    </svg>
+
+    <span class="font-mono text-[10px] tracking-[0.32em] uppercase opacity-70">CoronRing</span>
+    <div class="veil-bar" aria-hidden="true"></div>
+  </div>
+</div>
+
+<script is:inline>
+  (function () {
+    var KEY = 'coronring:veiled';
+    var el = document.getElementById('veil');
+    if (!el) return;
+
+    // Respect reduced-motion, and only veil the first view of a session.
+    var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    var seen = false;
+    try {
+      seen = sessionStorage.getItem(KEY) === '1';
+    } catch (e) {
+      /* Private mode: treat as unseen; the floor/ceiling still bound it. */
+    }
+
+    if (reduce || seen) {
+      el.remove();
+      return;
+    }
+
+    el.hidden = false;
+    document.documentElement.style.overflow = 'hidden';
+
+    var start = Date.now();
+    var MIN = 500;
+    var MAX = 2500;
+    var lifted = false;
+
+    function lift() {
+      if (lifted) return;
+      lifted = true;
+      try {
+        sessionStorage.setItem(KEY, '1');
+      } catch (e) {
+        /* Nothing to persist; the veil simply shows again next navigation. */
+      }
+      el.setAttribute('data-done', 'true');
+      document.documentElement.style.overflow = '';
+      // Remove after the transition so it can never trap focus or clicks.
+      setTimeout(function () {
+        el.remove();
+      }, 1000);
+    }
+
+    function scheduleLift() {
+      setTimeout(lift, Math.max(0, MIN - (Date.now() - start)));
+    }
+
+    if (document.readyState === 'complete') scheduleLift();
+    else window.addEventListener('load', scheduleLift, { once: true });
+
+    setTimeout(lift, MAX);
+  })();
+</script>

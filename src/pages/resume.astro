@@ -1,17 +1,15 @@
 ---
 /**
- * Resume — experience, education, and achievements on one timeline.
+ * Resume — experience, education, achievements, certifications.
  *
- * Grouped by `kind` so the page reads as sections, but every entry shares one
- * row component. Ordered newest-first within each group.
+ * A single hairline-separated timeline rather than a stack of cards. Cards
+ * imply each entry is a destination; a resume is a list you scan top to
+ * bottom, and borders between every row are visual noise.
  */
 import { getCollection, type CollectionEntry } from 'astro:content';
 import PageLayout from '../layouts/PageLayout.astro';
-import Panel from '../components/ui/Panel.astro';
-import Tag from '../components/ui/Tag.astro';
-import Button from '../components/ui/Button.astro';
-import Reveal from '../components/ui/Reveal.astro';
 import Icon from '../components/ui/Icon.astro';
+import Reveal from '../components/ui/Reveal.astro';
 import { monthYear } from '../lib/format';
 
 type Entry = CollectionEntry<'experience'>;
@@ -27,10 +25,10 @@ function byRecency(a: Entry, b: Entry): number {
 }
 
 const SECTIONS = [
-  { kind: 'work', index: '01', title: 'Experience' },
-  { kind: 'education', index: '02', title: 'Education' },
-  { kind: 'award', index: '03', title: 'Achievements' },
-  { kind: 'certification', index: '04', title: 'Certifications' },
+  { kind: 'work', title: 'Experience' },
+  { kind: 'education', title: 'Education' },
+  { kind: 'award', title: 'Achievements' },
+  { kind: 'certification', title: 'Certifications' },
 ] as const;
 
 const grouped = SECTIONS.map((section) => ({
@@ -40,95 +38,68 @@ const grouped = SECTIONS.map((section) => ({
 
 function period(entry: Entry): string {
   const start = monthYear(entry.data.start);
-  const end = entry.data.end ? monthYear(entry.data.end) : 'Present';
-  return `${start} — ${end}`;
+  return `${start} — ${entry.data.end ? monthYear(entry.data.end) : 'Present'}`;
 }
 ---
 
 <PageLayout
-  index="02"
   eyebrow="Resume"
   title="Resume"
   description="Experience, education, achievements, and certifications."
-  lede="The condensed version. For the long version, the projects page has the actual artifacts."
+  lede="The condensed version. The projects page has the actual artifacts."
 >
-  <Button
+  <a
     slot="action"
     href="/resume.pdf"
-    variant="secondary"
-    size="sm"
-    icon="arrow-up-right"
-    external
+    class="border-line hover:border-fg inline-flex h-10 items-center gap-2 border px-4 text-sm transition-colors"
   >
     Download PDF
-  </Button>
+    <Icon name="arrow-up-right" size={14} />
+  </a>
 
   {
     grouped.length > 0 ? (
-      <div class="space-y-20">
+      <div class="space-y-16">
         {grouped.map((section) => (
-          <section aria-labelledby={`section-${section.kind}`}>
-            <div class="mb-8 flex items-center gap-3">
-              <span class="eyebrow text-accent tabular">{section.index}</span>
-              <h2 id={`section-${section.kind}`} class="text-xl">
-                {section.title}
-              </h2>
-              <span aria-hidden="true" class="bg-line h-px flex-1" />
-              <span class="text-faint font-mono text-[11px]">{section.entries.length}</span>
-            </div>
+          <section aria-labelledby={`s-${section.kind}`}>
+            <h2 id={`s-${section.kind}`} class="eyebrow eyebrow-marked">
+              {section.title}
+            </h2>
 
-            <ul class="space-y-4">
+            <ul class="divide-line mt-6 divide-y">
               {section.entries.map((entry, i) => (
-                <Reveal as="li" delay={i * 60}>
-                  <Panel pad="lg">
-                    <div class="flex flex-col gap-1 sm:flex-row sm:items-baseline sm:justify-between sm:gap-6">
-                      <div class="min-w-0">
-                        <h3 class="text-lg">{entry.data.role}</h3>
-                        <p class="text-accent mt-1 text-sm">{entry.data.organization}</p>
-                      </div>
-                      <div class="text-faint shrink-0 font-mono text-[11px] sm:text-right">
-                        <p class="tabular">{period(entry)}</p>
-                        {entry.data.location && <p class="mt-1">{entry.data.location}</p>}
-                      </div>
-                    </div>
+                <Reveal as="li" delay={i * 50}>
+                  <div class="grid gap-2 py-7 sm:grid-cols-[10rem_1fr] sm:gap-8">
+                    <p class="text-faint tabular pt-1 font-mono text-[11px]">
+                      {period(entry)}
+                      {entry.data.location && <span class="mt-1 block">{entry.data.location}</span>}
+                    </p>
 
-                    {entry.data.highlights.length > 0 && (
-                      <ul class="text-muted mt-5 space-y-2 text-sm leading-relaxed">
-                        {entry.data.highlights.map((h) => (
-                          <li class="flex gap-3">
-                            <span
-                              aria-hidden="true"
-                              class="bg-accent mt-2 size-1 shrink-0 rounded-full"
-                            />
-                            <span>{h}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    )}
+                    <div>
+                      <h3 class="text-lg">{entry.data.role}</h3>
+                      <p class="text-accent mt-1 text-sm">{entry.data.organization}</p>
 
-                    {(entry.data.tech.length > 0 || entry.data.links.length > 0) && (
-                      <div class="border-line mt-6 flex flex-wrap items-center gap-x-4 gap-y-2 border-t pt-5">
-                        <ul class="flex flex-wrap gap-1.5">
-                          {entry.data.tech.map((t) => (
-                            <li>
-                              <Tag>{t}</Tag>
+                      {entry.data.highlights.length > 0 && (
+                        <ul class="text-muted mt-4 space-y-2 text-sm leading-relaxed">
+                          {entry.data.highlights.map((h) => (
+                            <li class="flex gap-3">
+                              <span
+                                aria-hidden="true"
+                                class="bg-accent-fill mt-[0.5em] size-1 shrink-0"
+                              />
+                              <span>{h}</span>
                             </li>
                           ))}
                         </ul>
-                        {entry.data.links.map((link) => (
-                          <a
-                            href={link.href}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            class="text-muted hover:text-accent inline-flex items-center gap-1 font-mono text-[11px] transition-colors"
-                          >
-                            {link.label}
-                            <Icon name="arrow-up-right" size={11} />
-                          </a>
-                        ))}
-                      </div>
-                    )}
-                  </Panel>
+                      )}
+
+                      {entry.data.tech.length > 0 && (
+                        <p class="text-faint mt-4 font-mono text-[10px] tracking-wide uppercase">
+                          {entry.data.tech.join(' · ')}
+                        </p>
+                      )}
+                    </div>
+                  </div>
                 </Reveal>
               ))}
             </ul>
@@ -136,14 +107,10 @@ function period(entry: Entry): string {
         ))}
       </div>
     ) : (
-      <Panel tone="inset" pad="lg">
-        <p class="text-muted text-sm">
-          No entries yet. Add Markdown files under{' '}
-          <code class="text-accent font-mono">src/content/experience/</code> with a{' '}
-          <code class="text-accent font-mono">kind</code> of work, education, award, or
-          certification.
-        </p>
-      </Panel>
+      <p class="text-muted text-sm">
+        No entries yet. Add Markdown files under{' '}
+        <code class="text-accent font-mono">src/content/experience/</code>.
+      </p>
     )
   }
 </PageLayout>

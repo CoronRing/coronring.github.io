@@ -2,24 +2,36 @@
 /**
  * Backdrop — the fixed atmospheric layer behind all page content.
  *
- * Three stacked, purely decorative elements:
- *   1. blueprint grid    — structure, scaled by --grid-alpha per theme
- *   2. corona bloom      — a soft accent glow anchored top-centre
- *   3. film grain        — SVG feTurbulence, kills banding on the gradients
+ * Four stacked decorative elements, back to front:
+ *   1. blueprint grid  — structure, opacity scaled per theme
+ *   2. aurora bloom    — the soft off-axis colour wash in the reference's
+ *                        top-right corner; near-invisible in light, present
+ *                        in dark (`--bloom-alpha`)
+ *   3. horizon rule    — a single full-bleed hairline, the reference's most
+ *                        recognisable piece of page furniture
+ *   4. film grain      — SVG turbulence, kills banding across the bloom
  *
- * Fixed + `pointer-events-none` + aria-hidden: it never intercepts input and
- * never reaches the accessibility tree. Rendered once, in BaseLayout.
+ * Fixed, `pointer-events-none`, and `aria-hidden`: it never intercepts input
+ * and never reaches the accessibility tree. Rendered once, in BaseLayout.
  */
 ---
 
 <div aria-hidden="true" class="pointer-events-none fixed inset-0 -z-10 overflow-hidden">
-  <div class="grid-backdrop mask-radial absolute inset-0"></div>
+  <div class="grid-backdrop absolute inset-0"></div>
 
+  <!-- Aurora bloom, anchored off the top-right corner. -->
   <div
-    class="absolute top-[-30vh] left-1/2 h-[70vh] w-[110vw] -translate-x-1/2 opacity-[0.45]"
-    style="background: radial-gradient(ellipse at 50% 50%, var(--c-accent-soft) 0%, transparent 65%);"
+    class="absolute top-[-25vh] right-[-15vw] h-[80vh] w-[70vw]"
+    style="opacity: var(--bloom-alpha); background:
+      radial-gradient(closest-side at 60% 40%, #2b6cb0 0%, transparent 70%),
+      radial-gradient(closest-side at 35% 60%, #7a3fa8 0%, transparent 70%),
+      radial-gradient(closest-side at 55% 75%, #1f7a63 0%, transparent 72%);
+      filter: blur(60px);"
   >
   </div>
+
+  <!-- Horizon: one hairline across the full width. -->
+  <div class="bg-line absolute inset-x-0 top-[46vh] h-px opacity-60"></div>
 
   <svg class="absolute inset-0 h-full w-full" style="opacity: var(--noise-alpha);">
     <filter id="grain">

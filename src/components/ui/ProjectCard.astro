@@ -1,0 +1,92 @@
+---
+/**
+ * ProjectCard — the single card used everywhere a project is listed.
+ *
+ * Visual-first: the generated cover panel occupies the top two-thirds, so a
+ * grid of these reads as a gallery rather than a list of paragraphs. Text is
+ * capped at a title plus one summary line; the detail page carries the rest.
+ *
+ * One component for both the home page and the projects index — a second
+ * card variant is how two grids start looking like two different sites.
+ */
+import type { CollectionEntry } from 'astro:content';
+import CoverArt from './CoverArt.astro';
+import Icon from './Icon.astro';
+import { href } from '../../lib/url';
+
+interface Props {
+  project: CollectionEntry<'projects'>;
+}
+
+const { project } = Astro.props;
+const { data } = project;
+
+const STATUS_LABEL = {
+  live: 'Live',
+  'in-progress': 'In progress',
+  archived: 'Archived',
+} as const;
+---
+
+<a
+  href={href(`/projects/${project.id}`)}
+  class="group border-line bg-surface hover:border-fg relative flex h-full flex-col overflow-hidden border transition-colors duration-[var(--dur-base)]"
+>
+  <!-- Cover -->
+  <div class="text-fg bg-sunken relative aspect-[16/9] overflow-hidden">
+    <div
+      class="size-full opacity-70 transition-[opacity,transform] duration-[var(--dur-slow)] ease-[var(--ease-out)] group-hover:scale-[1.03] group-hover:opacity-100"
+    >
+      <CoverArt seed={project.id} />
+    </div>
+
+    {
+      data.interactive && (
+        <span class="bg-accent-fill text-accent-on-fill absolute top-3 left-3 px-2 py-1 font-mono text-[10px] font-semibold tracking-wide uppercase">
+          Interactive
+        </span>
+      )
+    }
+  </div>
+
+  <!-- Body -->
+  <div class="flex flex-1 flex-col p-5">
+    <div class="text-faint flex items-center gap-2 font-mono text-[10px] tracking-wide uppercase">
+      <span
+        class:list={[
+          'size-1.5 rounded-full',
+          data.status === 'live'
+            ? 'bg-ok'
+            : data.status === 'in-progress'
+              ? 'bg-warn'
+              : 'bg-line-strong',
+        ]}
+        aria-hidden="true"></span>
+      {STATUS_LABEL[data.status]}
+      {data.period && <span class="text-line-strong">·</span>}
+      {data.period && <span>{data.period}</span>}
+    </div>
+
+    <h3 class="display group-hover:text-accent mt-3 text-2xl transition-colors">
+      {data.title}
+    </h3>
+
+    {
+      /* No line clamp: the schema caps summaries at 180 chars, so they fit —
+        and clamping truncated mid-sentence, which reads worse than one extra
+        line. Card heights are equalised by the grid, not by the text. */
+    }
+    <p class="text-muted mt-2.5 flex-1 text-sm leading-relaxed">{data.summary}</p>
+
+    <div class="border-line mt-5 flex items-center justify-between border-t pt-4">
+      <ul class="text-faint flex gap-2 font-mono text-[10px] uppercase">
+        {data.tech.slice(0, 3).map((t) => <li>{t}</li>)}
+      </ul>
+      <Icon
+        name="arrow-up-right"
+        size={15}
+        class="text-faint group-hover:text-accent transition-transform duration-[var(--dur-base)] group-hover:translate-x-0.5 group-hover:-translate-y-0.5"
+      />
+    </div>
+  </div>
+</a>

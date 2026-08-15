@@ -1,0 +1,100 @@
+---
+/**
+ * HudRing — the technical dial that frames the particle cloud.
+ *
+ * Three concentric elements, matching the reference's instrument motif:
+ *   1. a thin true circle,
+ *   2. a ring of radial ticks, every fifth one long (a measuring scale),
+ *   3. four heavy arc segments at the diagonals, which is what makes it read
+ *      as an instrument bezel rather than a clock face.
+ *
+ * Ticks are generated rather than hand-authored so density is one number.
+ * The whole thing is one inline SVG: no request, no layout cost, and it
+ * inherits `currentColor` so it themes for free.
+ */
+interface Props {
+  /** Number of ticks around the full circle. */
+  ticks?: number;
+  /** Slow rotation, in seconds. `0` disables it. */
+  spin?: number;
+  class?: string;
+}
+
+const { ticks = 72, spin = 0, class: className } = Astro.props;
+
+/* viewBox is 400x400; geometry is expressed in those units. */
+const CX = 200;
+const CY = 200;
+const R_TICK_OUTER = 186;
+const R_CIRCLE = 158;
+
+const marks = Array.from({ length: ticks }, (_, i) => {
+  const major = i % 5 === 0;
+  const angle = (i / ticks) * Math.PI * 2 - Math.PI / 2;
+  const len = major ? 15 : 8;
+  const inner = R_TICK_OUTER - len;
+  return {
+    major,
+    x1: CX + Math.cos(angle) * inner,
+    y1: CY + Math.sin(angle) * inner,
+    x2: CX + Math.cos(angle) * R_TICK_OUTER,
+    y2: CY + Math.sin(angle) * R_TICK_OUTER,
+  };
+});
+
+/** Path for one heavy bezel arc, centred on `midDeg` and spanning `spanDeg`. */
+function arc(midDeg: number, spanDeg: number, r: number): string {
+  const a0 = ((midDeg - spanDeg / 2) * Math.PI) / 180;
+  const a1 = ((midDeg + spanDeg / 2) * Math.PI) / 180;
+  const large = spanDeg > 180 ? 1 : 0;
+  return [
+    `M ${(CX + Math.cos(a0) * r).toFixed(2)} ${(CY + Math.sin(a0) * r).toFixed(2)}`,
+    `A ${r} ${r} 0 ${large} 1 ${(CX + Math.cos(a1) * r).toFixed(2)} ${(CY + Math.sin(a1) * r).toFixed(2)}`,
+  ].join(' ');
+}
+
+const bezels = [135, 225, 315, 45].map((deg) => arc(deg, 46, 178));
+---
+
+<svg
+  viewBox="0 0 400 400"
+  fill="none"
+  aria-hidden="true"
+  class:list={['size-full', className]}
+  style={spin
+    ? `animation: hud-spin ${spin}s linear infinite; transform-origin: 50% 50%;`
+    : undefined}
+>
+  <!-- Inner circle -->
+  <circle cx={CX} cy={CY} r={R_CIRCLE} stroke="currentColor" stroke-width="1" opacity="0.28"
+  ></circle>
+
+  <!-- Measuring ticks -->
+  <g stroke="currentColor" stroke-linecap="butt">
+    {
+      marks.map((m) => (
+        <line
+          x1={m.x1.toFixed(2)}
+          y1={m.y1.toFixed(2)}
+          x2={m.x2.toFixed(2)}
+          y2={m.y2.toFixed(2)}
+          stroke-width={m.major ? 1.6 : 1}
+          opacity={m.major ? 0.55 : 0.28}
+        />
+      ))
+    }
+  </g>
+
+  <!-- Heavy bezel arcs at the diagonals -->
+  <g stroke="currentColor" stroke-width="5" stroke-linecap="butt" opacity="0.42">
+    {bezels.map((d) => <path d={d} />)}
+  </g>
+</svg>
+
+<style is:global>
+  @keyframes hud-spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+</style>

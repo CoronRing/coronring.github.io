@@ -1,0 +1,124 @@
+---
+/**
+ * CoverArt — a deterministic generative SVG panel used as a project cover.
+ *
+ * Real screenshots are better than generated art, and this yields to one the
+ * moment a project supplies a `cover` image. Until then it beats the two
+ * alternatives: an empty grey box says nothing, and a stock photo says
+ * something untrue.
+ *
+ * The composition is seeded from the project's slug, so a given project
+ * always draws the same panel — stable across rebuilds, and visually distinct
+ * from its neighbours in a grid. Everything is drawn in `currentColor` plus
+ * the accent token, so it themes with the page.
+ */
+interface Props {
+  /** Seed. The same string always yields the same panel. */
+  seed: string;
+  class?: string;
+}
+
+const { seed, class: className } = Astro.props;
+
+/** FNV-1a: tiny, stable, and well-distributed for short strings. */
+function hash(input: string): number {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < input.length; i += 1) {
+    h ^= input.charCodeAt(i);
+    h = Math.imul(h, 0x01000193);
+  }
+  return h >>> 0;
+}
+
+/** Deterministic PRNG seeded from the hash, so all draws derive from `seed`. */
+function makeRandom(s: number): () => number {
+  let a = s >>> 0;
+  return () => {
+    a = (a + 0x6d2b79f5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+const rand = makeRandom(hash(seed));
+
+const W = 400;
+const H = 220;
+
+/* Orbit arcs — the recurring ring motif, off-centre so it feels composed. */
+const cx = 90 + rand() * 90;
+const cy = 60 + rand() * 90;
+const orbits = Array.from({ length: 3 }, (_, i) => ({
+  r: 34 + i * 26 + rand() * 10,
+  dash: 5 + Math.floor(rand() * 26),
+  opacity: 0.5 - i * 0.12,
+}));
+
+/* Scanlines — horizontal rules of varying length, right-aligned. */
+const lines = Array.from({ length: 7 }, (_, i) => ({
+  y: 34 + i * 24,
+  w: 40 + rand() * 150,
+}));
+
+/* Nodes — a few accent points sitting on the outer orbit. */
+const outer = orbits[orbits.length - 1]?.r ?? 80;
+const nodes = Array.from({ length: 3 }, () => {
+  const a = rand() * Math.PI * 2;
+  return { x: cx + Math.cos(a) * outer, y: cy + Math.sin(a) * outer, r: 2 + rand() * 2 };
+});
+
+const gridId = `cover-grid-${hash(seed).toString(36)}`;
+---
+
+<svg
+  viewBox={`0 0 ${W} ${H}`}
+  preserveAspectRatio="xMidYMid slice"
+  fill="none"
+  aria-hidden="true"
+  class:list={['size-full', className]}
+>
+  <defs>
+    <pattern id={gridId} width="20" height="20" patternUnits="userSpaceOnUse">
+      <path d="M20 0H0V20" stroke="currentColor" stroke-width="0.5" opacity="0.16"></path>
+    </pattern>
+  </defs>
+
+  <rect width={W} height={H} fill={`url(#${gridId})`}></rect>
+
+  <!-- Orbits -->
+  <g stroke="currentColor">
+    {
+      orbits.map((o) => (
+        <circle
+          cx={cx.toFixed(1)}
+          cy={cy.toFixed(1)}
+          r={o.r.toFixed(1)}
+          stroke-width="1"
+          stroke-dasharray={`${o.dash} ${o.dash * 1.6}`}
+          opacity={o.opacity.toFixed(2)}
+        />
+      ))
+    }
+  </g>
+
+  <!-- Core -->
+  <circle cx={cx.toFixed(1)} cy={cy.toFixed(1)} r="3.5" fill="var(--c-accent-fill)"></circle>
+
+  <!-- Accent nodes on the outer orbit -->
+  <g fill="currentColor" opacity="0.65">
+    {nodes.map((n) => <circle cx={n.x.toFixed(1)} cy={n.y.toFixed(1)} r={n.r.toFixed(1)} />)}
+  </g>
+
+  <!-- Scanlines, right-aligned -->
+  <g stroke="currentColor" stroke-width="1" opacity="0.2">
+    {lines.map((l) => <line x1={(W - 24 - l.w).toFixed(1)} y1={l.y} x2={W - 24} y2={l.y} />)}
+  </g>
+
+  <!-- Frame ticks -->
+  <g stroke="currentColor" stroke-width="1.4" opacity="0.5">
+    <path d="M12 12h16M12 12v16"></path>
+    <path d={`M${W - 12} ${H - 12}h-16M${W - 12} ${H - 12}v-16`}></path>
+  </g>
+</svg>

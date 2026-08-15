@@ -1,0 +1,175 @@
+---
+/**
+ * ParticleField — the interactive corona point cloud behind the hero.
+ *
+ * Wraps the vendored SenseRing `particle_wave` engine
+ * (`src/vendor/particle-wave/`, from the SenseRing project). The engine owns
+ * physics, rendering, and pointer interaction; this component owns the parts
+ * that are specific to this site:
+ *
+ *  - **Theming.** Particle colour is read from the live `--c-particle` token
+ *    and re-pushed when the theme changes, so the cloud is ink on paper in
+ *    light and light on void in dark.
+ *  - **Cost control.** Nothing loads until the canvas is near the viewport,
+ *    and the simulation pauses whenever it scrolls away or the tab is hidden.
+ *  - **Graceful absence.** The canvas is decorative. If the engine fails to
+ *    load, the fetch 404s, or JS is off, the page is unaffected.
+ *
+ * Reduced-motion is honoured by rendering one static frame and never starting
+ * the animation loop — the composition survives, the movement doesn't.
+ */
+import { href } from '../../lib/url';
+
+interface Props {
+  /** Path to the `.pwcloud` asset, relative to the site root. */
+  src?: string;
+  class?: string;
+  /** Inline styles forwarded to the wrapper (used for the opacity ramp). */
+  style?: string;
+}
+
+const { src = '/clouds/corona.pwcloud', class: className, style } = Astro.props;
+const cloudUrl = href(src);
+---
+
+<div
+  aria-hidden="true"
+  data-particle-field
+  data-cloud={cloudUrl}
+  style={style}
+  class:list={['pointer-events-none absolute inset-0 overflow-hidden', className]}
+>
+  {
+    /*
+    No fade-in, deliberately. An earlier revision faded the canvas from
+    opacity 0 over 1s, which bought nothing — the canvas is transparent until
+    the first frame paints, so there is no wrong state to hide — and cost a
+    lot: any renderer that freezes the animation clock (headless capture,
+    some low-power modes) samples the canvas mid-fade and leaves the cloud
+    permanently washed out. Measured at ~35% of intended contrast.
+  */
+  }
+  <canvas data-particle-canvas class="size-full"></canvas>
+</div>
+
+<script>
+  import ParticleWave from '../../vendor/particle-wave/particle-wave.js';
+
+  /** Current value of a CSS custom property on :root. */
+  function token(name: string, fallback: string): string {
+    const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+    return v || fallback;
+  }
+
+  async function initField(host: HTMLElement): Promise<void> {
+    const canvas = host.querySelector<HTMLCanvasElement>('[data-particle-canvas]');
+    const src = host.dataset.cloud;
+    if (!canvas || !src) return;
+
+    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    let instance: Awaited<ReturnType<typeof ParticleWave.init>> | null = null;
+    try {
+      instance = await ParticleWave.init(canvas, {
+        src,
+        padding: 0.08,
+        scaleMode: 'fit',
+
+        // Colour, alpha and radius are all theme tokens — see the note on
+        // --particle-size in tokens.css for why the two themes differ.
+        particleColor: token('--c-particle', '#ffffff'),
+        particleOpacity: Number(token('--particle-opacity', '0.85')),
+        particleSize: Number(token('--particle-size', '2.3')),
+        particleSizeWeight: 0.9,
+        particleOpacityWeight: 0.8,
+
+        // Loose spring + heavy damping: the cloud drifts back rather than
+        // snapping, which reads as dust rather than as a rubber sheet.
+        springK: 2.4,
+        damping: 6.5,
+
+        mouseEnabled: !reduce,
+        mouseMode: 'repel',
+        mouseStrength: 46,
+        interactionRadius: 150,
+
+        waveEnabled: !reduce,
+        waveSpeed: 320,
+        waveStrength: 95,
+        rippleCount: 2,
+      });
+    } catch (err) {
+      // Decorative: a failure here must never surface to the visitor.
+      console.warn('[ParticleField] disabled:', err);
+      return;
+    }
+
+    // (no ready flag needed — the canvas is opaque from the start)
+
+    if (reduce) {
+      // Let exactly one frame paint before stopping, otherwise the canvas
+      // stays blank: the engine schedules its first frame in the constructor
+      // and pausing immediately cancels that rAF before it ever runs.
+      requestAnimationFrame(() => requestAnimationFrame(() => instance?.pause()));
+      return;
+    }
+
+    // Pause when off-screen or backgrounded — an invisible rAF loop is pure
+    // battery cost.
+    let onScreen = true;
+    const sync = () => {
+      if (onScreen && !document.hidden) instance?.resume();
+      else instance?.pause();
+    };
+
+    const vis = new IntersectionObserver(
+      ([entry]) => {
+        onScreen = entry?.isIntersecting ?? true;
+        sync();
+      },
+      { rootMargin: '120px' },
+    );
+    vis.observe(host);
+    document.addEventListener('visibilitychange', sync);
+
+    // Re-theme on toggle: `data-theme` flips, or the OS preference changes
+    // while the site is on "system".
+    const retheme = () =>
+      instance?.setConfig({
+        particleColor: token('--c-particle', '#ffffff'),
+        particleOpacity: Number(token('--particle-opacity', '0.85')),
+        particleSize: Number(token('--particle-size', '2.3')),
+      });
+
+    new MutationObserver(retheme).observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['data-theme'],
+    });
+    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', retheme);
+  }
+
+  function mount(): void {
+    document.querySelectorAll<HTMLElement>('[data-particle-field]').forEach((host) => {
+      if (host.dataset.mounted === '1') return;
+      host.dataset.mounted = '1';
+
+      // Defer the 33 kB fetch and the engine until the canvas is close.
+      if (!('IntersectionObserver' in window)) {
+        void initField(host);
+        return;
+      }
+      const io = new IntersectionObserver(
+        (entries) => {
+          if (!entries.some((e) => e.isIntersecting)) return;
+          io.disconnect();
+          void initField(host);
+        },
+        { rootMargin: '200px' },
+      );
+      io.observe(host);
+    });
+  }
+
+  mount();
+  document.addEventListener('astro:page-load', mount);
+</script>

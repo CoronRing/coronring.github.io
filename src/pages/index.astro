@@ -1,240 +1,165 @@
 ---
 /**
- * Home — the "index" page.
+ * Home — the index.
  *
- * Structure (top to bottom):
- *   Hero          — identity, one-sentence positioning, primary CTAs
- *   Capabilities  — three pillars of what "agentic developer" means here
- *   Featured work — pulls `featured: true` projects from the collection
- *   Contact       — closing call to action
+ * Three views, one idea each:
+ *   Hero          — who, in one sentence, over the particle corona
+ *   Capabilities  — a paged carousel; one pillar visible at a time
+ *   Selected work — two cards, no more
+ *
+ * The density budget is deliberate. The previous revision put three buttons,
+ * a four-cell readout, three prose cards and a contact panel on one page; a
+ * visitor read none of it. The persistent call to action lives in the rail,
+ * so the hero needs exactly one.
  */
 import { getCollection } from 'astro:content';
 import BaseLayout from '../layouts/BaseLayout.astro';
-import SectionHeader from '../components/ui/SectionHeader.astro';
-import Panel from '../components/ui/Panel.astro';
-import Button from '../components/ui/Button.astro';
-import Tag from '../components/ui/Tag.astro';
+import ParticleField from '../components/decor/ParticleField.astro';
+import HudRing from '../components/decor/HudRing.astro';
+import Carousel, { type CarouselItem } from '../components/ui/Carousel';
+import ProjectCard from '../components/ui/ProjectCard.astro';
 import Reveal from '../components/ui/Reveal.astro';
 import Icon from '../components/ui/Icon.astro';
-import { SITE } from '../data/site';
 import { href } from '../lib/url';
 
-const featured = (await getCollection('projects', (p) => !p.data.draft && p.data.featured)).sort(
-  (a, b) => a.data.order - b.data.order,
-);
+/** Two at most. The projects page exists for the full list. */
+const featured = (await getCollection('projects', (p) => !p.data.draft && p.data.featured))
+  .sort((a, b) => a.data.order - b.data.order)
+  .slice(0, 2);
 
-/** The positioning statement. Three pillars, kept parallel in structure. */
-const PILLARS = [
+const PILLARS: CarouselItem[] = [
   {
+    id: 'agents',
     index: '01',
     title: 'Agent systems',
-    body: 'Multi-step agents that plan, call tools, and recover from their own failures — with the orchestration, retries, and guardrails that make them survive contact with production.',
+    body: 'Multi-step agents that plan, call tools, and recover from their own failures — with the orchestration and evaluation scaffolding that makes them survive production.',
     tags: ['Tool use', 'Orchestration', 'Evals'],
   },
   {
+    id: 'tooling',
     index: '02',
     title: 'Developer tooling',
-    body: 'The layer underneath the product: CLIs, harnesses, and interfaces that shorten the loop between an idea and a working, measured result.',
+    body: 'The layer underneath the product: CLIs, harnesses, and interfaces that shorten the loop between an idea and a measured result.',
     tags: ['CLI', 'DX', 'Automation'],
   },
   {
+    id: 'nlp',
     index: '03',
     title: 'Applied NLP',
     body: 'Retrieval, extraction, and evaluation pipelines built to be inspected — where every answer traces back to the input that produced it.',
     tags: ['RAG', 'Extraction', 'Benchmarks'],
   },
-] as const;
+];
 ---
 
 <BaseLayout>
-  <!-- ── Hero ──────────────────────────────────────────────────────── -->
-  <section class="relative">
-    <div class="shell flex min-h-[calc(100dvh-4rem)] flex-col justify-center py-20">
-      <Reveal>
-        <div class="mb-6 flex items-center gap-3">
-          <span class="bg-ok size-1.5 animate-pulse rounded-full"></span>
-          <span class="eyebrow">Available for select work</span>
-        </div>
+  {
+    /*
+    ── Hero ─────────────────────────────────────────────────────────
+    Two columns at >=lg: statement left, instrument right. The art and the
+    words must not stack — an earlier revision centred the corona behind the
+    headline and the two fought each other for the same pixels.
 
-        <h1 class="max-w-4xl text-5xl leading-[1.05] tracking-tight sm:text-7xl lg:text-8xl">
-          I build systems that
-          <span class="text-accent">act</span>, not just answer.
-        </h1>
+    Below lg there is no room for a side-by-side, so the corona drops behind
+    the text at low opacity and becomes texture rather than subject.
+  */
+  }
+  <section class="relative flex min-h-[calc(100dvh-3.5rem)] items-center lg:min-h-dvh">
+    <div
+      class="shell relative grid w-full items-center gap-12 py-20 lg:grid-cols-[1fr_minmax(0,32rem)]"
+    >
+      <Reveal class="relative z-10 max-w-2xl">
+        <p class="eyebrow eyebrow-marked">{'Agentic developer'}</p>
 
-        <p class="text-muted mt-8 max-w-2xl text-lg leading-relaxed sm:text-xl">
-          I'm {SITE.name} — an engineer working at the layer where language models stop being a demo and
-          start being infrastructure. Agents, tooling, and the evaluation scaffolding that keeps them
-          honest.
+        <h1 class="display mt-6 text-6xl sm:text-7xl">Systems that act</h1>
+
+        <p class="text-muted prose-measure mt-7 text-lg leading-relaxed">
+          I build the layer where language models stop being a demo and start being infrastructure.
         </p>
 
-        <div class="mt-10 flex flex-wrap items-center gap-3">
-          <Button href={href('/projects')} variant="primary" icon="arrow-right">
-            See the work
-          </Button>
-          <Button href={href('/resume')} variant="secondary">Resume</Button>
-          <Button href={href('/tools')} variant="ghost" icon="terminal">Tools</Button>
-        </div>
+        <a
+          href={href('/projects')}
+          class="group border-fg text-fg hover:bg-fg hover:text-ground mt-10 inline-flex h-12 items-center gap-3 border px-6 text-sm font-semibold transition-colors"
+        >
+          See the work
+          <Icon name="arrow-right" size={16} />
+        </a>
       </Reveal>
 
-      <!-- HUD readout strip: anchors the hero to the technical aesthetic. -->
-      <Reveal delay={200} class="mt-20">
-        <dl
-          class="border-line text-faint grid grid-cols-2 gap-px overflow-hidden rounded-lg border font-mono text-[11px] sm:grid-cols-4"
-        >
-          {
-            [
-              ['focus', 'agentic systems'],
-              ['based', 'toronto, ca'],
-              ['stack', 'ts · python · rust'],
-              ['status', 'shipping'],
-            ].map(([k, v]) => (
-              <div class="bg-surface px-4 py-3">
-                <dt class="tracking-[0.16em] uppercase">{k}</dt>
-                <dd class="text-fg mt-1.5 text-xs">{v}</dd>
-              </div>
-            ))
-          }
-        </dl>
-      </Reveal>
+      {
+        /*
+        Instrument: corona inside the dial.
+
+        Below lg this sits behind the text and must recede. That dimming is
+        done with a CSS custom property consumed by the children, NOT with
+        `opacity` on this wrapper — a wrapper opacity composites the whole
+        subtree, which silently halved the particle contrast in both themes
+        and was invisible until the rendered pixels were measured.
+      */
+      }
+      <div
+        aria-hidden="true"
+        class="pointer-events-none absolute inset-0 [--instrument:0.3] lg:relative lg:z-10 lg:[--instrument:1]"
+      >
+        <div class="relative mx-auto aspect-square w-[min(120vw,34rem)] lg:w-full lg:max-w-[32rem]">
+          <ParticleField style="opacity: var(--instrument)" />
+          <div class="text-fg absolute inset-0" style="opacity: calc(var(--instrument) * 0.4)">
+            <HudRing ticks={72} spin={240} />
+          </div>
+        </div>
+      </div>
     </div>
 
-    <!-- Scroll affordance -->
-    <div
+    <span
       aria-hidden="true"
-      class="text-faint absolute inset-x-0 bottom-6 flex justify-center font-mono text-[10px] tracking-[0.2em] uppercase"
+      class="text-faint absolute inset-x-0 bottom-6 hidden justify-center font-mono text-[10px] tracking-[0.3em] uppercase lg:flex"
     >
       scroll
-    </div>
+    </span>
   </section>
 
-  <!-- ── Capabilities ──────────────────────────────────────────────── -->
-  <section class="shell py-24">
-    <SectionHeader
-      index="01"
-      eyebrow="Capabilities"
-      title="What I actually do"
-      lede="Three areas where I go deep. Everything on this site is an instance of one of them."
-    />
-
-    <ul class="grid gap-4 lg:grid-cols-3">
-      {
-        PILLARS.map((p, i) => (
-          <Reveal as="li" delay={i * 90}>
-            <Panel corners pad="lg" class="h-full">
-              <span class="eyebrow text-accent">{p.index}</span>
-              <h3 class="mt-4 text-xl">{p.title}</h3>
-              <p class="text-muted mt-3 text-sm leading-relaxed">{p.body}</p>
-              <ul class="mt-6 flex flex-wrap gap-1.5">
-                {p.tags.map((t) => (
-                  <li>
-                    <Tag>{t}</Tag>
-                  </li>
-                ))}
-              </ul>
-            </Panel>
-          </Reveal>
-        ))
-      }
-    </ul>
+  {/* ── Capabilities ───────────────────────────────────────────────── */}
+  <section class="shell border-line border-t py-24" aria-labelledby="capabilities">
+    <Reveal>
+      <p class="eyebrow eyebrow-marked">Capabilities</p>
+      <h2 id="capabilities" class="sr-only">Capabilities</h2>
+      <div class="mt-10">
+        <Carousel client:visible items={PILLARS} label="Capabilities" />
+      </div>
+    </Reveal>
   </section>
 
-  <!-- ── Featured work ─────────────────────────────────────────────── -->
-  <section class="shell py-24">
-    <SectionHeader
-      index="02"
-      eyebrow="Selected work"
-      title="Things you can poke at"
-      lede="Each of these runs in the browser. No signup, no video walkthrough — press the buttons."
-    >
-      <Button
-        slot="action"
-        href={href('/projects')}
-        variant="secondary"
-        size="sm"
-        icon="arrow-right"
-      >
-        All projects
-      </Button>
-    </SectionHeader>
+  {/* ── Selected work ──────────────────────────────────────────────── */}
+  {
+    featured.length > 0 && (
+      <section class="shell border-line border-t py-24" aria-labelledby="work">
+        <Reveal>
+          <div class="flex flex-wrap items-end justify-between gap-6">
+            <div>
+              <p class="eyebrow eyebrow-marked">Selected work</p>
+              <h2 id="work" class="display mt-5 text-4xl sm:text-5xl">
+                Things you can poke at
+              </h2>
+            </div>
 
-    {
-      featured.length > 0 ? (
-        <ul class="grid gap-4 md:grid-cols-2">
+            <a
+              href={href('/projects')}
+              class="text-muted hover:text-accent inline-flex items-center gap-2 font-mono text-xs transition-colors"
+            >
+              All projects
+              <Icon name="arrow-right" size={14} />
+            </a>
+          </div>
+        </Reveal>
+
+        <ul class="mt-12 grid gap-5 md:grid-cols-2">
           {featured.map((project, i) => (
             <Reveal as="li" delay={i * 90}>
-              <Panel
-                as="a"
-                href={href(`/projects/${project.id}`)}
-                interactive
-                pad="lg"
-                class="flex h-full flex-col"
-              >
-                <div class="flex items-start justify-between gap-4">
-                  <h3 class="group-hover:text-accent text-xl transition-colors">
-                    {project.data.title}
-                  </h3>
-                  <Icon
-                    name="arrow-up-right"
-                    size={16}
-                    class="text-faint group-hover:text-accent mt-1 transition-colors"
-                  />
-                </div>
-                <p class="text-muted mt-3 flex-1 text-sm leading-relaxed">{project.data.summary}</p>
-                <ul class="mt-6 flex flex-wrap gap-1.5">
-                  {project.data.interactive && (
-                    <li>
-                      <Tag variant="accent" dot>
-                        Interactive
-                      </Tag>
-                    </li>
-                  )}
-                  {project.data.tech.slice(0, 4).map((t) => (
-                    <li>
-                      <Tag>{t}</Tag>
-                    </li>
-                  ))}
-                </ul>
-              </Panel>
+              <ProjectCard project={project} />
             </Reveal>
           ))}
         </ul>
-      ) : (
-        <Panel tone="inset" pad="lg">
-          <p class="text-muted text-sm">
-            No featured projects yet. Mark one with{' '}
-            <code class="text-accent font-mono">featured: true</code> in its frontmatter.
-          </p>
-        </Panel>
-      )
-    }
-  </section>
-
-  <!-- ── Contact ───────────────────────────────────────────────────── -->
-  <section class="shell py-24">
-    <Reveal>
-      <Panel corners tone="raised" pad="lg" class="text-center">
-        <span class="eyebrow">Get in touch</span>
-        <h2 class="mx-auto mt-4 max-w-2xl text-3xl sm:text-4xl">
-          Building something that needs to think for itself?
-        </h2>
-        <p class="text-muted mx-auto mt-4 max-w-xl text-base leading-relaxed">
-          I'm interested in hard problems in agent reliability, evaluation, and developer tooling.
-          The inbox is open.
-        </p>
-        <div class="mt-8 flex flex-wrap justify-center gap-3">
-          <Button href="mailto:guan@railtown.ai" variant="primary" icon="arrow-right">
-            Start a conversation
-          </Button>
-          <Button
-            href={`https://github.com/${SITE.handle}`}
-            variant="secondary"
-            external
-            icon="arrow-up-right"
-          >
-            GitHub
-          </Button>
-        </div>
-      </Panel>
-    </Reveal>
-  </section>
+      </section>
+    )
+  }
 </BaseLayout>

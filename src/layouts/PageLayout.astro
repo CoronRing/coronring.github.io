@@ -1,41 +1,57 @@
 ---
 /**
- * PageLayout — BaseLayout plus the standard interior-page masthead.
+ * PageLayout — BaseLayout plus the standard interior masthead.
  *
- * Used by every route except the home page, which has its own bespoke hero.
- * Guarantees consistent vertical rhythm and a uniform page-title treatment.
+ * The masthead is deliberately three elements and no more: a marked eyebrow,
+ * one display title, one sentence. Anything else a page wants to say belongs
+ * in its content, not stacked above it.
  */
 import BaseLayout from './BaseLayout.astro';
-import SectionHeader from '../components/ui/SectionHeader.astro';
+import HudRing from '../components/decor/HudRing.astro';
 
 interface Props {
   title: string;
   description: string;
-  /** Two-digit HUD index; matches the entry in `SITE.nav`. */
-  index?: string;
-  eyebrow?: string;
-  /** Optional lede shown under the title, defaults to `description`. */
+  /** Short line under the title. Defaults to `description`. */
   lede?: string;
+  eyebrow?: string;
   noindex?: boolean;
 }
 
-const { title, description, index, eyebrow, lede, noindex = false } = Astro.props;
+const { title, description, lede, eyebrow, noindex = false } = Astro.props;
+const hasAction = Astro.slots.has('action');
 ---
 
 <BaseLayout title={title} description={description} noindex={noindex}>
-  <div class="shell pt-16 pb-8 sm:pt-24">
-    <SectionHeader as="h1" index={index} eyebrow={eyebrow} title={title} lede={lede ?? description}>
+  <header class="relative overflow-hidden">
+    <!-- A quarter of the dial, bleeding off the right edge. -->
+    <div
+      aria-hidden="true"
+      class="text-fg pointer-events-none absolute -top-32 -right-40 hidden size-[26rem] opacity-[0.07] lg:block"
+    >
+      <HudRing ticks={60} />
+    </div>
+
+    <div class="shell relative pt-14 pb-10 sm:pt-24 sm:pb-14">
+      {eyebrow && <p class="eyebrow eyebrow-marked">{eyebrow}</p>}
+
+      <h1 class="display mt-5 text-5xl sm:text-6xl lg:text-7xl">{title}</h1>
+
+      <p class="text-muted prose-measure mt-6 text-base leading-relaxed">{lede ?? description}</p>
+
       {
-        Astro.slots.has('action') && (
-          <Fragment slot="action">
+        hasAction && (
+          <div class="mt-8">
             <slot name="action" />
-          </Fragment>
+          </div>
         )
       }
-    </SectionHeader>
-  </div>
+    </div>
 
-  <div class="shell pb-16">
+    <div class="shell"><div class="rule-x"></div></div>
+  </header>
+
+  <div class="shell py-14">
     <slot />
   </div>
 </BaseLayout>

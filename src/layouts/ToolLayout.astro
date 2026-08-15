@@ -2,19 +2,17 @@
 /**
  * ToolLayout — shared chrome for a single tool page.
  *
- * Every tool gets the same header (back link, name, rationale), the same
- * privacy assertion, and the same bordered stage, so the tools read as one
- * suite rather than a pile of one-off pages.
+ * Metadata is looked up from the registry by slug, so a tool page cannot
+ * disagree with the index about its own name. An unregistered slug throws at
+ * build time rather than rendering a blank header.
  */
 import BaseLayout from './BaseLayout.astro';
-import Panel from '../components/ui/Panel.astro';
-import Tag from '../components/ui/Tag.astro';
 import Icon from '../components/ui/Icon.astro';
 import { TOOLS } from '../data/tools';
 import { href } from '../lib/url';
 
 interface Props {
-  /** Slug from `src/data/tools.ts`; metadata is looked up from there. */
+  /** Slug from `src/data/tools.ts`. */
   slug: string;
 }
 
@@ -32,31 +30,21 @@ if (!tool) {
       href={href('/tools')}
       class="text-muted hover:text-accent inline-flex items-center gap-2 font-mono text-xs transition-colors"
     >
-      <Icon name="arrow-right" size={13} class="rotate-180" />
+      <Icon name="arrow-left" size={13} />
       All tools
     </a>
 
-    <div class="mt-6 flex flex-wrap items-center gap-3">
-      <h1 class="font-mono text-3xl tracking-tight sm:text-4xl">{tool.name}</h1>
-      {
-        tool.offline && (
-          <Tag variant="ok" dot>
-            Runs offline
-          </Tag>
-        )
-      }
-    </div>
-
-    <p class="text-muted mt-4 max-w-2xl text-base leading-relaxed">{tool.rationale}</p>
+    <h1 class="display mt-6 text-4xl sm:text-5xl">{tool.name}</h1>
+    <p class="text-muted prose-measure mt-4 text-base leading-relaxed">{tool.rationale}</p>
   </div>
 
   <div class="shell-content pb-20">
-    <Panel tone="raised" pad="lg">
+    <div class="border-line bg-surface border p-5 sm:p-7">
       <slot />
-    </Panel>
+    </div>
 
-    <p class="text-faint mt-6 font-mono text-[11px]">
-      This page makes no network requests. Everything you type stays in this tab.
+    <p class="text-faint mt-5 font-mono text-[11px]">
+      No network requests. Everything you type stays in this tab.
     </p>
   </div>
 </BaseLayout>

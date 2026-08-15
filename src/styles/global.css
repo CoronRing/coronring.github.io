@@ -4,8 +4,8 @@
 /*
  * Bridge the CSS custom properties in tokens.css into Tailwind v4's utility
  * generator. Declaring them here is what produces `bg-surface`, `text-muted`,
- * `border-line`, `font-mono`, `ease-out`, etc. Because each maps to a var(),
- * every generated utility is automatically theme-aware.
+ * `border-line`, `font-display`, etc. Because each maps to a var(), every
+ * generated utility is automatically theme-aware.
  */
 @theme inline {
   --color-ground: var(--c-ground);
@@ -22,17 +22,18 @@
   --color-faint: var(--c-text-faint);
 
   --color-accent: var(--c-accent);
-  --color-accent-hover: var(--c-accent-hover);
-  --color-accent-contrast: var(--c-accent-contrast);
+  --color-accent-fill: var(--c-accent-fill);
+  --color-accent-on-fill: var(--c-accent-on-fill);
   --color-accent-soft: var(--c-accent-soft);
 
-  --color-signal: var(--c-signal);
-  --color-signal-soft: var(--c-signal-soft);
+  --color-alert: var(--c-alert);
+  --color-alert-soft: var(--c-alert-soft);
 
   --color-ok: var(--c-ok);
   --color-warn: var(--c-warn);
   --color-danger: var(--c-danger);
 
+  --font-display: 'Archivo Variable', 'Inter Variable', ui-sans-serif, system-ui, sans-serif;
   --font-sans: 'Inter Variable', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
   --font-mono:
     'JetBrains Mono Variable', ui-monospace, 'SFMono-Regular', 'Cascadia Mono', monospace;
@@ -40,7 +41,6 @@
   --radius-sm: var(--r-sm);
   --radius-md: var(--r-md);
   --radius-lg: var(--r-lg);
-  --radius-xl: var(--r-xl);
 
   --ease-out-expo: var(--ease-out);
   --ease-smooth: var(--ease-in-out);
@@ -56,9 +56,9 @@
 
   html {
     scroll-behavior: smooth;
-    /* Sticky header height + breathing room, so #anchors don't hide. */
-    scroll-padding-top: 6rem;
+    scroll-padding-top: 5rem;
     -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
     color-scheme: light;
   }
 
@@ -76,19 +76,9 @@
     background-color: var(--c-ground);
     color: var(--c-text);
     font-family: var(--font-sans);
-    font-feature-settings: 'cv02', 'cv03', 'cv04', 'ss01';
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
     min-height: 100dvh;
-  }
-
-  h1,
-  h2,
-  h3,
-  h4 {
-    font-weight: 600;
-    letter-spacing: -0.022em;
-    text-wrap: balance;
   }
 
   p,
@@ -96,19 +86,17 @@
     text-wrap: pretty;
   }
 
-  /* One consistent, always-visible focus treatment across the whole site. */
   :focus-visible {
     outline: 2px solid var(--c-accent);
-    outline-offset: 2px;
+    outline-offset: 3px;
     border-radius: var(--r-sm);
   }
 
   ::selection {
-    background: var(--c-accent-ring);
-    color: var(--c-text);
+    background: var(--c-accent-fill);
+    color: var(--c-accent-on-fill);
   }
 
-  /* Honour the OS reduced-motion setting site-wide, including our reveals. */
   @media (prefers-reduced-motion: reduce) {
     html {
       scroll-behavior: auto;
@@ -124,10 +112,65 @@
 }
 
 /* ─────────────────────────────────────────────────────────────────────
- * Reusable structural primitives
+ * Typographic voices
+ *
+ * Three faces, each with a job. The split is semantic, not decorative:
+ * display = the one big statement, mono = machine-adjacent metadata,
+ * sans = human language.
  * ─────────────────────────────────────────────────────────────────── */
 @layer components {
-  /* The standard horizontal container. Every page section uses one. */
+  /* Wide industrial caps — page titles only. Never for body copy. */
+  .display {
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-stretch: 118%;
+    letter-spacing: -0.005em;
+    line-height: 0.92;
+    text-transform: uppercase;
+    text-wrap: balance;
+  }
+
+  /* Small uppercase mono label — the HUD "field name" voice. */
+  .eyebrow {
+    font-family: var(--font-mono);
+    font-size: 0.6875rem;
+    line-height: 1;
+    font-weight: 500;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--c-text-faint);
+  }
+
+  /* Eyebrow with the reference's small leading square marker. */
+  .eyebrow-marked {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.625rem;
+  }
+  .eyebrow-marked::before {
+    content: '';
+    width: 0.4375rem;
+    height: 0.4375rem;
+    background: var(--c-accent-fill);
+    flex: none;
+  }
+
+  /* ── Layout ─────────────────────────────────────────────────────── */
+
+  /*
+   * Content sits to the right of the fixed rail at >=lg. The rail is
+   * position:fixed, so the offset is a margin here rather than a flex
+   * sibling — that keeps every page's markup independent of the shell.
+   */
+  .rail-offset {
+    padding-left: 0;
+  }
+  @media (min-width: 64rem) {
+    .rail-offset {
+      padding-left: var(--rail-w);
+    }
+  }
+
   .shell {
     width: 100%;
     max-width: var(--shell-max);
@@ -142,30 +185,16 @@
     padding-inline: var(--gutter);
   }
 
-  .shell-prose {
-    width: 100%;
+  .prose-measure {
     max-width: var(--prose-max);
-    margin-inline: auto;
-    padding-inline: var(--gutter);
   }
 
-  /* Small uppercase mono label — the HUD "field name" voice. */
-  .eyebrow {
-    font-family: var(--font-mono);
-    font-size: 0.6875rem;
-    line-height: 1;
-    font-weight: 500;
-    letter-spacing: 0.16em;
-    text-transform: uppercase;
-    color: var(--c-text-faint);
-  }
-
-  /* Panel: the one card surface. Corner ticks are added by <Panel corners>. */
+  /* ── Surfaces ───────────────────────────────────────────────────── */
   .panel {
     position: relative;
     background-color: var(--c-surface);
     border: var(--hairline) solid var(--c-line);
-    border-radius: var(--r-lg);
+    border-radius: var(--r-md);
   }
 
   /* Technical corner brackets — the signature HUD flourish. */
@@ -173,10 +202,10 @@
   .corner-ticks::after {
     content: '';
     position: absolute;
-    width: 10px;
-    height: 10px;
+    width: 11px;
+    height: 11px;
     border-color: var(--c-accent);
-    opacity: 0.75;
+    opacity: 0.8;
     pointer-events: none;
   }
   .corner-ticks::before {
@@ -192,25 +221,29 @@
     border-right: 1px solid;
   }
 
-  /* Blueprint grid backdrop. Opacity is theme-scaled via --grid-alpha. */
+  /* Full-bleed hairline, as seen crossing the reference's hero. */
+  .rule-x {
+    height: 1px;
+    background: var(--c-line);
+  }
+
+  /* Diagonal hatch fill — carousel buttons and inert zones. */
+  .hatch {
+    background-image: repeating-linear-gradient(-45deg, var(--c-line) 0 1px, transparent 1px 6px);
+  }
+
   .grid-backdrop {
     background-image:
       linear-gradient(to right, var(--c-line-faint) 1px, transparent 1px),
       linear-gradient(to bottom, var(--c-line-faint) 1px, transparent 1px);
-    background-size: 4rem 4rem;
+    background-size: 5rem 5rem;
     opacity: var(--grid-alpha);
   }
 
-  /* Fades any decorative layer out toward the edges so it never hard-stops. */
-  .mask-radial {
-    -webkit-mask-image: radial-gradient(ellipse 80% 60% at 50% 0%, #000 40%, transparent 100%);
-    mask-image: radial-gradient(ellipse 80% 60% at 50% 0%, #000 40%, transparent 100%);
-  }
-
-  /* Scroll-reveal: opt in with data-reveal; Reveal.astro flips data-shown. */
+  /* ── Scroll reveal ──────────────────────────────────────────────── */
   [data-reveal] {
     opacity: 0;
-    transform: translateY(14px);
+    transform: translateY(12px);
     transition:
       opacity var(--dur-reveal) var(--ease-out),
       transform var(--dur-reveal) var(--ease-out);
@@ -220,19 +253,78 @@
     opacity: 1;
     transform: none;
   }
-  /* If JS never runs, content must still be visible. */
   .no-js [data-reveal] {
     opacity: 1;
     transform: none;
   }
+
+  /* ─────────────────────────────────────────────────────────────────
+   * Loading veil
+   *
+   * Deliberately the OPPOSITE tone to the active theme (see --veil-* in
+   * tokens.css), so the page opens through a contrast wipe instead of
+   * fading in from its own background.
+   *
+   * Fails open: the element carries `hidden` in markup and is only shown
+   * by the pre-paint script. No JS => no veil => content is visible.
+   * ───────────────────────────────────────────────────────────────── */
+  .veil {
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+    display: grid;
+    place-items: center;
+    background: var(--veil-bg);
+    color: var(--veil-fg);
+    transition:
+      opacity var(--dur-veil) var(--ease-out),
+      visibility var(--dur-veil) step-end;
+  }
+  .veil[data-done='true'] {
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+  }
+
+  /* The veil wipes upward off the top edge as it fades. */
+  .veil-inner {
+    transition:
+      transform var(--dur-veil) var(--ease-out),
+      opacity calc(var(--dur-veil) * 0.5) var(--ease-out);
+  }
+  .veil[data-done='true'] .veil-inner {
+    transform: translateY(-1.25rem);
+    opacity: 0;
+  }
+
+  /* Indeterminate progress sweep. */
+  @keyframes veil-sweep {
+    0% {
+      transform: translateX(-100%);
+    }
+    100% {
+      transform: translateX(400%);
+    }
+  }
+  .veil-bar {
+    position: relative;
+    overflow: hidden;
+    width: 7.5rem;
+    height: 2px;
+    background: color-mix(in srgb, var(--veil-fg) 18%, transparent);
+  }
+  .veil-bar::after {
+    content: '';
+    position: absolute;
+    inset-block: 0;
+    left: 0;
+    width: 25%;
+    background: var(--veil-fg);
+    animation: veil-sweep 1.05s var(--ease-in-out) infinite;
+  }
 }
 
 @layer utilities {
-  .text-balance {
-    text-wrap: balance;
-  }
-
-  /* Numeric tables/counters shouldn't jitter as digits change. */
   .tabular {
     font-variant-numeric: tabular-nums;
   }

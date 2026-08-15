@@ -53,6 +53,16 @@ const { delay = 0, as: Tag = 'div', class: className } = Astro.props;
       );
 
       targets.forEach((el) => observer.observe(el));
+
+      /*
+       * Safety net. `[data-reveal]` starts at opacity 0, so anything this
+       * observer fails to reach stays invisible *forever* — a hidden-content
+       * bug is far worse than a missed animation. Reveal everything still
+       * pending shortly after load, whatever the reason.
+       */
+      window.setTimeout(() => {
+        document.querySelectorAll('[data-reveal]:not([data-shown])').forEach(show);
+      }, 2000);
     };
 
     attach();

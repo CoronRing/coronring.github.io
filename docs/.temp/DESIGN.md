@@ -1,439 +1,427 @@
 # coronring.github.io — Design Document
 
-**Version:** 0.1.0
-**Status:** Draft — structural scaffold complete, content pending
+**Version:** 0.2.0
+**Status:** Draft — structure and visual system built, content pending
 **Last updated:** 2026-08-14
 **Owner:** Guan Zheng Huang (`CoronRing`)
 
+> **v0.2.0** replaces the speculative visual system in v0.1.0 with one derived
+> from the actual reference. See §0.
+
 ---
 
-## 0. Open question — the visual reference
+## 0. The reference, and how it was actually obtained
 
-The brief named <https://endfield.gryphline.com/en-us> as a directional
-reference. **That page could not be read programmatically**: it is a
-client-rendered SPA whose served HTML contains only the document shell and the
-title string, with no CSS, palette, typography, or navigation markup exposed to
-a fetch.
+v0.1.0 recorded that <https://endfield.gryphline.com/en-us> "could not be read
+programmatically" and designed from the _genre_ instead. **That was wrong**, and
+the resulting palette, layout, and typography were all off.
 
-Section 5 therefore designs from the _genre_ that site belongs to — dark
-industrial-tactical sci-fi — rather than from its specific execution. Concretely
-that means: near-black grounds, one high-chroma accent used sparingly, HUD and
-technical-readout motifs, monospace metadata, hairline grid rules, and
-deliberate kinetic reveals.
+What was true: `WebFetch` performs a server-side fetch with no JS execution, so
+a client-rendered SPA returns only its shell. What did not follow: that the
+design was unobtainable. Three routes worked:
 
-**To close this:** supply screenshots, or specific hex values / font names, and
-Section 5 gets retuned. Everything downstream of the token file absorbs that
-change without structural edits — which is precisely why the tokens are
-centralised (§5.1).
+| Route                                                   | Yield                                                                                                                                                                        |
+| ------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `curl` the `<link rel=stylesheet>` hrefs from the shell | 375 kB of real CSS — every colour and font name. The shell _did_ list all nine stylesheets; WebFetch's markdown conversion had stripped the tags before they were ever seen. |
+| `chrome --headless --screenshot --virtual-time-budget`  | Rendered ground truth in one command                                                                                                                                         |
+| SingleFile CLI                                          | Same, packaged as a single inlined HTML file                                                                                                                                 |
+
+**Lesson recorded deliberately:** a limitation of one tool was reported as a
+property of the target. When a fetch returns a shell, escalate to a real
+browser before concluding anything about a design.
+
+### What the reference actually is
+
+The marketing hero and the interior pages are two different design languages.
+The interior ("Lore") page is the one this site draws from:
+
+- Near-black ground with a soft off-axis aurora bloom
+- **Fixed left sidebar** — icon + label rows, active item marked by a left border
+- A **particle point-cloud** as the visual centrepiece
+- A **technical dial** around it: radial ticks, heavy bezel arcs at the diagonals
+- **Extremely sparse content** — eyebrow, one display title, one paragraph, a paged indicator, two buttons
+- Hazard yellow used exactly once, on a ~40 px carousel segment
+
+### Measured values
+
+|              | v0.1.0 guessed  | Measured                                            |
+| ------------ | --------------- | --------------------------------------------------- |
+| Ink          | `#070809`       | **`#191919`** (84 uses)                             |
+| Accent       | Amber `#ffa62b` | **Hazard yellow `#fffa00`** (56 uses)               |
+| Alert        | —               | **Crimson `#be1414`**                               |
+| Display type | Inter           | **Novecentosanswide**, Gilroy — wide geometric caps |
+| Navigation   | Horizontal bar  | **Vertical rail**                                   |
+
+Novecentosanswide and Gilroy are commercial and are not bundled. **Archivo
+Variable** supplies the wide caps via its `wdth` axis (SIL OFL, self-hosted);
+Space Grotesk — which is in the reference's own stack — is the alternative.
 
 ---
 
 ## 1. Purpose
 
-A personal site that functions as evidence rather than assertion. The claim
-being made is _agentic developer_; the site should demonstrate that claim
-through the things on it, not describe it.
+A personal site that functions as evidence rather than assertion. The claim is
+_agentic developer_; the site should demonstrate it through the things on it.
 
-Three consequences that drive every decision below:
+Three consequences:
 
-1. **The demos have to actually run.** A project page embedding a live,
-   interactive artifact is worth more than one describing the same artifact. The
-   architecture makes interactive islands cheap to add (§4.4).
-2. **The tools have to be genuinely useful.** A token counter someone bookmarks
-   is a stronger signal than a portfolio blurb. Browser-local execution is a
-   hard requirement — it's what makes pasting a real production prompt into a
-   stranger's website a reasonable thing to do.
+1. **The demos have to run.** A live artifact beats a description of one.
+2. **The tools have to be useful.** Browser-local execution is a hard
+   requirement — it is what makes pasting a real prompt into a stranger's site
+   reasonable.
 3. **The engineering has to survive inspection.** Recruiters skim; engineers
-   open dev tools and read the repo. Both audiences are served: typed
-   throughout, accessible, fast, and documented.
+   open dev tools.
+
+Added in v0.2.0, from direct feedback: **artistic impact is a first-class
+requirement, not decoration.** Density is budgeted (§6), and the hero carries a
+real interactive artifact rather than a text block.
 
 ### Non-goals
 
-- **No CMS, no database, no backend.** Content is version-controlled files.
-- **No analytics or third-party trackers.** Nothing to disclose, nothing to consent to.
-- **No client-side routing framework.** The site is documents; documents are what the web serves best.
+No CMS, no backend, no analytics, no client-side routing framework.
 
 ---
 
 ## 2. Tech stack
 
-| Layer         | Choice                                                                                   | Rationale                                                                                                                                                                                                                                 |
-| ------------- | ---------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Framework     | **Astro 5** (static output)                                                              | Ships zero JS by default and hydrates only the components that need it. A resume page has no reason to load a runtime; a token counter does. Astro is the only mainstream framework where that's the default rather than an optimisation. |
-| Interactivity | **React 19** islands                                                                     | Per-component hydration via `client:*`. React specifically because the demos are the kind of thing React is good at, and because its ecosystem is the deepest if a demo later needs a specialised library.                                |
-| Language      | **TypeScript**, `astro/tsconfigs/strict`                                                 | Plus `noUncheckedIndexedAccess` and `verbatimModuleSyntax`. `astro check` runs in the build, so a type error fails the deploy.                                                                                                            |
-| Styling       | **Tailwind CSS v4** via `@tailwindcss/vite`                                              | v4's CSS-first `@theme` block lets utilities be generated _from_ the design tokens, so `bg-surface` and `var(--c-surface)` cannot drift apart. No JS config file.                                                                         |
-| Content       | **Astro Content Collections** + MDX                                                      | Zod-validated frontmatter. A typo in a field fails the build instead of rendering an empty page. MDX lets a write-up embed a component inline.                                                                                            |
-| Fonts         | **Inter Variable**, **JetBrains Mono Variable** (self-hosted via `@fontsource-variable`) | No CDN request, no FOUT from a third-party origin, no privacy footnote.                                                                                                                                                                   |
-| Hosting       | **GitHub Pages** via Actions                                                             | Free, fast, and the deploy pipeline is itself part of the portfolio.                                                                                                                                                                      |
-| Formatting    | Prettier + Astro/Tailwind plugins                                                        | Class ordering is mechanical; it shouldn't be a review topic.                                                                                                                                                                             |
+| Layer         | Choice                                                    | Rationale                                                                                                                                                |
+| ------------- | --------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Framework     | **Astro 5** (static)                                      | Zero JS by default; hydrate only what needs it. A resume page has no reason to load a runtime; a token counter does.                                     |
+| Interactivity | **React 19** islands                                      | Per-component hydration. Used for the carousel and the token counter.                                                                                    |
+| Particles     | **SenseRing `particle_wave`**, vendored                   | Existing in-house engine: Verlet physics, pointer repulsion, click ripples, compact `.pwcloud` format. Reimplementing it would have been strictly worse. |
+| Language      | **TypeScript**, `astro/tsconfigs/strict`                  | Plus `noUncheckedIndexedAccess`. `astro check` gates the build.                                                                                          |
+| Styling       | **Tailwind CSS v4** via `@tailwindcss/vite`               | `@theme` generates utilities _from_ the tokens, so `bg-surface` and `var(--c-surface)` cannot drift.                                                     |
+| Content       | **Content Collections** + MDX                             | Zod-validated frontmatter; a bad field fails the build.                                                                                                  |
+| Fonts         | Inter, JetBrains Mono, **Archivo** (`wdth`) — self-hosted | No CDN, no third-party origin, no privacy footnote.                                                                                                      |
+| Hosting       | **GitHub Pages** via Actions                              | The deploy pipeline is itself part of the portfolio.                                                                                                     |
 
-### Rejected alternatives
+### Rejected
 
-- **Next.js** — App Router's server-component model buys nothing on a static site with no backend, and costs a heavier client runtime on pages that need none.
-- **Plain HTML/CSS** — genuinely viable, and briefly tempting. Rejected because the tools page needs real interactive state, and content collections earn their keep the moment there are more than a handful of projects.
-- **A template** — the site's subject is engineering capability. Buying the design undercuts the argument.
+- **Next.js** — App Router buys nothing on a static site with no backend.
+- **Plain HTML/CSS** — viable until the tools page needed real state.
+- **A template** — the subject is engineering capability; buying the design undercuts the argument.
 
 ---
 
 ## 3. Information architecture
 
-Five top-level routes, matching the brief. Each nav entry carries a two-digit
-index (`00`–`04`) as an intentional HUD motif and a scanning aid.
+Five routes. Each nav entry carries a two-digit index as a HUD motif.
 
 ```
-/                    00  Index      Identity, positioning, featured work
-/projects            01  Projects   Demo gallery
-/projects/[slug]         Detail: live demo + engineering write-up
-/resume              02  Resume     Experience, education, achievements, certs
-/resources           03  Resources  Curated references and original notes
-/tools               04  Tools      Browser-local LLM utilities
+/                    00  Index      Hero instrument, capabilities, selected work
+/projects            01  Projects   Card gallery with generated cover art
+/projects/[slug]         Detail: live demo above the write-up
+/resume              02  Resume     One timeline, four sections
+/resources           03  Resources  Categorised link list
+/tools               04  Tools      Browser-local utilities
 /tools/[slug]            Individual tool
 /404                     Not found
 ```
 
-### 3.1 Index (`/`)
-
-| Section       | Content                                                                                        | Purpose                                                            |
-| ------------- | ---------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
-| Hero          | Availability indicator, headline, one-paragraph positioning, three CTAs, four-cell HUD readout | Answer "who is this and should I keep reading" within one viewport |
-| Capabilities  | Three pillars: agent systems, developer tooling, applied NLP                                   | Make "agentic developer" concrete                                  |
-| Featured work | `featured: true` projects from the collection                                                  | Move visitors to the demos fast                                    |
-| Contact       | Single closing CTA                                                                             | One clear next action                                              |
-
-Full-viewport hero with a scroll affordance. The HUD readout strip does real
-work: it anchors the technical aesthetic while communicating focus, location,
-and stack at a glance.
-
-### 3.2 Projects (`/projects`)
-
-Card grid (1 / 2 / 3 columns), driven entirely by the collection and sorted by
-an explicit `order` field. Each card carries a status light (live / in-progress
-/ archived), an `Interactive` badge where applicable, and up to four tech tags.
-
-**Detail pages lead with the demo.** Where `interactive: true`, the hydrated
-island is mounted _above_ the prose, inside a window-chrome frame (§4.4). The
-write-up supports the artifact; it does not substitute for it. Layout below the
-demo is a two-column split at ≥`lg`: prose at reading measure, sticky metadata
-rail (role, period, stack, links) alongside.
-
-### 3.3 Resume (`/resume`)
-
-One `experience` collection, grouped by a `kind` discriminator into four
-sections — Experience, Education, Achievements, Certifications — rendered
-through a single row component so nothing drifts. Sorted newest-first, with
-current roles (no `end` date) floating to the top and rendering as "Present".
-Includes a PDF download affordance.
-
-### 3.4 Resources (`/resources`)
-
-Grouped by category (Agents / LLM Ops / Engineering / Reading / Tooling), each
-group sorted by `updated`. Entries with a `url` are outbound pointers; entries
-without one are original write-ups. Both render identically so the list stays
-scannable — the distinction is an arrow glyph, not a different card.
-
-### 3.5 Tools (`/tools`)
-
-Registry-driven from `src/data/tools.ts`. **Planned tools are shown
-deliberately**, dimmed and labelled — the roadmap is part of the story, and a
-greyed card is more honest than an empty grid.
-
-The page leads with a privacy assertion, because it is the single most important
-thing to say to someone about to paste a production prompt into it.
-
-| Tool              | Group              | Status   |
-| ----------------- | ------------------ | -------- |
-| Token Counter     | Tokens & Cost      | **Live** |
-| Context Budgeter  | Tokens & Cost      | Planned  |
-| Prompt Diff       | Prompt Engineering | Planned  |
-| JSON Schema Forge | Structured Data    | Planned  |
-| Chunk Visualizer  | Text Processing    | Planned  |
-
-#### Token Counter — the honesty constraint
-
-Claude's tokenizer is not published as a client-side library; the authoritative
-count comes from `POST /v1/messages/count_tokens`, which needs an API key and a
-network round trip. This page has neither, by design.
-
-So the counter **estimates**, using a segment-weighted character model: text is
-split by character class (prose / digits / symbols / CJK / whitespace) and each
-class is charged a different characters-per-token rate. That handles what a flat
-`chars / 4` rule gets badly wrong — code, CJK, digit runs, whitespace blocks.
-Expect ±10% on prose, ±15% on code.
-
-**The UI states this plainly and points at the real endpoint.** A tool that
-quietly presents an estimate as exact is worse than no tool; being visibly
-careful about it is the more useful signal anyway.
-
-Cost projection multiplies the estimate by published list rates
-(`src/data/models.ts`, single source of truth), with promotional pricing handled
-by date comparison so it can't silently go stale. Caching economics are noted
-but excluded from the arithmetic.
-
 ---
 
-## 4. Component architecture
+## 4. Shell architecture
 
-```
-src/
-├── components/
-│   ├── ui/          Primitives: Panel, Button, Tag, Icon, SectionHeader, Reveal
-│   ├── layout/      Header, Footer, ThemeToggle
-│   ├── decor/       Backdrop (grid + bloom + grain)
-│   ├── demos/       Project demo islands + registry
-│   └── tools/       Tool islands (TokenCounter, …)
-├── layouts/         BaseLayout → PageLayout, ToolLayout
-├── pages/           Routes
-├── content/         Schema-validated MDX/Markdown
-├── data/            site.ts, tools.ts, models.ts
-├── lib/             url, theme, tokens, format
-└── styles/          tokens.css, global.css
-```
+### 4.1 The rail
 
-### 4.1 Layout hierarchy
+A fixed left sidebar (`--rail-w`, 16.25rem) replaces the horizontal header. It
+buys three things a top bar could not: navigation stays visible through a
+full-height hero, the content column gets an asymmetric left edge to sit
+against, and the active item can take a left border rather than an underline.
 
-- **`BaseLayout`** — the document shell. `<head>` metadata, Open Graph, canonical URL, font imports, the pre-paint theme script, backdrop, header, `<main>` landmark, footer.
-- **`PageLayout`** — `BaseLayout` + the standard interior masthead. Every route except the home page (bespoke hero) and tool pages.
-- **`ToolLayout`** — `BaseLayout` + tool chrome, with metadata looked up from the registry by slug. A slug with no registry entry throws at build time.
+Content is offset by `.rail-offset` — a CSS padding, not a flex sibling — so
+page markup stays independent of the shell. Below `lg` the rail collapses to a
+top bar plus a focus-trapped drawer, rendered from the same `SITE.nav` source.
 
-### 4.2 Primitives — deliberately few
+The rail also holds the site's **single persistent call to action**, which is
+why the home page needs only one button and the footer needs none.
 
-`Panel` is the **only** boxed surface in the system. Anything card-shaped uses
-it, so elevation and border treatment cannot diverge across pages. It is
-polymorphic (`as`), which is what lets an entire card be a single anchor rather
-than a div wrapping a link.
+### 4.2 The contrast veil
 
-`Button` renders `<a>` when given `href` and `<button>` otherwise — one
-component so link-actions and form-actions can't drift.
+A loading screen in the _opposite_ tone to the active theme: dark theme opens
+through a light veil, light theme through a dark one (`--veil-bg` / `--veil-fg`
+flip with the palette). The reveal is a deliberate curtain rather than a fade-in
+from the page's own background.
 
-`Icon` is a central inline-SVG registry. No icon font, no runtime fetch,
-`currentColor` throughout.
+Three behaviours stop it becoming an annoyance:
 
-### 4.3 Progressive enhancement
+1. **Fails open.** `hidden` in markup; only unhidden by the pre-paint script.
+2. **Once per session.** This is an MPA — veiling every navigation would be intolerable. A `sessionStorage` flag limits it to the first view.
+3. **Floor and ceiling.** ~500 ms floor stops it strobing on a warm cache; 2.5 s ceiling guarantees it lifts even if `load` never fires.
 
-`Reveal` implements scroll-triggered entrance with three independent fallbacks:
-`<html class="no-js">` (cleared by the pre-paint script) shows content if JS
-never runs; a missing `IntersectionObserver` reveals everything immediately; and
-`prefers-reduced-motion` collapses the transition in CSS. The observer is
-registered **once per page**, not once per component.
+`prefers-reduced-motion` skips it entirely.
 
-### 4.4 Demo registry
+### 4.3 Layers
 
-Project frontmatter names a demo by string (`demo: "placeholder"`);
-`src/components/demos/registry.ts` maps that string to a component.
-
-A **static** map rather than a dynamic `import()` of an arbitrary path, so the
-bundler sees every demo, tree-shakes correctly, and an unregistered name throws
-at build time instead of shipping an empty stage. Demos hydrate `client:visible`
-— one below the fold costs nothing until scrolled to.
-
-Adding a demo: build the island, import it, add one registry entry, set two
-frontmatter fields.
+`Backdrop` renders once, fixed, `aria-hidden`, `pointer-events-none`: blueprint
+grid → aurora bloom → horizon hairline → SVG film grain (which exists to kill
+banding across the bloom).
 
 ---
 
 ## 5. Visual system
 
-### 5.1 Tokens
+### 5.1 Dual theme, equally weighted
 
-Every colour is defined **once**, on bare `:root`, as the light palette
-(`src/styles/tokens.css`). The dark palette redeclares only the same token
-names — never new ones. Components reference `var(--c-*)` or the Tailwind
-utilities generated from them; no component hardcodes a hex value.
+Neither theme is the design with the other bolted on. **Dark is the instrument
+panel; light is the printed spec sheet.** Both are authored and both are
+verified by screenshot.
 
-Three theme states, and "system" is a real state rather than an alias for light:
+Every colour is defined once on bare `:root` (light). The dark palette
+redeclares only the same token names. Three theme states, with "system" a real
+state rather than an alias for light:
 
-| State            | Mechanism                                                     |
-| ---------------- | ------------------------------------------------------------- |
-| System (default) | No `data-theme` attribute; CSS follows `prefers-color-scheme` |
-| Light            | `data-theme="light"` pins the light palette                   |
-| Dark             | `data-theme="dark"` pins the dark palette                     |
+| State            | Mechanism                                           |
+| ---------------- | --------------------------------------------------- |
+| System (default) | No `data-theme`; CSS follows `prefers-color-scheme` |
+| Light            | `data-theme="light"`                                |
+| Dark             | `data-theme="dark"`                                 |
 
-Because the media-query block is guarded as `:root:not([data-theme='light'])`
-and the explicit-dark block is a separate rule, the toggle wins in **both**
-directions. A pre-paint inline script in `<head>` applies the stored choice
-before first render, so there is no flash.
+The media block is guarded `:root:not([data-theme='light'])` and the explicit
+dark block is separate, so the toggle wins in both directions. A pre-paint
+inline script applies the stored choice before first render.
 
 ### 5.2 Palette
 
-Dark is the design intent; light is a well-supported alternate. The accent is
-**corona amber** — on-brand for the name, and the right register for the
-reference genre. Amber is used sparingly: it marks the active nav item, corner
-brackets, focus rings, and exactly one CTA per section. A second **signal cyan**
-carries data and live indicators.
+| Token                      | Light     | Dark      |
+| -------------------------- | --------- | --------- |
+| `--c-ground`               | `#f2f2f2` | `#0a0a0b` |
+| `--c-surface`              | `#ffffff` | `#131315` |
+| `--c-text`                 | `#191919` | `#f5f5f5` |
+| `--c-accent` (text/stroke) | `#7a7500` | `#fffa00` |
+| `--c-accent-fill`          | `#fffa00` | `#fffa00` |
+| `--c-alert`                | `#be1414` | `#ff3b3b` |
 
-| Token            | Light     | Dark      | Role             |
-| ---------------- | --------- | --------- | ---------------- |
-| `--c-ground`     | `#f4f5f7` | `#070809` | Page floor       |
-| `--c-surface`    | `#ffffff` | `#0d0f13` | Panels           |
-| `--c-raised`     | `#eceef2` | `#14171d` | Hover / inset    |
-| `--c-line`       | `#d5d9e0` | `#21262f` | Hairline         |
-| `--c-text`       | `#14171d` | `#e8eaed` | Primary text     |
-| `--c-text-muted` | `#565e6c` | `#99a1ad` | Body de-emphasis |
-| `--c-text-faint` | `#8a929e` | `#6b7280` | Metadata         |
-| `--c-accent`     | `#b96900` | `#ffa62b` | Corona amber     |
-| `--c-signal`     | `#0b7285` | `#3ddcff` | Signal cyan      |
+**The accent splits into two tokens.** Raw `#fffa00` as text on white is
+illegible, so light mode uses a darkened olive for text and strokes while
+_fills_ keep the pure hue with ink on top — the hazard-tape pairing the
+reference uses. Dark mode uses the pure hue for both.
 
-Light-mode amber is darkened to `#b96900` so accent-on-surface text clears
-WCAG AA; the dark-mode value is brightened for the same reason on near-black.
+Yellow is rationed: the active nav border, the eyebrow marker, one CTA, the
+carousel's active segment.
 
 ### 5.3 Typography
 
-Inter Variable for UI and prose; JetBrains Mono Variable for metadata, code,
-labels, and numeric readouts. **The mono/sans split carries meaning**: mono
-marks machine-adjacent information (indices, timestamps, token counts, model
-IDs), sans carries human language. Headings run tight (`-0.022em`) and balanced
-(`text-wrap: balance`); prose uses `text-wrap: pretty`.
+Three faces, split semantically rather than decoratively:
 
-The `.eyebrow` class — 11px mono, uppercase, `0.16em` tracking — is the recurring
-"field label" voice and appears on nearly every section.
+- **Archivo Variable** at `font-stretch: 118%`, uppercase — page titles only, never body copy (`.display`)
+- **JetBrains Mono** — machine-adjacent metadata: indices, timestamps, token counts, model IDs
+- **Inter** — human language
 
-### 5.4 Layout
+`.eyebrow` (11 px mono, `0.18em` tracking, uppercase) is the recurring field
+label; `.eyebrow-marked` adds the reference's small leading square.
 
-Three nested measures as tokens: `--shell-max` (88rem outer frame),
-`--content-max` (72rem standard column), `--prose-max` (42rem reading measure).
-Gutters step 1.25rem → 2rem → 3rem across breakpoints. Long-form text is always
-constrained to `--prose-max` regardless of container width.
+### 5.4 Motion
 
-### 5.5 Motion
-
-Two easing curves only: `--ease-out` (decelerating, for entrances) and
-`--ease-in-out` (symmetric, for moves). Four durations (120 / 220 / 420 / 700ms).
-Reveals stagger siblings by 60–90ms. Everything collapses to ~0ms under
-`prefers-reduced-motion`.
-
-### 5.6 The HUD motifs
-
-Four recurring devices carry the reference aesthetic without becoming costume:
-
-1. **Corner brackets** (`.corner-ticks`) — accent-coloured ticks on two opposing panel corners.
-2. **Blueprint grid** — a fixed 4rem backdrop grid, radially masked so it never hard-stops, opacity scaled per theme.
-3. **Mono index labels** — `00`–`04` on nav, sections, and cards.
-4. **Status lights** — small pulsing dots for live/operational states.
-
-Plus a corona bloom and SVG film grain in the fixed backdrop, the latter
-specifically to kill gradient banding.
+Two easing curves, four durations. Reveals stagger siblings by 40–90 ms.
+Everything collapses under `prefers-reduced-motion`.
 
 ---
 
-## 6. Accessibility
+## 6. Density budget
 
-Not a checklist item — several decisions above exist because of it.
+Direct feedback on v0.1.0: _"right now it's packed with text and button."_ It
+was — the old home page carried three buttons, a four-cell readout, three prose
+cards, and a contact panel.
 
-- Skip-to-content link, first in the tab order.
-- Semantic landmarks; every nav has an `aria-label`.
-- Active nav marked with `aria-current="page"` (not colour alone).
-- Mobile drawer: `role="dialog"`, `aria-modal`, focus moved in on open and restored on close, Escape closes, scroll locked while open, and a viewport-widening listener that prevents it being stranded open.
-- One uniform, always-visible `:focus-visible` treatment site-wide.
-- Text contrast targets WCAG AA in both themes; the light-mode accent was darkened specifically to meet it.
-- `prefers-reduced-motion` honoured globally.
-- Decorative layers are `aria-hidden` and `pointer-events-none`.
-- Wide tables scroll inside their own container; the page body never scrolls horizontally.
+Rules now:
 
----
+| Surface           | Budget                                                         |
+| ----------------- | -------------------------------------------------------------- |
+| Hero              | Eyebrow, one display title, one sentence, **one** button       |
+| Capabilities      | A **carousel** — one pillar visible at a time                  |
+| Selected work     | **Two** cards; the projects page holds the rest                |
+| Interior masthead | Eyebrow, title, one sentence                                   |
+| Footer            | A build stamp. The rail already carries sitemap, socials, CTA. |
+| Contact section   | **Removed** — the rail's CTA is always on screen               |
 
-## 7. Performance
+Long-form measure is `--prose-max: 36rem`, deliberately narrow.
 
-| Decision                             | Effect                                                                                    |
-| ------------------------------------ | ----------------------------------------------------------------------------------------- |
-| Zero JS by default                   | Index, resume, and resources ship no runtime                                              |
-| `client:visible` for demos           | Below-fold islands cost nothing until scrolled to                                         |
-| `client:load` for the token counter  | The island _is_ the page and sits above the fold — deferring would only add visible delay |
-| Self-hosted variable fonts           | No third-party connection; two files cover every weight                                   |
-| Inline SVG icons                     | No icon font, no sprite request                                                           |
-| Static output, `format: 'directory'` | Plain HTML from CDN edge                                                                  |
-
-Targets: Lighthouse ≥95 across all four categories; LCP < 1.5s on a cold 4G load.
+The carousel is paged rather than stacked because three side-by-side prose
+cards is three blocks competing for one glance. It does not auto-advance;
+inactive panels are `hidden`, so they leave the tab order entirely.
 
 ---
 
-## 8. Deployment
+## 7. The particle instrument
 
-`main` → GitHub Actions → GitHub Pages. `npm run build` runs `astro check`
-before `astro build`, so **a type error fails the deploy rather than shipping**.
-Concurrency group `pages` with `cancel-in-progress: false`, so a partially
-uploaded artifact can never win a race against an in-flight deploy.
+### 7.1 Engine
 
-The footer renders a build timestamp baked at compile time — a cheap, honest
-"is the deploy actually live" signal.
+`src/vendor/particle-wave/` is vendored from SenseRing's `particle_wave` FE.
+Public surface: `ParticleWave.init(canvas, config) → instance` with
+`setConfig` / `pause` / `resume` / `triggerWave` / `destroy`.
 
-`site` is `https://coronring.github.io` with `base: '/'`. All internal links
-route through `href()` in `src/lib/url.ts`, which resolves against
-`import.meta.env.BASE_URL` — so if this ever moves to a project page, one config
-line changes and every link still works.
+Upstream is plain JS with JSDoc, whose inferred types are too narrow to use
+(`DEFAULTS.src` is `null`, so `src` infers as `null | undefined` and rejects the
+URL the engine requires). `particle-wave.d.ts` declares the surface separately
+rather than editing vendored code, which would be lost on the next sync.
+
+### 7.2 The cloud
+
+`scripts/generate-cloud.mjs` emits `public/clouds/corona.pwcloud` — a corona:
+dense ring, 34 radial flares, a small core, and ambient dust (the dust exists so
+the cursor gets a response in the empty regions, not just on the ring).
+
+Parametric rather than traced from an image: no source bitmap to ship, no Python
+step in CI, and density is one number. **Seeded PRNG** — an unseeded generator
+would emit a different asset every run, showing a spurious diff and busting the
+CDN cache. 6,675 points, 121 kB raw / **32.8 kB gzipped**, verified
+byte-identical across runs.
+
+### 7.3 Integration
+
+The component owns theming, cost control, and graceful absence. Loading is
+gated on an IntersectionObserver, and the simulation pauses when off-screen or
+backgrounded.
+
+**Particle appearance is theme-dependent, and the two themes need different
+numbers to carry equal weight.** A small antialiased dark dot on light ground
+loses most of its ink to partial pixel coverage; a white dot on near-black reads
+as a light source and looks stronger than its alpha suggests. Hence
+`--particle-size` 1.9 (light) vs 1.8 (dark) and `--particle-opacity` 0.92 vs
+0.85, all re-pushed via `setConfig` on theme change.
+
+### 7.4 Two bugs found by measuring pixels
+
+Both were invisible to inspection and only surfaced by sampling the rendered
+PNG with PIL.
+
+**A canvas fade-in that never finished.** The canvas carried
+`transition-opacity duration-1000`. Any renderer that freezes the animation
+clock — headless capture, some low-power modes — samples it mid-fade and leaves
+the cloud permanently at ~35% of intended contrast (measured: darkest particle
+luminance 167 against a 241 background, where 19 was expected). The fade bought
+nothing, because the canvas is transparent until the first frame paints and
+there is no wrong state to hide. **Removed**, and rendering is now deterministic
+across runs.
+
+**Reduced motion rendered nothing at all.** The reduced-motion path called
+`instance.pause()` immediately, which cancelled the rAF the engine had scheduled
+in its constructor — so the canvas stayed blank rather than showing a static
+composition. Now it waits two frames before pausing.
+
+A third, related hardening: `[data-reveal]` starts at `opacity: 0`, so any
+element the observer fails to reach would stay invisible **forever**. A 2 s
+safety timeout now reveals anything still pending. A hidden-content bug is worse
+than a missed animation.
 
 ---
 
-## 9. Content model
+## 8. Generated cover art
 
-| Collection   | Path                                 | Key fields                                                                                         |
-| ------------ | ------------------------------------ | -------------------------------------------------------------------------------------------------- |
-| `projects`   | `src/content/projects/**.{md,mdx}`   | `title`, `summary`, `order`, `status`, `interactive`, `demo`, `tech`, `links`, `featured`, `draft` |
-| `resources`  | `src/content/resources/**.{md,mdx}`  | `title`, `summary`, `category`, `url?`, `tags`, `updated`, `draft`                                 |
-| `experience` | `src/content/experience/**.{md,mdx}` | `organization`, `role`, `start`, `end?`, `kind`, `highlights`, `tech`, `links`                     |
+`CoverArt.astro` draws a deterministic SVG panel seeded from the project slug
+(FNV-1a → PRNG): orbit arcs, an accent core, nodes, scanlines, frame ticks.
 
-All Zod-validated. `draft: true` excludes an entry from production listings.
-Omitting `end` on an experience entry means "current" and renders as _Present_.
-
-**Every page renders an explicit empty state** naming the directory to add files
-to — the scaffold is navigable and self-documenting before any real content
-lands.
+Real screenshots are better, and this yields the moment a project supplies a
+`cover`. Until then it beats both alternatives: an empty grey box says nothing,
+and a stock photo says something untrue. Same slug always draws the same panel —
+stable across rebuilds, distinct from its neighbours in a grid.
 
 ---
 
-## 10. Roadmap
+## 9. Accessibility
 
-### Phase 1 — Structure ✅ (this pass)
-
-Design system, layout shell, five routes, content collections, demo registry,
-one working tool, deploy pipeline.
-
-### Phase 2 — Content
-
-Replace every placeholder. Real projects, real resume entries, real resources.
-Write the `agent-harness` and `nlp-toolbox` pages properly. Add `public/resume.pdf`.
-
-### Phase 3 — Demos
-
-Replace `PlaceholderDemo` with real interactive artifacts. Each needs to work
-offline, degrade gracefully, and be genuinely worth pressing the buttons on.
-
-### Phase 4 — Tools
-
-Ship the four planned tools. Consider a WASM tokenizer to replace the estimator
-with an exact count — the single biggest quality upgrade available to the token
-counter.
-
-### Phase 5 — Polish
-
-Real OG images (per-page, generated at build). Lighthouse pass. Cross-browser
-and screen-reader testing. Optional: RSS for resources, `/uses`, a writing
-section.
+- Skip link first in tab order; semantic landmarks; `aria-label` on every nav
+- Active nav marked `aria-current="page"`, not colour alone
+- Drawer: `role="dialog"`, `aria-modal`, focus moved in and restored, Escape closes, scroll locked, viewport-widening listener prevents it stranding open
+- Carousel: labelled group, `aria-roledescription`, inactive panels `hidden`, arrow-key paging, no auto-advance
+- One uniform `:focus-visible` treatment site-wide
+- AA text contrast in both themes — the light accent was darkened specifically to meet it
+- Decorative layers `aria-hidden` + `pointer-events-none`
+- `prefers-reduced-motion` honoured globally, and the particle field still renders its composition
 
 ---
 
-## 11. Decision log
+## 10. Performance
 
-| Decision                                               | Reasoning                                                                                                          |
-| ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------ |
-| Astro over Next.js                                     | No backend to justify server components; zero-JS-by-default is the right default for a documents-plus-islands site |
-| Tailwind v4 CSS-first `@theme`                         | Utilities generated from the token file, so utilities and variables cannot drift                                   |
-| Static demo registry over dynamic import               | Build-time failure on a typo; correct tree-shaking                                                                 |
-| Three-state theme with "system" as a real state        | A two-state toggle silently overrides an OS preference the visitor already expressed                               |
-| Dark-first, light fully supported                      | Dark suits the reference genre; light is what a recruiter on a bright screen actually wants                        |
-| Estimator, labelled as such, over silent approximation | An unlabelled estimate presented as exact is worse than no tool                                                    |
-| Planned tools shown dimmed                             | The roadmap is part of the story; an empty grid says less than an honest one                                       |
-| Pricing centralised in `models.ts` with dated promos   | A rate change is one edit, and promotional pricing expires on its own                                              |
-| Single `Panel` primitive                               | The one reliable way to keep card surfaces uniform across five page types                                          |
+| Decision                   | Effect                                            |
+| -------------------------- | ------------------------------------------------- |
+| Zero JS by default         | Resume and resources ship no runtime              |
+| IO-gated particle init     | 33 kB cloud + engine load only near the viewport  |
+| Pause when hidden          | No rAF loop off-screen or in a background tab     |
+| `client:visible` carousel  | Below-fold island costs nothing until scrolled to |
+| Self-hosted variable fonts | No third-party connection                         |
+| Inline SVG                 | No icon font, no sprite request                   |
+
+---
+
+## 11. Verification method
+
+Visual work is verified by measurement, not by eye:
+
+1. `npm run build` (type-check gated) → `npm run preview`
+2. `chrome --headless --screenshot` per theme (`--blink-settings=preferredColorScheme` toggles it; note the flag's values behaved inversely in testing — confirm against the rendered background before trusting a label)
+3. Sample the PNG with PIL: background luminance, darkest/brightest particle, delta
+
+This is how both §7.4 bugs were found. Screenshots alone would have shown "a bit
+faint" and been dismissed as a style preference.
+
+---
+
+## 12. Content model
+
+| Collection   | Path                      | Key fields                                                                                                |
+| ------------ | ------------------------- | --------------------------------------------------------------------------------------------------------- |
+| `projects`   | `src/content/projects/`   | `title`, `summary` (≤180), `order`, `status`, `interactive`, `demo`, `tech`, `links`, `featured`, `draft` |
+| `resources`  | `src/content/resources/`  | `title`, `summary`, `category`, `url?`, `tags`, `updated`, `draft`                                        |
+| `experience` | `src/content/experience/` | `organization`, `role`, `start`, `end?`, `kind`, `highlights`, `tech`                                     |
+
+All Zod-validated. Omitting `end` means "current" and renders as _Present_.
+Every page renders an explicit empty state naming the directory to add files to.
+
+**Demo registry:** project frontmatter names a demo by string, and
+`DemoFrame.astro` maps it with explicit per-demo branches. Not a lookup table —
+Astro generates hydration scripts from _statically analysable_ imports, so a
+runtime-resolved component fails the build with `NoMatchingImport`.
+
+---
+
+## 13. Deployment
+
+`main` → Actions → Pages. `npm run build` runs `astro check` first, so a type
+error fails the deploy. Concurrency group `pages`, `cancel-in-progress: false`.
+
+All internal links route through `href()`, which resolves against
+`import.meta.env.BASE_URL` — moving to a project page is one config line.
+
+---
+
+## 14. Roadmap
+
+- **Phase 2 — Content.** Replace every placeholder. Real projects, resume, resources. Add `public/resume.pdf`.
+- **Phase 3 — Demos.** Replace `PlaceholderDemo` with real artifacts.
+- **Phase 4 — Tools.** Ship the four planned tools; consider a WASM tokenizer to replace the token counter's estimator with an exact count.
+- **Phase 5 — Polish.** Per-page OG images, Lighthouse pass, screen-reader testing, more `.pwcloud` shapes per section.
+
+---
+
+## 15. Decision log
+
+| Decision                                                          | Reasoning                                                                                  |
+| ----------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| Escalate to a headless browser before declaring a site unreadable | v0.1.0's central error; the CSS was one `curl` away                                        |
+| Vertical rail over horizontal header                              | Nav persists through a full-height hero; gives the asymmetric edge the reference relies on |
+| Contrast veil rather than a matching one                          | A same-tone loader is a blank screen; the opposite tone makes the reveal an event          |
+| Veil once per session                                             | An MPA that veils every navigation is unusable                                             |
+| Two accent tokens (text vs fill)                                  | `#fffa00` is illegible as text on white but correct as a fill with ink on top              |
+| Per-theme particle size and opacity                               | Equal alpha does not mean equal perceived weight across grounds                            |
+| No canvas fade-in                                                 | Bought nothing; froze at ~35% contrast wherever the animation clock stalls                 |
+| Parametric cloud with a fixed seed                                | No source bitmap, no Python in CI, byte-identical rebuilds                                 |
+| Vendor SenseRing rather than reimplement                          | The engine already exists, is better than a rewrite, and is the user's own work            |
+| Types declared beside vendored JS, not inside it                  | Upstream edits are lost on the next sync                                                   |
+| Carousel over three stacked cards                                 | Three prose blocks compete for one glance                                                  |
+| Generated cover art over grey boxes                               | Says something true while real screenshots are pending                                     |
+| Verify by sampling pixels                                         | Both particle bugs were invisible to inspection                                            |
 
 ---
 
 ## Appendix — commands
 
 ```bash
-npm install       # install
-npm run dev       # dev server, localhost:4321
-npm run build     # astro check && astro build
-npm run preview   # serve ./dist locally
-npm run format    # Prettier
+npm install
+npm run dev                      # localhost:4321
+npm run build                    # astro check && astro build
+npm run preview
+npm run format
+node scripts/generate-cloud.mjs  # regenerate public/clouds/corona.pwcloud
 ```

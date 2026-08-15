@@ -2,96 +2,40 @@
 /**
  * Projects index — the demo gallery.
  *
- * Cards are grouped by status so live, interactive work leads. The list is
- * driven entirely by the `projects` collection.
+ * A plain grid of ProjectCards. No status filters, no group headings, no
+ * per-card tag clouds: with a handful of projects those are chrome around
+ * content that already fits on one screen. Cards carry their own status dot.
  */
 import { getCollection } from 'astro:content';
 import PageLayout from '../../layouts/PageLayout.astro';
-import Panel from '../../components/ui/Panel.astro';
-import Tag from '../../components/ui/Tag.astro';
+import ProjectCard from '../../components/ui/ProjectCard.astro';
 import Reveal from '../../components/ui/Reveal.astro';
-import Icon from '../../components/ui/Icon.astro';
-import { href } from '../../lib/url';
 
 const projects = (await getCollection('projects', (p) => !p.data.draft)).sort(
   (a, b) => a.data.order - b.data.order,
 );
-
-const STATUS_LABEL = {
-  live: 'Live',
-  'in-progress': 'In progress',
-  archived: 'Archived',
-} as const;
-
-const STATUS_VARIANT = {
-  live: 'ok',
-  'in-progress': 'warn',
-  archived: 'neutral',
-} as const;
 ---
 
 <PageLayout
-  index="01"
   eyebrow="Projects"
   title="Projects"
   description="Interactive demos of agent systems, developer tooling, and applied NLP work."
-  lede="Working demos, not screenshots. Each project page embeds the thing itself alongside a short account of the engineering decisions behind it."
+  lede="Working demos, not screenshots. Each page embeds the thing itself."
 >
   {
     projects.length > 0 ? (
-      <ul class="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+      <ul class="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
         {projects.map((project, i) => (
           <Reveal as="li" delay={(i % 3) * 80}>
-            <Panel
-              as="a"
-              href={href(`/projects/${project.id}`)}
-              interactive
-              pad="lg"
-              class="flex h-full flex-col"
-            >
-              <div class="mb-4 flex items-center justify-between gap-3">
-                <Tag variant={STATUS_VARIANT[project.data.status]} dot>
-                  {STATUS_LABEL[project.data.status]}
-                </Tag>
-                <Icon
-                  name="arrow-up-right"
-                  size={15}
-                  class="text-faint group-hover:text-accent transition-colors"
-                />
-              </div>
-
-              <h2 class="group-hover:text-accent text-lg transition-colors">
-                {project.data.title}
-              </h2>
-              <p class="text-muted mt-2.5 flex-1 text-sm leading-relaxed">{project.data.summary}</p>
-
-              {project.data.period && (
-                <p class="text-faint mt-4 font-mono text-[11px]">{project.data.period}</p>
-              )}
-
-              <ul class="border-line mt-5 flex flex-wrap gap-1.5 border-t pt-5">
-                {project.data.interactive && (
-                  <li>
-                    <Tag variant="accent">Interactive</Tag>
-                  </li>
-                )}
-                {project.data.tech.slice(0, 4).map((t) => (
-                  <li>
-                    <Tag>{t}</Tag>
-                  </li>
-                ))}
-              </ul>
-            </Panel>
+            <ProjectCard project={project} />
           </Reveal>
         ))}
       </ul>
     ) : (
-      <Panel tone="inset" pad="lg">
-        <p class="text-muted text-sm">
-          No projects published yet. Add an MDX file under{' '}
-          <code class="text-accent font-mono">src/content/projects/</code>.
-        </p>
-      </Panel>
+      <p class="text-muted text-sm">
+        No projects published yet. Add an MDX file under{' '}
+        <code class="text-accent font-mono">src/content/projects/</code>.
+      </p>
     )
   }
 </PageLayout>

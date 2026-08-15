@@ -1,0 +1,268 @@
+---
+/**
+ * Sidebar — the fixed left navigation rail.
+ *
+ * Replaces the horizontal header. A vertical rail buys three things the top
+ * bar could not: navigation stays visible during a full-height hero, the
+ * content column gets an asymmetric left edge to sit against, and the active
+ * item can be marked with a left border rather than an underline.
+ *
+ * One markup source drives both presentations — the rail at >=lg and the
+ * drawer below it — so the two can never drift.
+ */
+import { SITE } from '../../data/site';
+import { href, isActive } from '../../lib/url';
+import Icon from '../ui/Icon.astro';
+import ThemeToggle from './ThemeToggle.astro';
+
+const path = Astro.url.pathname;
+---
+
+<a
+  href="#main"
+  class="bg-accent-fill text-accent-on-fill sr-only rounded-sm px-4 py-2 text-sm font-medium focus:not-sr-only focus:absolute focus:top-3 focus:left-3 focus:z-[110]"
+>
+  Skip to content
+</a>
+
+{/* ── Mobile top bar (below lg) ─────────────────────────────────── */}
+<div
+  class="bg-ground/85 border-line fixed inset-x-0 top-0 z-50 flex h-14 items-center justify-between border-b px-4 backdrop-blur-xl lg:hidden"
+>
+  <a href={href('/')} class="flex items-center gap-2.5" aria-label={`${SITE.name} — home`}>
+    <span
+      aria-hidden="true"
+      class="border-accent grid size-6 place-items-center rounded-full border"
+    >
+      <span class="bg-accent-fill size-1.5 rounded-full"></span>
+    </span>
+    <span class="text-[13px] font-semibold tracking-tight">{SITE.handle}</span>
+  </a>
+
+  <div class="flex items-center gap-1">
+    <ThemeToggle />
+    <button
+      type="button"
+      id="nav-open"
+      class="text-muted hover:text-fg grid size-9 place-items-center rounded-md transition-colors"
+      aria-label="Open navigation"
+      aria-expanded="false"
+      aria-controls="mobile-nav"
+    >
+      <Icon name="menu" size={18} />
+    </button>
+  </div>
+</div>
+
+{/* ── Desktop rail (lg and up) ──────────────────────────────────── */}
+<aside
+  class="border-line bg-surface fixed inset-y-0 left-0 z-50 hidden w-[var(--rail-w)] flex-col border-r lg:flex"
+  aria-label="Primary"
+>
+  <!-- Wordmark -->
+  <a
+    href={href('/')}
+    class="group border-line flex items-center gap-3 border-b px-6 py-6"
+    aria-label={`${SITE.name} — home`}
+  >
+    <span
+      aria-hidden="true"
+      class="border-accent group-hover:bg-accent-soft relative grid size-8 place-items-center rounded-full border transition-colors"
+    >
+      <span class="bg-accent-fill size-2 rounded-full"></span>
+    </span>
+    <span class="flex flex-col leading-none">
+      <span class="display text-base">{SITE.handle}</span>
+      <span class="eyebrow mt-1.5 text-[9px]">{SITE.role}</span>
+    </span>
+  </a>
+
+  <!-- Primary navigation -->
+  <nav class="flex-1 overflow-y-auto py-4">
+    <ul>
+      {
+        SITE.nav.map((item) => {
+          const active = isActive(path, item.href);
+          return (
+            <li>
+              <a
+                href={href(item.href)}
+                aria-current={active ? 'page' : undefined}
+                class:list={[
+                  'relative flex items-center gap-3.5 py-3 pr-4 pl-6 text-sm transition-colors duration-[var(--dur-fast)]',
+                  active
+                    ? 'bg-raised text-fg before:bg-accent-fill before:absolute before:inset-y-0 before:left-0 before:w-[3px] before:content-[""]'
+                    : 'text-muted hover:text-fg hover:bg-raised/60',
+                ]}
+              >
+                <Icon name={item.icon} size={18} class={active ? 'text-accent' : ''} />
+                <span class="flex-1">{item.label}</span>
+                <span class="text-faint font-mono text-[10px]">{item.index}</span>
+              </a>
+            </li>
+          );
+        })
+      }
+    </ul>
+  </nav>
+
+  <!-- Footer: one CTA, socials, theme -->
+  <div class="border-line border-t px-6 py-5">
+    <a
+      href={SITE.cta.href}
+      class="bg-accent-fill text-accent-on-fill flex h-11 items-center justify-center gap-2 rounded-sm text-sm font-semibold transition-opacity hover:opacity-85"
+    >
+      {SITE.cta.label}
+      <Icon name="arrow-right" size={15} />
+    </a>
+
+    <div class="mt-4 flex items-center justify-between">
+      <ul class="flex gap-1">
+        {
+          SITE.social.map((s) => (
+            <li>
+              <a
+                href={s.href}
+                target={s.href.startsWith('mailto:') ? undefined : '_blank'}
+                rel="noopener noreferrer"
+                class="text-faint hover:text-accent grid size-8 place-items-center rounded-md transition-colors"
+                aria-label={s.label}
+                title={s.label}
+              >
+                <Icon name={s.icon} size={15} />
+              </a>
+            </li>
+          ))
+        }
+      </ul>
+      <ThemeToggle />
+    </div>
+  </div>
+</aside>
+
+{/* ── Mobile drawer ─────────────────────────────────────────────── */}
+<div
+  id="mobile-nav"
+  hidden
+  class="fixed inset-0 z-[60] lg:hidden"
+  role="dialog"
+  aria-modal="true"
+  aria-label="Navigation"
+>
+  <div data-nav-scrim class="absolute inset-0 bg-[var(--c-overlay)] backdrop-blur-sm"></div>
+
+  <div
+    class="bg-surface border-line absolute inset-y-0 left-0 flex w-[min(20rem,86vw)] flex-col border-r"
+  >
+    <div class="border-line flex h-14 items-center justify-between border-b px-4">
+      <span class="eyebrow">Navigation</span>
+      <button
+        type="button"
+        id="nav-close"
+        class="text-muted hover:text-fg grid size-9 place-items-center rounded-md transition-colors"
+        aria-label="Close navigation"
+      >
+        <Icon name="close" size={18} />
+      </button>
+    </div>
+
+    <nav class="flex-1 overflow-y-auto py-2">
+      <ul>
+        {
+          SITE.nav.map((item) => {
+            const active = isActive(path, item.href);
+            return (
+              <li>
+                <a
+                  href={href(item.href)}
+                  aria-current={active ? 'page' : undefined}
+                  class:list={[
+                    'relative flex items-center gap-3.5 px-5 py-3.5',
+                    active
+                      ? 'bg-raised text-fg before:bg-accent-fill before:absolute before:inset-y-0 before:left-0 before:w-[3px] before:content-[""]'
+                      : 'text-muted',
+                  ]}
+                >
+                  <Icon name={item.icon} size={18} class={active ? 'text-accent' : ''} />
+                  <span class="min-w-0 flex-1">
+                    <span class="block text-sm">{item.label}</span>
+                    <span class="text-faint block text-[11px]">{item.blurb}</span>
+                  </span>
+                </a>
+              </li>
+            );
+          })
+        }
+      </ul>
+    </nav>
+
+    <div class="border-line border-t px-5 py-4">
+      <a
+        href={SITE.cta.href}
+        class="bg-accent-fill text-accent-on-fill flex h-11 items-center justify-center gap-2 rounded-sm text-sm font-semibold"
+      >
+        {SITE.cta.label}
+        <Icon name="arrow-right" size={15} />
+      </a>
+      <ul class="mt-4 flex gap-2">
+        {
+          SITE.social.map((s) => (
+            <li>
+              <a
+                href={s.href}
+                target={s.href.startsWith('mailto:') ? undefined : '_blank'}
+                rel="noopener noreferrer"
+                class="border-line text-muted grid size-9 place-items-center rounded-md border"
+                aria-label={s.label}
+              >
+                <Icon name={s.icon} size={15} />
+              </a>
+            </li>
+          ))
+        }
+      </ul>
+    </div>
+  </div>
+</div>
+
+<script>
+  function initNav(): void {
+    const drawer = document.getElementById('mobile-nav');
+    const openBtn = document.getElementById('nav-open');
+    const closeBtn = document.getElementById('nav-close');
+    const scrim = drawer?.querySelector('[data-nav-scrim]');
+    if (!drawer || !openBtn) return;
+
+    let lastFocused: HTMLElement | null = null;
+
+    const setOpen = (open: boolean) => {
+      drawer.hidden = !open;
+      openBtn.setAttribute('aria-expanded', String(open));
+      document.documentElement.style.overflow = open ? 'hidden' : '';
+
+      if (open) {
+        lastFocused = document.activeElement as HTMLElement | null;
+        drawer.querySelector<HTMLElement>('a, button')?.focus();
+      } else {
+        lastFocused?.focus();
+      }
+    };
+
+    openBtn.addEventListener('click', () => setOpen(true));
+    closeBtn?.addEventListener('click', () => setOpen(false));
+    scrim?.addEventListener('click', () => setOpen(false));
+    drawer.querySelectorAll('a').forEach((a) => a.addEventListener('click', () => setOpen(false)));
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && !drawer.hidden) setOpen(false);
+    });
+
+    // Widening past the drawer's breakpoint must not strand it open.
+    window.matchMedia('(min-width: 1024px)').addEventListener('change', (e) => {
+      if (e.matches && !drawer.hidden) setOpen(false);
+    });
+  }
+
+  initNav();
+  document.addEventListener('astro:page-load', initNav);
+</script>
