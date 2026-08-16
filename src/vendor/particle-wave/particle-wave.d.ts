@@ -51,9 +51,35 @@ export interface ParticleWaveConfig {
   targetFPS?: number;
 }
 
+/**
+ * A pluggable per-frame force. The engine calls `apply` once per frame with
+ * its particle state and the frame time in milliseconds; implementations add
+ * into the `fx`/`fy` accumulators.
+ */
+export interface CustomForce {
+  apply(state: ParticleStateView, dt: number): void;
+}
+
+/** The subset of engine particle state exposed to custom forces. */
+export interface ParticleStateView {
+  readonly N: number;
+  /** Rest positions. */
+  readonly ox: Float32Array;
+  readonly oy: Float32Array;
+  /** Current positions. */
+  readonly px: Float32Array;
+  readonly py: Float32Array;
+  /** Force accumulators for this frame. */
+  readonly fx: Float32Array;
+  readonly fy: Float32Array;
+}
+
 export interface ParticleWaveInstance {
   /** Merge a partial config into the running instance. */
   setConfig(partial: Partial<ParticleWaveConfig>): void;
+  /** Register a per-frame force. Composes with spring, mouse, and waves. */
+  addForce(force: CustomForce): void;
+  removeForce(force: CustomForce): void;
   setMode(mode: NonNullable<ParticleWaveConfig['mouseMode']>): void;
   /** Emit a wave from a point in canvas coordinates. */
   triggerWave(origin: { x: number; y: number }): void;

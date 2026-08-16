@@ -1,0 +1,56 @@
+---
+title: Particle Wave
+summary: An image-to-particle-cloud pipeline with a real-time physics renderer — the same engine driving the corona on this site's home page.
+order: 10
+status: in-progress
+interactive: true
+demo: placeholder
+featured: true
+role: Design and implementation
+period: 2026 — present
+tech: ['TypeScript', 'Canvas', 'Python', 'Verlet physics']
+highlights:
+  - 'Offline pipeline converts any image to a sampled point cloud via edge extraction; the runtime is image-agnostic and only consumes the serialised cloud.'
+  - 'Verlet integrator with spring-to-rest, pluggable custom forces, and propagating click waves — 6,700 particles at 60fps on a single canvas.'
+  - 'Ships as a compact `.pwcloud` format: normalised coordinates, 33 kB gzipped for the hero cloud.'
+links:
+  - label: SenseRing
+    href: https://github.com/CoronRing
+hero:
+  label: Particle Wave — hero capture
+  alt: The particle wave engine rendering a corona point cloud
+  ratio: '16/9'
+  caption: Live capture of the engine responding to the cursor.
+gallery:
+  - label: Image → point cloud pipeline
+    alt: Source image beside its extracted point cloud
+    ratio: '4/3'
+    caption: Edge extraction and density-aware sampling turn a source image into a cloud.
+  - label: Wave propagation
+    alt: Click wave propagating through the particle field
+    ratio: '4/3'
+    caption: A click spawns a wave packet that propagates outward and decays.
+---
+
+> **Placeholder write-up.** Replace this body with the real account; the
+> frontmatter above already carries the fields the layout renders.
+
+## The problem
+
+A still image on a landing page is inert. A canvas of particles that responds
+to the cursor is not, but hand-authoring one per image does not scale.
+
+## The approach
+
+Split the work in two. An offline pipeline turns any image into a sampled
+point cloud — grayscale, edge extraction, then density-aware sampling so
+points land where the detail is. The runtime knows nothing about images: it
+loads a cloud, spawns particles at rest positions, and simulates.
+
+Because the two halves only share a serialisation contract, either can be
+replaced. The corona on this site's home page is not traced from an image at
+all — it is generated parametrically and loaded by the same runtime.
+
+## What I would do differently
+
+To be written.

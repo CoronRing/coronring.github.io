@@ -1,22 +1,27 @@
 /**
  * Site-wide configuration.
  *
- * Everything that is "about me" or "about this site" lives here rather than
- * being scattered through templates. Changing a nav label, a social handle, or
- * the tagline should mean editing exactly one file.
+ * Everything "about me" or "about this site" lives here rather than being
+ * scattered through templates. Changing a nav label, a handle, or the tagline
+ * should mean editing exactly one file.
  */
 import type { IconName } from '../components/ui/icons';
 
 export interface NavItem {
-  /** Visible label. Short — the rail is narrow. */
+  /** Visible label. Short — the rail is narrow when collapsed. */
   readonly label: string;
-  /** Root-relative path, no trailing slash (except "/"). */
+  /** Root-relative path for the dedicated page. */
   readonly href: string;
-  /** Two-digit index rendered as HUD-style metadata. */
+  /**
+   * `id` of the matching section on the single-flow home page. When present
+   * and the visitor is on `/`, the rail links to the anchor and scroll-spies
+   * it instead of navigating away.
+   */
+  readonly section?: string;
+  /** Two-digit index rendered as HUD metadata. */
   readonly index: string;
-  /** Icon shown beside the label in the sidebar rail. */
   readonly icon: IconName;
-  /** One-line purpose, surfaced in the mobile drawer. */
+  /** One-line purpose, shown in the mobile drawer. */
   readonly blurb: string;
 }
 
@@ -34,6 +39,8 @@ export interface SiteConfig {
   readonly description: string;
   readonly url: string;
   readonly locale: string;
+  readonly location: string;
+  readonly email: string;
   readonly nav: readonly NavItem[];
   readonly social: readonly SocialLink[];
   readonly repo: string;
@@ -41,43 +48,51 @@ export interface SiteConfig {
   readonly cta: { readonly label: string; readonly href: string };
 }
 
+const EMAIL = 'guanzheng.huang@hotmail.com';
+
 export const SITE: SiteConfig = {
   name: 'Guan Zheng Huang',
   handle: 'CoronRing',
-  role: 'Agentic Developer',
-  title: 'Guan Zheng Huang — Agentic Developer',
+  role: 'Applied ML Engineer',
+  title: 'Guan Zheng Huang — Applied ML Engineer',
   description:
-    'Systems, agents, and the tooling around them. Interactive demos, engineering write-ups, and utilities for people who build with LLMs.',
+    'Applied ML engineer building agentic systems, evaluation tooling, and the infrastructure around them. Interactive demos, research, and open-source work.',
   url: 'https://coronring.github.io',
   locale: 'en',
+  location: 'Toronto, Canada',
+  email: EMAIL,
   repo: 'CoronRing/coronring.github.io',
 
   nav: [
-    { label: 'Index', href: '/', index: '00', icon: 'home', blurb: 'Who I am and what I build.' },
+    { label: 'Index', href: '/', section: 'top', index: '00', icon: 'home', blurb: 'Start here.' },
     {
-      label: 'Projects',
+      label: 'Work',
       href: '/projects',
+      section: 'work',
       index: '01',
       icon: 'grid',
-      blurb: 'Live, interactive demos.',
+      blurb: 'Systems I have built.',
     },
     {
       label: 'Resume',
       href: '/resume',
+      section: 'resume',
       index: '02',
       icon: 'file-text',
-      blurb: 'Experience and achievements.',
+      blurb: 'Experience and research.',
     },
     {
       label: 'Resources',
       href: '/resources',
+      section: 'resources',
       index: '03',
       icon: 'book',
-      blurb: 'Notes, references, reading.',
+      blurb: 'Notes and references.',
     },
     {
       label: 'Tools',
       href: '/tools',
+      section: 'tools',
       index: '04',
       icon: 'terminal',
       blurb: 'Utilities that run in your browser.',
@@ -86,9 +101,9 @@ export const SITE: SiteConfig = {
 
   social: [
     { label: 'GitHub', href: 'https://github.com/CoronRing', icon: 'github' },
-    { label: 'LinkedIn', href: 'https://www.linkedin.com/in/guan-zheng-huang', icon: 'linkedin' },
-    { label: 'Email', href: 'mailto:guan@railtown.ai', icon: 'mail' },
+    { label: 'LinkedIn', href: 'https://www.linkedin.com/in/guan0huang/', icon: 'linkedin' },
+    { label: 'Email', href: `mailto:${EMAIL}`, icon: 'mail' },
   ],
 
-  cta: { label: 'Get in touch', href: 'mailto:guan@railtown.ai' },
+  cta: { label: 'Get in touch', href: `mailto:${EMAIL}` },
 } as const;

@@ -1,16 +1,16 @@
 ---
 /**
- * ProjectCard — the single card used everywhere a project is listed.
+ * ProjectCard — the single card used wherever a project is listed.
  *
- * Visual-first: the generated cover panel occupies the top two-thirds, so a
- * grid of these reads as a gallery rather than a list of paragraphs. Text is
- * capped at a title plus one summary line; the detail page carries the rest.
+ * Media-first: the visual takes the top ~60% so a grid reads as a gallery
+ * rather than a list of paragraphs. Text is a title plus one summary line;
+ * the detail page carries the rest.
  *
- * One component for both the home page and the projects index — a second
- * card variant is how two grids start looking like two different sites.
+ * One component for both the home flow and the projects index — a second
+ * variant is how two grids start looking like two different sites.
  */
 import type { CollectionEntry } from 'astro:content';
-import CoverArt from './CoverArt.astro';
+import MediaFrame from './MediaFrame.astro';
 import Icon from './Icon.astro';
 import { href } from '../../lib/url';
 
@@ -32,17 +32,22 @@ const STATUS_LABEL = {
   href={href(`/projects/${project.id}`)}
   class="group border-line bg-surface hover:border-fg relative flex h-full flex-col overflow-hidden border transition-colors duration-[var(--dur-base)]"
 >
-  <!-- Cover -->
-  <div class="text-fg bg-sunken relative aspect-[16/9] overflow-hidden">
-    <div
-      class="size-full opacity-70 transition-[opacity,transform] duration-[var(--dur-slow)] ease-[var(--ease-out)] group-hover:scale-[1.03] group-hover:opacity-100"
-    >
-      <CoverArt seed={project.id} />
-    </div>
+  <!-- Media -->
+  <div class="relative">
+    <MediaFrame
+      src={data.hero?.src}
+      poster={data.hero?.poster}
+      alt={data.hero?.alt ?? data.title}
+      ratio={data.hero?.ratio ?? '16/9'}
+      label={data.hero?.label ?? data.title}
+      seed={project.id}
+      expects={`/media/projects/${project.id}/hero.webp`}
+      class="border-0 border-b"
+    />
 
     {
       data.interactive && (
-        <span class="bg-accent-fill text-accent-on-fill absolute top-3 left-3 px-2 py-1 font-mono text-[10px] font-semibold tracking-wide uppercase">
+        <span class="bg-accent-fill text-accent-on-fill absolute top-3 left-3 z-10 px-2 py-1 font-mono text-[10px] font-semibold tracking-wide uppercase">
           Interactive
         </span>
       )
@@ -71,21 +76,16 @@ const STATUS_LABEL = {
       {data.title}
     </h3>
 
-    {
-      /* No line clamp: the schema caps summaries at 180 chars, so they fit —
-        and clamping truncated mid-sentence, which reads worse than one extra
-        line. Card heights are equalised by the grid, not by the text. */
-    }
     <p class="text-muted mt-2.5 flex-1 text-sm leading-relaxed">{data.summary}</p>
 
-    <div class="border-line mt-5 flex items-center justify-between border-t pt-4">
-      <ul class="text-faint flex gap-2 font-mono text-[10px] uppercase">
+    <div class="border-line mt-5 flex items-center justify-between gap-4 border-t pt-4">
+      <ul class="text-faint flex flex-wrap gap-2 font-mono text-[10px] uppercase">
         {data.tech.slice(0, 3).map((t) => <li>{t}</li>)}
       </ul>
       <Icon
         name="arrow-up-right"
         size={15}
-        class="text-faint group-hover:text-accent transition-transform duration-[var(--dur-base)] group-hover:translate-x-0.5 group-hover:-translate-y-0.5"
+        class="text-faint group-hover:text-accent shrink-0 transition-transform duration-[var(--dur-base)] group-hover:translate-x-0.5 group-hover:-translate-y-0.5"
       />
     </div>
   </div>

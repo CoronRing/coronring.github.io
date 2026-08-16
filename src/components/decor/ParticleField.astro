@@ -1,34 +1,42 @@
 ---
 /**
- * ParticleField — the interactive corona point cloud behind the hero.
+ * ParticleField — the interactive corona point cloud.
  *
  * Wraps the vendored SenseRing `particle_wave` engine
- * (`src/vendor/particle-wave/`, from the SenseRing project). The engine owns
- * physics, rendering, and pointer interaction; this component owns the parts
- * that are specific to this site:
+ * (`src/vendor/particle-wave/`). The engine owns physics, rendering, and
+ * pointer handling; this component owns what is specific to this site:
  *
- *  - **Theming.** Particle colour is read from the live `--c-particle` token
- *    and re-pushed when the theme changes, so the cloud is ink on paper in
- *    light and light on void in dark.
+ *  - **Theming.** Colour, alpha and radius come from live CSS tokens and are
+ *    re-pushed when the theme changes.
+ *  - **Ambient motion.** The engine is input-driven, so with no cursor the
+ *    cloud is a still image. `AmbientDrift` adds an always-on flow field.
  *  - **Cost control.** Nothing loads until the canvas is near the viewport,
- *    and the simulation pauses whenever it scrolls away or the tab is hidden.
- *  - **Graceful absence.** The canvas is decorative. If the engine fails to
- *    load, the fetch 404s, or JS is off, the page is unaffected.
+ *    and the simulation pauses off-screen or in a background tab.
+ *  - **Graceful absence.** Decorative: any failure leaves the page intact.
  *
- * Reduced-motion is honoured by rendering one static frame and never starting
- * the animation loop — the composition survives, the movement doesn't.
+ * ## Pointer events
+ *
+ * The canvas must receive them or the cloud is dead to the cursor — an
+ * earlier revision set `pointer-events-none` on this wrapper *and* on the
+ * hero container, which is why interaction silently did nothing. The wrapper
+ * stays transparent to hit-testing so it never blocks page content; the
+ * canvas opts back in when `interactive`.
  */
 import { href } from '../../lib/url';
 
 interface Props {
   /** Path to the `.pwcloud` asset, relative to the site root. */
   src?: string;
+  /**
+   * Whether the canvas accepts pointer input. Off for decorative instances
+   * that sit under text; on for the hero.
+   */
+  interactive?: boolean;
   class?: string;
-  /** Inline styles forwarded to the wrapper (used for the opacity ramp). */
   style?: string;
 }
 
-const { src = '/clouds/corona.pwcloud', class: className, style } = Astro.props;
+const { src = '/clouds/corona.pwcloud', interactive = true, class: className, style } = Astro.props;
 const cloudUrl = href(src);
 ---
 
@@ -36,24 +44,27 @@ const cloudUrl = href(src);
   aria-hidden="true"
   data-particle-field
   data-cloud={cloudUrl}
+  data-interactive={interactive ? '1' : '0'}
   style={style}
   class:list={['pointer-events-none absolute inset-0 overflow-hidden', className]}
 >
   {
     /*
-    No fade-in, deliberately. An earlier revision faded the canvas from
-    opacity 0 over 1s, which bought nothing — the canvas is transparent until
-    the first frame paints, so there is no wrong state to hide — and cost a
-    lot: any renderer that freezes the animation clock (headless capture,
-    some low-power modes) samples the canvas mid-fade and leaves the cloud
-    permanently washed out. Measured at ~35% of intended contrast.
+    No fade-in, deliberately. A previous `transition-opacity` left the cloud
+    permanently washed out wherever the animation clock stalls (headless
+    capture, some low-power modes) — measured at ~35% of intended contrast.
+    The canvas is transparent until the first frame paints, so there is no
+    wrong state to hide.
   */
   }
-  <canvas data-particle-canvas class="size-full"></canvas>
+  <canvas
+    data-particle-canvas
+    class:list={['size-full', interactive && 'pointer-events-auto cursor-crosshair']}></canvas>
 </div>
 
 <script>
   import ParticleWave from '../../vendor/particle-wave/particle-wave.js';
+  import { AmbientDrift } from '../../lib/ambient-drift';
 
   /** Current value of a CSS custom property on :root. */
   function token(name: string, fallback: string): string {
@@ -66,6 +77,7 @@ const cloudUrl = href(src);
     const src = host.dataset.cloud;
     if (!canvas || !src) return;
 
+    const interactive = host.dataset.interactive === '1';
     const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
     let instance: Awaited<ReturnType<typeof ParticleWave.init>> | null = null;
@@ -75,27 +87,29 @@ const cloudUrl = href(src);
         padding: 0.08,
         scaleMode: 'fit',
 
-        // Colour, alpha and radius are all theme tokens — see the note on
-        // --particle-size in tokens.css for why the two themes differ.
+        // Colour, alpha and radius are theme tokens — see the note on
+        // --particle-size in tokens.css for why the themes differ.
         particleColor: token('--c-particle', '#ffffff'),
         particleOpacity: Number(token('--particle-opacity', '0.85')),
-        particleSize: Number(token('--particle-size', '2.3')),
+        particleSize: Number(token('--particle-size', '1.8')),
         particleSizeWeight: 0.9,
         particleOpacityWeight: 0.8,
 
-        // Loose spring + heavy damping: the cloud drifts back rather than
-        // snapping, which reads as dust rather than as a rubber sheet.
-        springK: 2.4,
-        damping: 6.5,
+        // Loose spring + moderate damping so the drift field can actually
+        // move points. A stiff spring pins them and the cloud looks static
+        // however hard the field pushes.
+        springK: 1.9,
+        damping: 3.4,
 
-        mouseEnabled: !reduce,
+        mouseEnabled: interactive && !reduce,
         mouseMode: 'repel',
-        mouseStrength: 46,
-        interactionRadius: 150,
+        mouseStrength: 58,
+        interactionRadius: 170,
+        touchEnabled: false,
 
-        waveEnabled: !reduce,
-        waveSpeed: 320,
-        waveStrength: 95,
+        waveEnabled: interactive && !reduce,
+        waveSpeed: 340,
+        waveStrength: 110,
         rippleCount: 2,
       });
     } catch (err) {
@@ -104,15 +118,16 @@ const cloudUrl = href(src);
       return;
     }
 
-    // (no ready flag needed — the canvas is opaque from the start)
-
     if (reduce) {
-      // Let exactly one frame paint before stopping, otherwise the canvas
-      // stays blank: the engine schedules its first frame in the constructor
-      // and pausing immediately cancels that rAF before it ever runs.
+      // Render exactly one static frame, then stop. Pausing immediately would
+      // cancel the rAF the engine schedules in its constructor and leave the
+      // canvas blank.
       requestAnimationFrame(() => requestAnimationFrame(() => instance?.pause()));
       return;
     }
+
+    // Always-on motion. Without this the cloud only moves under the cursor.
+    instance.addForce(new AmbientDrift({ amplitude: 26, scale: 0.006, speed: 0.35 }));
 
     // Pause when off-screen or backgrounded — an invisible rAF loop is pure
     // battery cost.
@@ -132,13 +147,12 @@ const cloudUrl = href(src);
     vis.observe(host);
     document.addEventListener('visibilitychange', sync);
 
-    // Re-theme on toggle: `data-theme` flips, or the OS preference changes
-    // while the site is on "system".
+    // Re-theme on toggle, or when the OS preference changes under "system".
     const retheme = () =>
       instance?.setConfig({
         particleColor: token('--c-particle', '#ffffff'),
         particleOpacity: Number(token('--particle-opacity', '0.85')),
-        particleSize: Number(token('--particle-size', '2.3')),
+        particleSize: Number(token('--particle-size', '1.8')),
       });
 
     new MutationObserver(retheme).observe(document.documentElement, {
@@ -153,7 +167,7 @@ const cloudUrl = href(src);
       if (host.dataset.mounted === '1') return;
       host.dataset.mounted = '1';
 
-      // Defer the 33 kB fetch and the engine until the canvas is close.
+      // Defer the cloud fetch and the engine until the canvas is close.
       if (!('IntersectionObserver' in window)) {
         void initField(host);
         return;

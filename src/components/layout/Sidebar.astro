@@ -1,14 +1,19 @@
 ---
 /**
- * Sidebar — the fixed left navigation rail.
+ * Sidebar — the collapsed navigation rail that expands on hover.
  *
- * Replaces the horizontal header. A vertical rail buys three things the top
- * bar could not: navigation stays visible during a full-height hero, the
- * content column gets an asymmetric left edge to sit against, and the active
- * item can be marked with a left border rather than an underline.
+ * At rest it is an icon column (`--rail-w`, 4.5rem); on hover or keyboard
+ * focus it widens to `--rail-w-open` (16rem) and the labels fade in. The
+ * *content offset never changes* — page layout is padded by the collapsed
+ * width only, so expanding overlays rather than reflows. Reflowing the whole
+ * page on a hover would be both jarring and expensive.
  *
- * One markup source drives both presentations — the rail at >=lg and the
- * drawer below it — so the two can never drift.
+ * Labels are always in the DOM (never `display:none`) so screen readers and
+ * find-in-page always see them; they are hidden visually via opacity/width on
+ * the rail, not removed.
+ *
+ * On the home page the rail doubles as a scroll-spy: `data-spy` links mark
+ * themselves current as their section passes the viewport middle.
  */
 import { SITE } from '../../data/site';
 import { href, isActive } from '../../lib/url';
@@ -16,6 +21,7 @@ import Icon from '../ui/Icon.astro';
 import ThemeToggle from './ThemeToggle.astro';
 
 const path = Astro.url.pathname;
+const onHome = path === '/' || path === '';
 ---
 
 <a
@@ -56,48 +62,56 @@ const path = Astro.url.pathname;
 
 {/* ── Desktop rail (lg and up) ──────────────────────────────────── */}
 <aside
-  class="border-line bg-surface fixed inset-y-0 left-0 z-50 hidden w-[var(--rail-w)] flex-col border-r lg:flex"
+  data-rail
+  class="group/rail border-line bg-surface/95 fixed inset-y-0 left-0 z-50 hidden w-[var(--rail-w)] flex-col overflow-hidden border-r backdrop-blur-xl transition-[width] duration-[var(--dur-base)] ease-[var(--ease-out)] hover:w-[var(--rail-w-open)] hover:shadow-[var(--shadow-lift)] lg:flex"
   aria-label="Primary"
 >
   <!-- Wordmark -->
   <a
     href={href('/')}
-    class="group border-line flex items-center gap-3 border-b px-6 py-6"
+    class="group border-line flex h-16 shrink-0 items-center gap-3 border-b px-[1.0625rem]"
     aria-label={`${SITE.name} — home`}
   >
     <span
       aria-hidden="true"
-      class="border-accent group-hover:bg-accent-soft relative grid size-8 place-items-center rounded-full border transition-colors"
+      class="border-accent group-hover:bg-accent-soft grid size-[1.875rem] shrink-0 place-items-center rounded-full border transition-colors"
     >
       <span class="bg-accent-fill size-2 rounded-full"></span>
     </span>
-    <span class="flex flex-col leading-none">
+    <span class="rail-label flex flex-col leading-none whitespace-nowrap">
       <span class="display text-base">{SITE.handle}</span>
       <span class="eyebrow mt-1.5 text-[9px]">{SITE.role}</span>
     </span>
   </a>
 
   <!-- Primary navigation -->
-  <nav class="flex-1 overflow-y-auto py-4">
+  <nav class="flex-1 overflow-x-hidden overflow-y-auto py-3">
     <ul>
       {
         SITE.nav.map((item) => {
           const active = isActive(path, item.href);
+          const spy = onHome && item.section;
           return (
             <li>
               <a
-                href={href(item.href)}
-                aria-current={active ? 'page' : undefined}
+                href={spy ? `#${item.section}` : href(item.href)}
+                data-spy={spy ? item.section : undefined}
+                aria-current={active && !onHome ? 'page' : undefined}
                 class:list={[
-                  'relative flex items-center gap-3.5 py-3 pr-4 pl-6 text-sm transition-colors duration-[var(--dur-fast)]',
-                  active
-                    ? 'bg-raised text-fg before:bg-accent-fill before:absolute before:inset-y-0 before:left-0 before:w-[3px] before:content-[""]'
+                  'nav-item relative flex h-12 items-center gap-4 px-[1.375rem] text-sm whitespace-nowrap transition-colors duration-[var(--dur-fast)]',
+                  active && !onHome
+                    ? 'text-fg bg-raised is-current'
                     : 'text-muted hover:text-fg hover:bg-raised/60',
                 ]}
               >
-                <Icon name={item.icon} size={18} class={active ? 'text-accent' : ''} />
-                <span class="flex-1">{item.label}</span>
-                <span class="text-faint font-mono text-[10px]">{item.index}</span>
+                {/* Active marker: the reference's left border. */}
+                <span
+                  aria-hidden="true"
+                  class="marker bg-accent-fill absolute inset-y-0 left-0 w-[3px] scale-y-0 transition-transform duration-[var(--dur-base)]"
+                />
+                <Icon name={item.icon} size={19} class="shrink-0" />
+                <span class="rail-label flex-1">{item.label}</span>
+                <span class="rail-label text-faint font-mono text-[10px]">{item.index}</span>
               </a>
             </li>
           );
@@ -106,17 +120,17 @@ const path = Astro.url.pathname;
     </ul>
   </nav>
 
-  <!-- Footer: one CTA, socials, theme -->
-  <div class="border-line border-t px-6 py-5">
+  <!-- Footer: CTA, socials, theme -->
+  <div class="border-line shrink-0 border-t px-[1.0625rem] py-4">
     <a
       href={SITE.cta.href}
-      class="bg-accent-fill text-accent-on-fill flex h-11 items-center justify-center gap-2 rounded-sm text-sm font-semibold transition-opacity hover:opacity-85"
+      class="bg-accent-fill text-accent-on-fill flex h-[1.875rem] items-center justify-center gap-2 rounded-sm text-sm font-semibold whitespace-nowrap transition-opacity hover:opacity-85"
     >
-      {SITE.cta.label}
-      <Icon name="arrow-right" size={15} />
+      <Icon name="mail" size={15} class="shrink-0" />
+      <span class="rail-label">{SITE.cta.label}</span>
     </a>
 
-    <div class="mt-4 flex items-center justify-between">
+    <div class="rail-label mt-3 flex items-center justify-between">
       <ul class="flex gap-1">
         {
           SITE.social.map((s) => (
@@ -174,16 +188,16 @@ const path = Astro.url.pathname;
             return (
               <li>
                 <a
-                  href={href(item.href)}
-                  aria-current={active ? 'page' : undefined}
+                  href={onHome && item.section ? `#${item.section}` : href(item.href)}
+                  aria-current={active && !onHome ? 'page' : undefined}
                   class:list={[
                     'relative flex items-center gap-3.5 px-5 py-3.5',
-                    active
+                    active && !onHome
                       ? 'bg-raised text-fg before:bg-accent-fill before:absolute before:inset-y-0 before:left-0 before:w-[3px] before:content-[""]'
                       : 'text-muted',
                   ]}
                 >
-                  <Icon name={item.icon} size={18} class={active ? 'text-accent' : ''} />
+                  <Icon name={item.icon} size={18} />
                   <span class="min-w-0 flex-1">
                     <span class="block text-sm">{item.label}</span>
                     <span class="text-faint block text-[11px]">{item.blurb}</span>
@@ -225,42 +239,126 @@ const path = Astro.url.pathname;
   </div>
 </div>
 
+<style>
+  /*
+   * Labels stay in the DOM at all times (assistive tech and find-in-page need
+   * them); the rail hides them visually by collapsing width and opacity.
+   * `visibility` is not used because it would remove them from the a11y tree.
+   */
+  .rail-label {
+    opacity: 0;
+    transform: translateX(-0.375rem);
+    transition:
+      opacity var(--dur-base) var(--ease-out),
+      transform var(--dur-base) var(--ease-out);
+  }
+  :global([data-rail]:hover) .rail-label,
+  :global([data-rail]:has(:focus-visible)) .rail-label {
+    opacity: 1;
+    transform: none;
+  }
+
+  /*
+   * Keyboard focus must expand the rail too, or tabbing into it lands on
+   * unlabelled icons. `:has(:focus-visible)` rather than `:focus-within`:
+   * the latter also fires on *mouse* clicks, so clicking the theme toggle
+   * (which lives in the rail) left the rail pinned open after the cursor had
+   * already moved away.
+   */
+  :global([data-rail]:has(:focus-visible)) {
+    width: var(--rail-w-open);
+  }
+
+  /* Active marker grows from the centre when current. */
+  .nav-item.is-current .marker,
+  .nav-item[aria-current='true'] .marker {
+    transform: scaleY(1);
+  }
+  .nav-item.is-current,
+  .nav-item[aria-current='true'] {
+    color: var(--c-text);
+    background: var(--c-raised);
+  }
+</style>
+
 <script>
   function initNav(): void {
     const drawer = document.getElementById('mobile-nav');
     const openBtn = document.getElementById('nav-open');
     const closeBtn = document.getElementById('nav-close');
     const scrim = drawer?.querySelector('[data-nav-scrim]');
-    if (!drawer || !openBtn) return;
 
-    let lastFocused: HTMLElement | null = null;
+    if (drawer && openBtn) {
+      let lastFocused: HTMLElement | null = null;
 
-    const setOpen = (open: boolean) => {
-      drawer.hidden = !open;
-      openBtn.setAttribute('aria-expanded', String(open));
-      document.documentElement.style.overflow = open ? 'hidden' : '';
+      const setOpen = (open: boolean) => {
+        drawer.hidden = !open;
+        openBtn.setAttribute('aria-expanded', String(open));
+        document.documentElement.style.overflow = open ? 'hidden' : '';
 
-      if (open) {
-        lastFocused = document.activeElement as HTMLElement | null;
-        drawer.querySelector<HTMLElement>('a, button')?.focus();
-      } else {
-        lastFocused?.focus();
-      }
+        if (open) {
+          lastFocused = document.activeElement as HTMLElement | null;
+          drawer.querySelector<HTMLElement>('a, button')?.focus();
+        } else {
+          lastFocused?.focus();
+        }
+      };
+
+      openBtn.addEventListener('click', () => setOpen(true));
+      closeBtn?.addEventListener('click', () => setOpen(false));
+      scrim?.addEventListener('click', () => setOpen(false));
+      drawer
+        .querySelectorAll('a')
+        .forEach((a) => a.addEventListener('click', () => setOpen(false)));
+
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && !drawer.hidden) setOpen(false);
+      });
+
+      window.matchMedia('(min-width: 1024px)').addEventListener('change', (e) => {
+        if (e.matches && !drawer.hidden) setOpen(false);
+      });
+    }
+
+    initScrollSpy();
+  }
+
+  /**
+   * Scroll-spy for the single-flow home page.
+   *
+   * Uses a viewport-middle band rather than plain intersection: with
+   * full-height sections, two are visible at once during a scroll and
+   * "topmost intersecting" flickers between them. A thin band picks exactly
+   * one section at a time.
+   */
+  function initScrollSpy(): void {
+    const links = Array.from(document.querySelectorAll<HTMLAnchorElement>('[data-spy]'));
+    if (links.length === 0) return;
+
+    const sections = links
+      .map((link) => document.getElementById(link.dataset.spy ?? ''))
+      .filter((el): el is HTMLElement => el !== null);
+    if (sections.length === 0) return;
+
+    const setCurrent = (id: string) => {
+      links.forEach((link) => {
+        const on = link.dataset.spy === id;
+        link.classList.toggle('is-current', on);
+        if (on) link.setAttribute('aria-current', 'true');
+        else link.removeAttribute('aria-current');
+      });
     };
 
-    openBtn.addEventListener('click', () => setOpen(true));
-    closeBtn?.addEventListener('click', () => setOpen(false));
-    scrim?.addEventListener('click', () => setOpen(false));
-    drawer.querySelectorAll('a').forEach((a) => a.addEventListener('click', () => setOpen(false)));
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (entry.isIntersecting) setCurrent(entry.target.id);
+        }
+      },
+      { rootMargin: '-45% 0px -45% 0px', threshold: 0 },
+    );
 
-    document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape' && !drawer.hidden) setOpen(false);
-    });
-
-    // Widening past the drawer's breakpoint must not strand it open.
-    window.matchMedia('(min-width: 1024px)').addEventListener('change', (e) => {
-      if (e.matches && !drawer.hidden) setOpen(false);
-    });
+    sections.forEach((section) => observer.observe(section));
   }
 
   initNav();

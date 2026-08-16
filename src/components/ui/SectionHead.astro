@@ -1,0 +1,65 @@
+---
+/**
+ * SectionHead — the marker that opens each band of the single-flow page.
+ *
+ * Three elements, fixed: a mono index, a marked eyebrow, and a display title.
+ * Anything more competes with the media the section exists to show.
+ */
+import Icon from './Icon.astro';
+import { href } from '../../lib/url';
+
+interface Props {
+  /** Two-digit HUD index. */
+  index: string;
+  eyebrow: string;
+  title: string;
+  lede?: string;
+  /** Optional "see all" destination. */
+  moreHref?: string;
+  moreLabel?: string;
+  /** `id` for the heading, so the section can be labelled by it. */
+  headingId?: string;
+  class?: string;
+}
+
+const {
+  index,
+  eyebrow,
+  title,
+  lede,
+  moreHref,
+  moreLabel,
+  headingId,
+  class: className,
+} = Astro.props;
+---
+
+<header class:list={['flex flex-wrap items-end justify-between gap-x-8 gap-y-6', className]}>
+  <div>
+    <p class="eyebrow eyebrow-marked">
+      <span class="text-accent tabular">{index}</span>
+      <span aria-hidden="true" class="bg-line-strong h-px w-6"></span>
+      {eyebrow}
+    </p>
+
+    <h2 id={headingId} class="display mt-5 text-4xl sm:text-5xl lg:text-6xl">{title}</h2>
+
+    {lede && <p class="text-muted prose-measure mt-5 text-base leading-relaxed">{lede}</p>}
+  </div>
+
+  {
+    moreHref && (
+      <a
+        href={href(moreHref)}
+        class="group text-muted hover:text-accent inline-flex items-center gap-2 font-mono text-xs whitespace-nowrap transition-colors"
+      >
+        {moreLabel ?? 'See all'}
+        <Icon
+          name="arrow-right"
+          size={14}
+          class="transition-transform duration-[var(--dur-base)] group-hover:translate-x-1"
+        />
+      </a>
+    )
+  }
+</header>

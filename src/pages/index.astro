@@ -1,165 +1,359 @@
 ---
 /**
- * Home — the index.
+ * Home — a single continuous scroll flow.
  *
- * Three views, one idea each:
- *   Hero          — who, in one sentence, over the particle corona
- *   Capabilities  — a paged carousel; one pillar visible at a time
- *   Selected work — two cards, no more
+ * The reference is one page read top to bottom, with media taking most of the
+ * space and text kept to what fits in a glance. This mirrors that: five full
+ * bands, each with one idea, one visual, and a way deeper.
  *
- * The density budget is deliberate. The previous revision put three buttons,
- * a four-cell readout, three prose cards and a contact panel on one page; a
- * visitor read none of it. The persistent call to action lives in the rail,
- * so the hero needs exactly one.
+ *   #top       Hero — the interactive corona, one statement, one action
+ *   #work      Selected work — media-led project cards
+ *   #resume    Experience — condensed timeline
+ *   #resources Notes and references
+ *   #tools     Browser-local utilities
+ *
+ * The rail scroll-spies these ids (see `Sidebar.astro`). Dedicated pages
+ * still exist for each and hold the full lists; this page is the tour.
  */
 import { getCollection } from 'astro:content';
 import BaseLayout from '../layouts/BaseLayout.astro';
 import ParticleField from '../components/decor/ParticleField.astro';
 import HudRing from '../components/decor/HudRing.astro';
-import Carousel, { type CarouselItem } from '../components/ui/Carousel';
+import SectionHead from '../components/ui/SectionHead.astro';
 import ProjectCard from '../components/ui/ProjectCard.astro';
+import Carousel, { type CarouselItem } from '../components/ui/Carousel';
 import Reveal from '../components/ui/Reveal.astro';
 import Icon from '../components/ui/Icon.astro';
+import { SITE } from '../data/site';
+import { TOOLS } from '../data/tools';
 import { href } from '../lib/url';
+import { monthYear } from '../lib/format';
 
-/** Two at most. The projects page exists for the full list. */
-const featured = (await getCollection('projects', (p) => !p.data.draft && p.data.featured))
-  .sort((a, b) => a.data.order - b.data.order)
-  .slice(0, 2);
+const featured = (await getCollection('projects', (p) => !p.data.draft && p.data.featured)).sort(
+  (a, b) => a.data.order - b.data.order,
+);
+
+/** Most recent roles only — the resume page carries everything. */
+const work = (await getCollection('experience', (e) => e.data.kind === 'work'))
+  .sort((a, b) => {
+    const ae = a.data.end?.getTime() ?? Number.POSITIVE_INFINITY;
+    const be = b.data.end?.getTime() ?? Number.POSITIVE_INFINITY;
+    return be - ae || b.data.start.getTime() - a.data.start.getTime();
+  })
+  .slice(0, 3);
+
+const resources = (await getCollection('resources', (r) => !r.data.draft))
+  .sort((a, b) => b.data.updated.getTime() - a.data.updated.getTime())
+  .slice(0, 4);
+
+const liveTools = TOOLS.filter((t) => t.status === 'live');
 
 const PILLARS: CarouselItem[] = [
   {
     id: 'agents',
     index: '01',
     title: 'Agent systems',
-    body: 'Multi-step agents that plan, call tools, and recover from their own failures — with the orchestration and evaluation scaffolding that makes them survive production.',
+    body: 'Multi-step agents that plan, call tools and recover from their own failures — with the orchestration and evaluation scaffolding that makes them survive production. Shipped a DevOps agent preferred over GitHub Copilot 90% of the time.',
     tags: ['Tool use', 'Orchestration', 'Evals'],
   },
   {
-    id: 'tooling',
+    id: 'evaluation',
     index: '02',
-    title: 'Developer tooling',
-    body: 'The layer underneath the product: CLIs, harnesses, and interfaces that shorten the loop between an idea and a measured result.',
-    tags: ['CLI', 'DX', 'Automation'],
+    title: 'Evaluation',
+    body: 'If it cannot be measured it cannot be shipped. Built AEval — accuracy, hallucination, security and fairness metrics for AI expert systems — now embedded in hundreds of deployed products.',
+    tags: ['Benchmarks', 'Hallucination', 'Safety'],
   },
   {
-    id: 'nlp',
+    id: 'systems',
     index: '03',
-    title: 'Applied NLP',
-    body: 'Retrieval, extraction, and evaluation pipelines built to be inspected — where every answer traces back to the input that produced it.',
-    tags: ['RAG', 'Extraction', 'Benchmarks'],
+    title: 'Systems and hardware',
+    body: 'From GPU programming and HDL to vision-language models that read hardware schematics. Research on control-flow guided test generation lifted branch coverage from 88% to 93%.',
+    tags: ['VLM', 'CUDA', 'Verilog'],
   },
 ];
 ---
 
 <BaseLayout>
-  {
-    /*
-    ── Hero ─────────────────────────────────────────────────────────
-    Two columns at >=lg: statement left, instrument right. The art and the
-    words must not stack — an earlier revision centred the corona behind the
-    headline and the two fought each other for the same pixels.
-
-    Below lg there is no room for a side-by-side, so the corona drops behind
-    the text at low opacity and becomes texture rather than subject.
-  */
-  }
-  <section class="relative flex min-h-[calc(100dvh-3.5rem)] items-center lg:min-h-dvh">
+  {/* ══ 00 · Hero ═════════════════════════════════════════════════ */}
+  <section
+    id="top"
+    aria-label="Introduction"
+    class="relative flex min-h-[calc(100dvh-3.5rem)] scroll-mt-0 items-center lg:min-h-dvh"
+  >
     <div
-      class="shell relative grid w-full items-center gap-12 py-20 lg:grid-cols-[1fr_minmax(0,32rem)]"
+      class="shell relative grid w-full items-center gap-12 py-20 lg:grid-cols-[1fr_minmax(0,34rem)]"
     >
       <Reveal class="relative z-10 max-w-2xl">
-        <p class="eyebrow eyebrow-marked">{'Agentic developer'}</p>
+        <p class="eyebrow eyebrow-marked">{SITE.role} · {SITE.location}</p>
 
         <h1 class="display mt-6 text-6xl sm:text-7xl">Systems that act</h1>
 
         <p class="text-muted prose-measure mt-7 text-lg leading-relaxed">
-          I build the layer where language models stop being a demo and start being infrastructure.
+          I build the layer where language models stop being a demo and start being infrastructure —
+          agents, the evaluation that keeps them honest, and the tooling around both.
         </p>
 
-        <a
-          href={href('/projects')}
-          class="group border-fg text-fg hover:bg-fg hover:text-ground mt-10 inline-flex h-12 items-center gap-3 border px-6 text-sm font-semibold transition-colors"
-        >
-          See the work
-          <Icon name="arrow-right" size={16} />
-        </a>
+        <div class="mt-10 flex flex-wrap items-center gap-3">
+          <a
+            href="#work"
+            class="group border-fg text-fg hover:bg-fg hover:text-ground inline-flex h-12 items-center gap-3 border px-6 text-sm font-semibold transition-colors"
+          >
+            See the work
+            <Icon
+              name="arrow-right"
+              size={16}
+              class="transition-transform duration-[var(--dur-base)] group-hover:translate-x-1"
+            />
+          </a>
+          <a
+            href={href('/resume')}
+            class="text-muted hover:text-accent inline-flex h-12 items-center gap-2 px-2 font-mono text-xs transition-colors"
+          >
+            Resume
+          </a>
+        </div>
       </Reveal>
 
       {
         /*
-        Instrument: corona inside the dial.
-
-        Below lg this sits behind the text and must recede. That dimming is
-        done with a CSS custom property consumed by the children, NOT with
-        `opacity` on this wrapper — a wrapper opacity composites the whole
-        subtree, which silently halved the particle contrast in both themes
-        and was invisible until the rendered pixels were measured.
+        The instrument. Interactive: the canvas takes pointer events so the
+        cloud repels from the cursor and clicks send waves. It sits in its own
+        grid column at lg so it never overlaps the text.
       */
       }
-      <div
-        aria-hidden="true"
-        class="pointer-events-none absolute inset-0 [--instrument:0.3] lg:relative lg:z-10 lg:[--instrument:1]"
-      >
-        <div class="relative mx-auto aspect-square w-[min(120vw,34rem)] lg:w-full lg:max-w-[32rem]">
-          <ParticleField style="opacity: var(--instrument)" />
-          <div class="text-fg absolute inset-0" style="opacity: calc(var(--instrument) * 0.4)">
-            <HudRing ticks={72} spin={240} />
+      <div class="relative">
+        <div class="relative mx-auto aspect-square w-[min(120vw,34rem)] lg:w-full">
+          <ParticleField interactive />
+          <div class="text-fg pointer-events-none absolute inset-0 opacity-40">
+            <HudRing ticks={72} spin={140} />
           </div>
         </div>
+
+        <p
+          class="text-faint mt-4 text-center font-mono text-[10px] tracking-[0.2em] uppercase lg:text-right"
+        >
+          move the cursor · click to send a wave
+        </p>
       </div>
     </div>
 
-    <span
-      aria-hidden="true"
-      class="text-faint absolute inset-x-0 bottom-6 hidden justify-center font-mono text-[10px] tracking-[0.3em] uppercase lg:flex"
+    <a
+      href="#work"
+      aria-label="Scroll to work"
+      class="text-faint hover:text-accent absolute inset-x-0 bottom-6 mx-auto hidden w-fit font-mono text-[10px] tracking-[0.3em] uppercase transition-colors lg:block"
     >
       scroll
-    </span>
+    </a>
   </section>
 
-  {/* ── Capabilities ───────────────────────────────────────────────── */}
-  <section class="shell border-line border-t py-24" aria-labelledby="capabilities">
-    <Reveal>
-      <p class="eyebrow eyebrow-marked">Capabilities</p>
-      <h2 id="capabilities" class="sr-only">Capabilities</h2>
-      <div class="mt-10">
-        <Carousel client:visible items={PILLARS} label="Capabilities" />
-      </div>
-    </Reveal>
-  </section>
+  {/* ══ 01 · Work ═════════════════════════════════════════════════ */}
+  <section
+    id="work"
+    aria-labelledby="work-h"
+    class="border-line scroll-mt-16 border-t py-24 lg:py-32"
+  >
+    <div class="shell">
+      <Reveal>
+        <SectionHead
+          index="01"
+          eyebrow="Selected work"
+          title="Things you can look at"
+          headingId="work-h"
+          lede="Systems built end to end — research through deployment."
+          moreHref="/projects"
+          moreLabel="All projects"
+        />
+      </Reveal>
 
-  {/* ── Selected work ──────────────────────────────────────────────── */}
-  {
-    featured.length > 0 && (
-      <section class="shell border-line border-t py-24" aria-labelledby="work">
-        <Reveal>
-          <div class="flex flex-wrap items-end justify-between gap-6">
-            <div>
-              <p class="eyebrow eyebrow-marked">Selected work</p>
-              <h2 id="work" class="display mt-5 text-4xl sm:text-5xl">
-                Things you can poke at
-              </h2>
-            </div>
-
-            <a
-              href={href('/projects')}
-              class="text-muted hover:text-accent inline-flex items-center gap-2 font-mono text-xs transition-colors"
-            >
-              All projects
-              <Icon name="arrow-right" size={14} />
-            </a>
-          </div>
-        </Reveal>
-
-        <ul class="mt-12 grid gap-5 md:grid-cols-2">
-          {featured.map((project, i) => (
-            <Reveal as="li" delay={i * 90}>
+      <ul class="mt-14 grid gap-6 md:grid-cols-2 xl:grid-cols-3">
+        {
+          featured.map((project, i) => (
+            <Reveal as="li" delay={(i % 3) * 90}>
               <ProjectCard project={project} />
             </Reveal>
-          ))}
-        </ul>
+          ))
+        }
+      </ul>
+    </div>
+  </section>
+
+  {/* ══ 02 · Capability + experience ══════════════════════════════ */}
+  <section
+    id="resume"
+    aria-labelledby="resume-h"
+    class="border-line scroll-mt-16 border-t py-24 lg:py-32"
+  >
+    <div class="shell">
+      <Reveal>
+        <SectionHead
+          index="02"
+          eyebrow="Experience"
+          title="What I actually do"
+          headingId="resume-h"
+          moreHref="/resume"
+          moreLabel="Full resume"
+        />
+      </Reveal>
+
+      <div class="mt-14 grid gap-14 lg:grid-cols-[minmax(0,1fr)_minmax(0,22rem)] lg:gap-20">
+        <Reveal>
+          <Carousel client:visible items={PILLARS} label="Capabilities" />
+        </Reveal>
+
+        <Reveal delay={120}>
+          <p class="eyebrow">Recent roles</p>
+          <ul class="divide-line mt-5 divide-y">
+            {
+              work.map((entry) => (
+                <li class="py-4">
+                  <p class="text-faint tabular font-mono text-[11px]">
+                    {monthYear(entry.data.start)} —{' '}
+                    {entry.data.end ? monthYear(entry.data.end) : 'Present'}
+                  </p>
+                  <p class="mt-1.5 text-sm">{entry.data.role}</p>
+                  <p class="text-accent text-sm">{entry.data.organization}</p>
+                </li>
+              ))
+            }
+          </ul>
+        </Reveal>
+      </div>
+    </div>
+  </section>
+
+  {/* ══ 03 · Resources ════════════════════════════════════════════ */}
+  {
+    resources.length > 0 && (
+      <section
+        id="resources"
+        aria-labelledby="resources-h"
+        class="border-line scroll-mt-16 border-t py-24 lg:py-32"
+      >
+        <div class="shell">
+          <Reveal>
+            <SectionHead
+              index="03"
+              eyebrow="Resources"
+              title="Notes and references"
+              headingId="resources-h"
+              lede="A working bibliography, plus notes written because the reference I wanted did not exist."
+              moreHref="/resources"
+              moreLabel="All resources"
+            />
+          </Reveal>
+
+          <ul class="divide-line mt-12 divide-y">
+            {resources.map((entry, i) => (
+              <Reveal as="li" delay={i * 50}>
+                <a
+                  href={entry.data.url ?? href('/resources')}
+                  target={entry.data.url ? '_blank' : undefined}
+                  rel={entry.data.url ? 'noopener noreferrer' : undefined}
+                  class="group hover:text-accent flex items-baseline gap-5 py-5 transition-colors"
+                >
+                  <span class="text-faint font-mono text-[10px] uppercase">
+                    {entry.data.category}
+                  </span>
+                  <span class="min-w-0 flex-1">
+                    <span class="block text-base">{entry.data.title}</span>
+                    <span class="text-muted mt-1 block text-sm leading-relaxed">
+                      {entry.data.summary}
+                    </span>
+                  </span>
+                  <Icon
+                    name="arrow-up-right"
+                    size={14}
+                    class="text-faint group-hover:text-accent shrink-0 transition-colors"
+                  />
+                </a>
+              </Reveal>
+            ))}
+          </ul>
+        </div>
       </section>
     )
   }
+
+  {/* ══ 04 · Tools ════════════════════════════════════════════════ */}
+  <section
+    id="tools"
+    aria-labelledby="tools-h"
+    class="border-line scroll-mt-16 border-t py-24 lg:py-32"
+  >
+    <div class="shell">
+      <Reveal>
+        <SectionHead
+          index="04"
+          eyebrow="Tools"
+          title="Runs in your browser"
+          headingId="tools-h"
+          lede="Nothing you paste leaves the page — no server, no logging, no network call."
+          moreHref="/tools"
+          moreLabel="All tools"
+        />
+      </Reveal>
+
+      <ul class="mt-12 grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+        {
+          liveTools.map((tool, i) => (
+            <Reveal as="li" delay={i * 80}>
+              <a
+                href={href(`/tools/${tool.slug}`)}
+                class="group border-line bg-surface hover:border-fg flex h-full flex-col border p-6 transition-colors"
+              >
+                <div class="flex items-start justify-between gap-3">
+                  <h3 class="group-hover:text-accent font-mono text-lg transition-colors">
+                    {tool.name}
+                  </h3>
+                  <Icon
+                    name="arrow-up-right"
+                    size={15}
+                    class="text-faint group-hover:text-accent mt-1 transition-colors"
+                  />
+                </div>
+                <p class="text-muted mt-3 flex-1 text-sm leading-relaxed">{tool.summary}</p>
+                <span class="bg-accent-fill mt-6 h-[3px] w-10 transition-[width] duration-[var(--dur-base)] group-hover:w-20" />
+              </a>
+            </Reveal>
+          ))
+        }
+      </ul>
+    </div>
+  </section>
+
+  {/* ══ Contact ═══════════════════════════════════════════════════ */}
+  <section aria-labelledby="contact-h" class="border-line scroll-mt-16 border-t py-24 lg:py-32">
+    <div class="shell">
+      <Reveal>
+        <p class="eyebrow eyebrow-marked">Contact</p>
+        <h2 id="contact-h" class="display mt-5 max-w-3xl text-4xl sm:text-5xl lg:text-6xl">
+          Building something that has to think for itself?
+        </h2>
+        <div class="mt-10 flex flex-wrap items-center gap-4">
+          <a
+            href={SITE.cta.href}
+            class="bg-accent-fill text-accent-on-fill inline-flex h-12 items-center gap-3 px-6 text-sm font-semibold transition-opacity hover:opacity-85"
+          >
+            {SITE.email}
+            <Icon name="arrow-right" size={16} />
+          </a>
+          {
+            SITE.social
+              .filter((s) => !s.href.startsWith('mailto:'))
+              .map((s) => (
+                <a
+                  href={s.href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="border-line text-muted hover:border-fg hover:text-fg inline-flex h-12 items-center gap-2 border px-5 text-sm transition-colors"
+                >
+                  <Icon name={s.icon} size={15} />
+                  {s.label}
+                </a>
+              ))
+          }
+        </div>
+      </Reveal>
+    </div>
+  </section>
 </BaseLayout>

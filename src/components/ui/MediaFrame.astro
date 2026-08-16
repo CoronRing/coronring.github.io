@@ -1,0 +1,119 @@
+---
+/**
+ * MediaFrame — a media slot that renders real assets when present and an
+ * honest, designed placeholder when not.
+ *
+ * The site is built media-first, but the media does not exist yet. The two
+ * bad options are a grey box (says nothing, looks broken) and stock imagery
+ * (says something untrue). This is the third: a composed technical panel that
+ * states *exactly which file to drop where*, at the correct aspect ratio, so
+ * layout is already final and adding art is a file copy.
+ *
+ * Swapping in a real asset is one frontmatter field — no template change.
+ *
+ * Supports images and video. Video is muted/looping/inline and treated as
+ * decoration: it never autoplays with sound and always carries a poster.
+ */
+import CoverArt from './CoverArt.astro';
+
+interface Props {
+  /**
+   * Path under `public/`, e.g. `/media/projects/particle-hero.webp`. When
+   * omitted the placeholder renders instead.
+   */
+  src?: string;
+  /** Poster frame for video sources. */
+  poster?: string;
+  /** Required for real images; ignored by the placeholder. */
+  alt?: string;
+  /** Aspect ratio of the slot. Keeps layout stable before assets land. */
+  ratio?: '16/9' | '4/3' | '1/1' | '21/9' | '3/4';
+  /** Seed for the generated fallback art. Defaults to `label`. */
+  seed?: string;
+  /** Shown on the placeholder so it is obvious what belongs here. */
+  label?: string;
+  /** Rendered as the expected upload path on the placeholder. */
+  expects?: string;
+  /** Eager-load the first above-the-fold asset; lazy for everything else. */
+  priority?: boolean;
+  class?: string;
+}
+
+const {
+  src,
+  poster,
+  alt = '',
+  ratio = '16/9',
+  seed,
+  label = 'Media',
+  expects,
+  priority = false,
+  class: className,
+} = Astro.props;
+
+const isVideo = Boolean(src && /\.(mp4|webm|mov)$/i.test(src));
+const target =
+  expects ?? src ?? `/media/${(seed ?? label).toLowerCase().replace(/\s+/g, '-')}.webp`;
+---
+
+<figure
+  class:list={['group/media border-line bg-sunken relative overflow-hidden border', className]}
+  style={`aspect-ratio: ${ratio};`}
+>
+  {
+    src ? (
+      isVideo ? (
+        <video
+          src={src}
+          poster={poster}
+          autoplay
+          muted
+          loop
+          playsinline
+          preload={priority ? 'auto' : 'metadata'}
+          aria-label={alt || undefined}
+          class="size-full object-cover"
+        />
+      ) : (
+        <img
+          src={src}
+          alt={alt}
+          loading={priority ? 'eager' : 'lazy'}
+          decoding="async"
+          class="size-full object-cover transition-transform duration-[var(--dur-slow)] ease-[var(--ease-out)] group-hover/media:scale-[1.03]"
+        />
+      )
+    ) : (
+      <>
+        {/* Generated art stands in for the real asset. */}
+        <div class="text-fg absolute inset-0 opacity-55">
+          <CoverArt seed={seed ?? label} />
+        </div>
+
+        {/* Upload hint. Deliberately legible rather than subtle — this is a
+            build-time affordance, and it should be impossible to ship by
+            accident without noticing. */}
+        <figcaption
+          class="absolute inset-x-0 bottom-0 flex flex-wrap items-center gap-x-2 gap-y-1 p-3 font-mono text-[10px] backdrop-blur-sm"
+          style="background: color-mix(in srgb, var(--c-ground) 72%, transparent);"
+        >
+          <span class="bg-accent-fill text-accent-on-fill px-1.5 py-0.5 font-semibold tracking-wide uppercase">
+            Placeholder
+          </span>
+          <span class="text-muted">{label}</span>
+          <code class="text-faint ml-auto truncate">{target}</code>
+        </figcaption>
+      </>
+    )
+  }
+
+  {/* Corner ticks, drawn over whatever the slot contains. */}
+  <span
+    aria-hidden="true"
+    class="border-accent pointer-events-none absolute top-0 left-0 size-3 border-t border-l opacity-70"
+  ></span>
+  <span
+    aria-hidden="true"
+    class="border-accent pointer-events-none absolute right-0 bottom-0 size-3 border-r border-b opacity-70"
+  ></span>
+</figure>

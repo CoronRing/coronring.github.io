@@ -13,6 +13,7 @@ import type { GetStaticPaths } from 'astro';
 import { getCollection, render } from 'astro:content';
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import DemoFrame from '../../components/demos/DemoFrame.astro';
+import MediaFrame from '../../components/ui/MediaFrame.astro';
 import Icon from '../../components/ui/Icon.astro';
 import { href } from '../../lib/url';
 
@@ -42,6 +43,26 @@ const { data } = project;
     <h1 class="display mt-6 max-w-4xl text-5xl sm:text-6xl lg:text-7xl">{data.title}</h1>
     <p class="text-muted prose-measure mt-6 text-lg leading-relaxed">{data.summary}</p>
   </div>
+
+  {
+    data.hero && (
+      <div class="shell pb-12">
+        <MediaFrame
+          src={data.hero.src}
+          poster={data.hero.poster}
+          alt={data.hero.alt || data.title}
+          ratio={data.hero.ratio}
+          label={data.hero.label}
+          seed={project.id}
+          expects={`/media/projects/${project.id}/hero.webp`}
+          priority
+        />
+        {data.hero.caption && (
+          <p class="text-faint mt-3 font-mono text-[11px]">{data.hero.caption}</p>
+        )}
+      </div>
+    )
+  }
 
   {
     data.interactive && data.demo && (
@@ -109,4 +130,28 @@ const { data } = project;
       }
     </aside>
   </div>
+
+  {
+    data.gallery.length > 0 && (
+      <div class="shell border-line border-t py-16">
+        <p class="eyebrow eyebrow-marked">Gallery</p>
+        <ul class="mt-8 grid gap-6 md:grid-cols-2">
+          {data.gallery.map((m, i) => (
+            <li>
+              <MediaFrame
+                src={m.src}
+                poster={m.poster}
+                alt={m.alt}
+                ratio={m.ratio}
+                label={m.label}
+                seed={`${project.id}-${i}`}
+                expects={`/media/projects/${project.id}/${String(i + 1).padStart(2, '0')}.webp`}
+              />
+              {m.caption && <p class="text-faint mt-3 font-mono text-[11px]">{m.caption}</p>}
+            </li>
+          ))}
+        </ul>
+      </div>
+    )
+  }
 </BaseLayout>

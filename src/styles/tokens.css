@@ -87,8 +87,13 @@
   --r-lg: 8px;
   --hairline: 1px;
 
-  /** Fixed sidebar width at >=lg. Content is offset by exactly this. */
-  --rail-w: 16.25rem;
+  /*
+   * Rail widths. Content is offset by the COLLAPSED width only — expanding
+   * on hover overlays the page rather than reflowing it, because reflowing
+   * an entire layout on a hover is both jarring and expensive.
+   */
+  --rail-w: 4.5rem;
+  --rail-w-open: 16rem;
 
   --shell-max: 88rem;
   --content-max: 68rem;

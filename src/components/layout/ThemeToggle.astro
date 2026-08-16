@@ -4,14 +4,23 @@
  *
  * "System" is a real, distinct state (no `data-theme` attribute), not an alias
  * for light. The inline script in BaseLayout applies the stored choice before
- * first paint; this component only handles the click-to-change interaction.
+ * first paint; this component only handles click-to-change.
+ *
+ * ## Why there is no `id` here
+ *
+ * The shell renders this component more than once (mobile bar, desktop rail,
+ * mobile drawer). An earlier revision gave the button `id="theme-toggle"` and
+ * bound it with `getElementById`, which returns only the *first* match — the
+ * mobile one, hidden at `lg`. The visible desktop toggle was therefore wired
+ * to nothing and silently did nothing. Everything here is class- and
+ * attribute-addressed, and every instance is bound and kept in sync.
  */
 import Icon from '../ui/Icon.astro';
 ---
 
 <button
   type="button"
-  id="theme-toggle"
+  data-theme-toggle
   class="text-muted hover:text-fg hover:bg-raised inline-flex size-9 items-center justify-center rounded-md border border-transparent transition-colors duration-[var(--dur-fast)]"
   aria-label="Change colour theme"
   title="Change colour theme"
@@ -26,23 +35,37 @@ import Icon from '../ui/Icon.astro';
 
   const ORDER: readonly Theme[] = ['system', 'light', 'dark'] as const;
 
+  /** Update every rendered toggle so duplicates never disagree. */
   function syncIcons(theme: Theme): void {
     document.querySelectorAll<HTMLElement>('[data-theme-icon]').forEach((el) => {
       el.hidden = el.dataset.themeIcon !== theme;
     });
+    document.querySelectorAll<HTMLElement>('[data-theme-toggle]').forEach((btn) => {
+      btn.setAttribute('aria-label', `Colour theme: ${theme}. Click to change.`);
+    });
   }
 
   function init(): void {
-    const button = document.getElementById('theme-toggle');
-    if (!button) return;
+    const buttons = document.querySelectorAll<HTMLButtonElement>('[data-theme-toggle]');
+    if (buttons.length === 0) return;
 
     syncIcons(readTheme());
 
-    button.addEventListener('click', () => {
-      const next = ORDER[(ORDER.indexOf(readTheme()) + 1) % ORDER.length] ?? 'system';
-      localStorage.setItem(THEME_KEY, next);
-      applyTheme(next);
-      syncIcons(next);
+    buttons.forEach((button) => {
+      // Guard: this script is emitted once per component instance on the page.
+      if (button.dataset.bound === '1') return;
+      button.dataset.bound = '1';
+
+      button.addEventListener('click', () => {
+        const next = ORDER[(ORDER.indexOf(readTheme()) + 1) % ORDER.length] ?? 'system';
+        try {
+          localStorage.setItem(THEME_KEY, next);
+        } catch {
+          // Private mode: the choice applies to this page view only.
+        }
+        applyTheme(next);
+        syncIcons(next);
+      });
     });
   }
 
