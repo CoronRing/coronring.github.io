@@ -1,0 +1,154 @@
+---
+/**
+ * ScrollCue — the animated "there is more below" indicator.
+ *
+ * The previous cue was the static word "scroll", which nobody reads: a word
+ * sitting still at the bottom of a full-height hero looks like a caption, not
+ * an affordance. Motion is what makes it register — the eye is drawn to the
+ * only moving thing on an otherwise settled screen.
+ *
+ * Three cooperating parts:
+ *   1. a fixed track, so there is a visible path to travel down
+ *   2. a bright segment that falls along it on a loop
+ *   3. a chevron that eases down and back
+ *
+ * It is a real link, not decoration: clicking it jumps to the next section,
+ * and it is reachable by keyboard. The animation is pure `transform`/`opacity`
+ * so it composites on the GPU and costs nothing on the main thread.
+ *
+ * The whole cue fades out once the visitor has actually scrolled — leaving a
+ * "scroll down" prompt on screen after they already have is noise.
+ */
+interface Props {
+  /** Fragment or path to jump to. */
+  href: string;
+  label?: string;
+  class?: string;
+}
+
+const { href, label = 'Scroll', class: className } = Astro.props;
+---
+
+<a
+  href={href}
+  data-scroll-cue
+  class:list={[
+    'group text-faint hover:text-accent focus-visible:text-accent inline-flex flex-col items-center gap-3 transition-[color,opacity] duration-[var(--dur-base)]',
+    className,
+  ]}
+  aria-label={`${label} to next section`}
+>
+  <span class="font-mono text-[10px] tracking-[0.3em] uppercase">{label}</span>
+
+  <!-- Track + travelling segment -->
+  <span aria-hidden="true" class="cue-track relative block h-10 w-px overflow-hidden">
+    <span class="cue-spark absolute inset-x-0 top-0 block h-3"></span>
+  </span>
+
+  <svg
+    aria-hidden="true"
+    class="cue-chevron"
+    width="12"
+    height="8"
+    viewBox="0 0 12 8"
+    fill="none"
+    stroke="currentColor"
+    stroke-width="1.5"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  >
+    <path d="M1 1.5 6 6.5l5-5"></path>
+  </svg>
+</a>
+
+<style>
+  .cue-track {
+    background: color-mix(in srgb, currentColor 28%, transparent);
+  }
+
+  /* A segment falling down the track, fading at both ends of its run. */
+  @keyframes cue-fall {
+    0% {
+      transform: translateY(-100%);
+      opacity: 0;
+    }
+    25% {
+      opacity: 1;
+    }
+    75% {
+      opacity: 1;
+    }
+    100% {
+      transform: translateY(1000%);
+      opacity: 0;
+    }
+  }
+  .cue-spark {
+    background: linear-gradient(to bottom, transparent, var(--c-accent-fill));
+    animation: cue-fall 2.1s var(--ease-in-out) infinite;
+  }
+
+  @keyframes cue-nudge {
+    0%,
+    100% {
+      transform: translateY(0);
+      opacity: 0.65;
+    }
+    50% {
+      transform: translateY(3px);
+      opacity: 1;
+    }
+  }
+  .cue-chevron {
+    animation: cue-nudge 2.1s var(--ease-in-out) infinite;
+  }
+
+  /* Hovering should feel like a hand-off, not a competing animation. */
+  .group:hover .cue-spark,
+  .group:hover .cue-chevron {
+    animation-duration: 1.1s;
+  }
+
+  /* Retire the cue once it has served its purpose. */
+  :global([data-scrolled='true']) [data-scroll-cue],
+  [data-scroll-cue][data-hidden='true'] {
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .cue-spark,
+    .cue-chevron {
+      animation: none;
+    }
+    .cue-spark {
+      opacity: 1;
+      transform: translateY(300%);
+    }
+  }
+</style>
+
+<script>
+  /**
+   * Hide the cue after the first meaningful scroll. Uses a `scroll` listener
+   * rather than an IntersectionObserver on the hero: the cue should retire as
+   * soon as the visitor engages, not when a particular element leaves view.
+   */
+  function initCue(): void {
+    const cues = document.querySelectorAll<HTMLElement>('[data-scroll-cue]');
+    if (cues.length === 0) return;
+
+    const update = () => {
+      const gone = window.scrollY > 80;
+      cues.forEach((cue) => {
+        cue.dataset.hidden = String(gone);
+      });
+    };
+
+    update();
+    window.addEventListener('scroll', update, { passive: true });
+  }
+
+  initCue();
+  document.addEventListener('astro:page-load', initCue);
+</script>

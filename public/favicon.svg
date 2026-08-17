@@ -1,6 +1,16 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
-  <!-- CoronRing mark: an open ring (corona) with a solid core. -->
+  <!--
+    CoronRing mark: a ring broken on the right with a bar running from the
+    core out through the gap, so it reads as a G. Kept in sync by hand with
+    src/components/ui/Mark.astro — a favicon cannot import a component.
+
+    Colours are literal rather than tokens: a favicon renders outside the
+    page, so it has no access to CSS custom properties, and it must stay
+    legible against both light and dark browser chrome. Hence the dark plate.
+  -->
   <rect width="32" height="32" rx="7" fill="#0d0f13"/>
-  <circle cx="16" cy="16" r="9" fill="none" stroke="#ffa62b" stroke-width="2.25"/>
-  <circle cx="16" cy="16" r="3.25" fill="#ffa62b"/>
+  <path d="M 26.46 19.40 A 11 11 0 1 1 26.46 12.60"
+        fill="none" stroke="#fffa00" stroke-width="2"/>
+  <line x1="16.8" y1="16" x2="27" y2="16" stroke="#fffa00" stroke-width="2"/>
+  <circle cx="16" cy="16" r="3" fill="#fffa00"/>
 </svg>

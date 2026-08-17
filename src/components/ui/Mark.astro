@@ -1,0 +1,121 @@
+---
+/**
+ * Mark — the CoronRing logo.
+ *
+ * A ring broken on the right, with a bar running from the core out through
+ * the gap. Read as a letter it is a **G** (Guan); read as a diagram it is a
+ * corona with a single ray. The ring carries the other half of the name.
+ *
+ * ## Why the ring is broken
+ *
+ * A closed ring plus a bar reads as a wheel with a spoke, not as a glyph —
+ * tested side by side, it was the *gap* that made it legible as a G, not the
+ * bar. The opening is kept to 36°, so the shape is still 90% ring and still
+ * reads as one at favicon size.
+ *
+ * The bar starts inside the core so the two merge into a single stem. Drawn
+ * detached, the mark reads as three unrelated pieces.
+ *
+ * Previously this shape was hand-rolled in four places — veil, mobile bar,
+ * rail wordmark, favicon — which meant changing the logo meant changing four
+ * files that could silently disagree. One component now; the favicon is the
+ * only necessary duplicate, since it cannot import Astro.
+ *
+ * Everything is `currentColor` except the core, which takes the accent fill,
+ * so the mark themes with its surroundings for free.
+ */
+interface Props {
+  size?: number;
+  /** Spin a dashed overlay on the ring — used by the loading veil. */
+  spinning?: boolean;
+  /** Stroke weight of the ring and bar, in viewBox units. */
+  weight?: number;
+  /** Provide when the mark stands alone as a link or button. */
+  label?: string;
+  class?: string;
+}
+
+const { size = 32, spinning = false, weight = 2, label, class: className } = Astro.props;
+
+/** `as const` keeps `role` narrowed to a valid `AriaRole` for the SVG props. */
+const a11y = label
+  ? ({ role: 'img', 'aria-label': label } as const)
+  : ({ 'aria-hidden': 'true' } as const);
+
+/* Geometry on a 32×32 grid. */
+const C = 16;
+const R = 11;
+const CORE = 3;
+/** Half-angle of the opening on the right, in degrees. */
+const GAP = 18;
+
+const rad = (deg: number) => (deg * Math.PI) / 180;
+const px = (deg: number) => (C + R * Math.cos(rad(deg))).toFixed(2);
+const py = (deg: number) => (C + R * Math.sin(rad(deg))).toFixed(2);
+
+/** The ring, swept the long way round so the gap lands on the right. */
+const ringPath = `M ${px(GAP)} ${py(GAP)} A ${R} ${R} 0 1 1 ${px(-GAP)} ${py(-GAP)}`;
+
+/* The bar begins inside the core and ends just past the ring's radius, so it
+   visibly passes through the opening rather than stopping at it. */
+const BAR_START = C + CORE - 2.2;
+const BAR_END = C + R;
+---
+
+<svg
+  viewBox="0 0 32 32"
+  width={size}
+  height={size}
+  fill="none"
+  class:list={['shrink-0 overflow-visible', className]}
+  {...a11y}
+>
+  <!-- Ring, open on the right -->
+  <path d={ringPath} stroke="currentColor" stroke-width={weight} opacity={spinning ? 0.25 : 1}
+  ></path>
+
+  {
+    spinning && (
+      <circle
+        cx={C}
+        cy={C}
+        r={R}
+        stroke="currentColor"
+        stroke-width={weight}
+        stroke-linecap="round"
+        stroke-dasharray="18 52"
+        class="mark-spin"
+        style={`transform-origin: ${C}px ${C}px;`}
+      />
+    )
+  }
+
+  <!-- The bar: core → out through the gap. This is what makes it a G. -->
+  <line
+    x1={BAR_START}
+    y1={C}
+    x2={BAR_END}
+    y2={C}
+    stroke="currentColor"
+    stroke-width={weight}
+    stroke-linecap="butt"></line>
+
+  <!-- Core -->
+  <circle cx={C} cy={C} r={CORE} fill="var(--c-accent-fill)"></circle>
+</svg>
+
+<style>
+  @keyframes mark-spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+  .mark-spin {
+    animation: mark-spin 1.1s linear infinite;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .mark-spin {
+      animation: none;
+    }
+  }
+</style>

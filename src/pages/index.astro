@@ -24,6 +24,7 @@ import ProjectCard from '../components/ui/ProjectCard.astro';
 import Carousel, { type CarouselItem } from '../components/ui/Carousel';
 import Reveal from '../components/ui/Reveal.astro';
 import Icon from '../components/ui/Icon.astro';
+import ScrollCue from '../components/ui/ScrollCue.astro';
 import { SITE } from '../data/site';
 import { TOOLS } from '../data/tools';
 import { href } from '../lib/url';
@@ -83,17 +84,31 @@ const PILLARS: CarouselItem[] = [
     <div
       class="shell relative grid w-full items-center gap-12 py-20 lg:grid-cols-[1fr_minmax(0,34rem)]"
     >
-      <Reveal class="relative z-10 max-w-2xl">
-        <p class="eyebrow eyebrow-marked">{SITE.role} · {SITE.location}</p>
+      {
+        /*
+        Staggered cascade rather than one block fade: the eyebrow sets the
+        frame, the headline is *set* by a wipe, then the supporting copy and
+        actions arrive. Reading order and animation order agree, which is what
+        makes a sequence feel composed rather than merely decorated.
+      */
+      }
+      <div class="relative z-10 max-w-2xl">
+        <Reveal>
+          <p class="eyebrow eyebrow-marked">{SITE.role} · {SITE.location}</p>
+        </Reveal>
 
-        <h1 class="display mt-6 text-6xl sm:text-7xl">Systems that act</h1>
+        <Reveal variant="wipe" delay={140}>
+          <h1 class="display mt-6 text-6xl sm:text-7xl">Systems that act</h1>
+        </Reveal>
 
-        <p class="text-muted prose-measure mt-7 text-lg leading-relaxed">
-          I build the layer where language models stop being a demo and start being infrastructure —
-          agents, the evaluation that keeps them honest, and the tooling around both.
-        </p>
+        <Reveal delay={340}>
+          <p class="text-muted prose-measure mt-7 text-lg leading-relaxed">
+            I build the layer where language models stop being a demo and start being infrastructure
+            — agents, the evaluation that keeps them honest, and the tooling around both.
+          </p>
+        </Reveal>
 
-        <div class="mt-10 flex flex-wrap items-center gap-3">
+        <Reveal delay={460} class="mt-10 flex flex-wrap items-center gap-3">
           <a
             href="#work"
             class="group border-fg text-fg hover:bg-fg hover:text-ground inline-flex h-12 items-center gap-3 border px-6 text-sm font-semibold transition-colors"
@@ -111,8 +126,8 @@ const PILLARS: CarouselItem[] = [
           >
             Resume
           </a>
-        </div>
-      </Reveal>
+        </Reveal>
+      </div>
 
       {
         /*
@@ -137,13 +152,7 @@ const PILLARS: CarouselItem[] = [
       </div>
     </div>
 
-    <a
-      href="#work"
-      aria-label="Scroll to work"
-      class="text-faint hover:text-accent absolute inset-x-0 bottom-6 mx-auto hidden w-fit font-mono text-[10px] tracking-[0.3em] uppercase transition-colors lg:block"
-    >
-      scroll
-    </a>
+    <ScrollCue href="#work" class="absolute inset-x-0 bottom-8 mx-auto hidden w-fit lg:flex" />
   </section>
 
   {/* ══ 01 · Work ═════════════════════════════════════════════════ */}

@@ -18,6 +18,7 @@
 import { SITE } from '../../data/site';
 import { href, isActive } from '../../lib/url';
 import Icon from '../ui/Icon.astro';
+import Mark from '../ui/Mark.astro';
 import ThemeToggle from './ThemeToggle.astro';
 
 const path = Astro.url.pathname;
@@ -36,12 +37,7 @@ const onHome = path === '/' || path === '';
   class="bg-ground/85 border-line fixed inset-x-0 top-0 z-50 flex h-14 items-center justify-between border-b px-4 backdrop-blur-xl lg:hidden"
 >
   <a href={href('/')} class="flex items-center gap-2.5" aria-label={`${SITE.name} — home`}>
-    <span
-      aria-hidden="true"
-      class="border-accent grid size-6 place-items-center rounded-full border"
-    >
-      <span class="bg-accent-fill size-1.5 rounded-full"></span>
-    </span>
+    <Mark size={24} class="text-accent" />
     <span class="text-[13px] font-semibold tracking-tight">{SITE.handle}</span>
   </a>
 
@@ -66,18 +62,21 @@ const onHome = path === '/' || path === '';
   class="group/rail border-line bg-surface/95 fixed inset-y-0 left-0 z-50 hidden w-[var(--rail-w)] flex-col overflow-hidden border-r backdrop-blur-xl transition-[width] duration-[var(--dur-base)] ease-[var(--ease-out)] hover:w-[var(--rail-w-open)] hover:shadow-[var(--shadow-lift)] lg:flex"
   aria-label="Primary"
 >
+  {/* Page progress, pinned to the rail's trailing edge. */}
+  <span
+    aria-hidden="true"
+    data-scroll-progress
+    class="scroll-progress bg-accent-fill absolute inset-y-0 right-0 z-10 w-[2px]"></span>
   <!-- Wordmark -->
   <a
     href={href('/')}
     class="group border-line flex h-16 shrink-0 items-center gap-3 border-b px-[1.0625rem]"
     aria-label={`${SITE.name} — home`}
   >
-    <span
-      aria-hidden="true"
-      class="border-accent group-hover:bg-accent-soft grid size-[1.875rem] shrink-0 place-items-center rounded-full border transition-colors"
-    >
-      <span class="bg-accent-fill size-2 rounded-full"></span>
-    </span>
+    <Mark
+      size={30}
+      class="text-accent transition-transform duration-[var(--dur-slow)] ease-[var(--ease-out)] group-hover:rotate-[20deg]"
+    />
     <span class="rail-label flex flex-col leading-none whitespace-nowrap">
       <span class="display text-base">{SITE.handle}</span>
       <span class="eyebrow mt-1.5 text-[9px]">{SITE.role}</span>

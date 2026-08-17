@@ -241,6 +241,11 @@
   }
 
   /* ── Scroll reveal ──────────────────────────────────────────────── */
+
+  /*
+   * Two variants, both animating only `opacity`, `transform` and `clip-path`
+   * so every entrance composites on the GPU and never touches layout.
+   */
   [data-reveal] {
     opacity: 0;
     transform: translateY(12px);
@@ -249,13 +254,55 @@
       transform var(--dur-reveal) var(--ease-out);
     transition-delay: var(--reveal-delay, 0ms);
   }
+
+  /* `wipe`: type is swept in from the left rather than faded up. */
+  [data-reveal='wipe'] {
+    transform: none;
+    clip-path: inset(0 100% 0 0);
+    transition:
+      opacity calc(var(--dur-reveal) * 0.4) var(--ease-out),
+      clip-path var(--dur-reveal) var(--ease-out);
+    transition-delay: var(--reveal-delay, 0ms);
+  }
+
   [data-reveal][data-shown='true'] {
     opacity: 1;
     transform: none;
+    clip-path: inset(0 0 0 0);
   }
+
   .no-js [data-reveal] {
     opacity: 1;
     transform: none;
+    clip-path: none;
+  }
+
+  /* ── Scroll progress ────────────────────────────────────────────── */
+
+  /*
+   * A hairline on the rail's trailing edge that fills as the page advances.
+   * Driven by a scroll-linked animation where supported, so it runs entirely
+   * off the main thread; the script fallback below covers everything else.
+   */
+  .scroll-progress {
+    transform: scaleY(var(--progress, 0));
+    transform-origin: top;
+    will-change: transform;
+  }
+
+  @supports (animation-timeline: scroll()) {
+    .scroll-progress {
+      animation: progress-fill linear;
+      animation-timeline: scroll(root block);
+    }
+    @keyframes progress-fill {
+      from {
+        transform: scaleY(0);
+      }
+      to {
+        transform: scaleY(1);
+      }
+    }
   }
 
   /* ─────────────────────────────────────────────────────────────────

@@ -6,6 +6,7 @@
  * Anything more competes with the media the section exists to show.
  */
 import Icon from './Icon.astro';
+import Reveal from './Reveal.astro';
 import { href } from '../../lib/url';
 
 interface Props {
@@ -42,7 +43,9 @@ const {
       {eyebrow}
     </p>
 
-    <h2 id={headingId} class="display mt-5 text-4xl sm:text-5xl lg:text-6xl">{title}</h2>
+    <Reveal variant="wipe" delay={120}>
+      <h2 id={headingId} class="display mt-5 text-4xl sm:text-5xl lg:text-6xl">{title}</h2>
+    </Reveal>
 
     {lede && <p class="text-muted prose-measure mt-5 text-base leading-relaxed">{lede}</p>}
   </div>
