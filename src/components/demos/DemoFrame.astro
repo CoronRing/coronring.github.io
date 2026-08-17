@@ -13,6 +13,7 @@
  */
 import { isDemoName } from './registry';
 import PlaceholderDemo from './PlaceholderDemo';
+import ParticleWaveDemo from './ParticleWaveDemo';
 
 interface Props {
   /** Registry key from project frontmatter. */
@@ -50,5 +51,6 @@ if (!isDemoName(demo)) {
   <!-- Stage -->
   <div>
     {demo === 'placeholder' && <PlaceholderDemo client:visible title={title} />}
+    {demo === 'particle-wave' && <ParticleWaveDemo client:visible title={title} />}
   </div>
 </div>

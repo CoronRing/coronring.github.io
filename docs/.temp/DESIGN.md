@@ -1,10 +1,15 @@
 # coronring.github.io — Design Document
 
-**Version:** 0.2.0
-**Status:** Draft — structure and visual system built, content pending
-**Last updated:** 2026-08-14
+**Version:** 0.3.0
+**Status:** Draft — structure, visual system and first live demo built, content pending
+**Last updated:** 2026-08-16
 **Owner:** Guan Zheng Huang (`CoronRing`)
 
+> **v0.3.0** — the particle engine gains ambient motion (rotation and
+> per-particle drift) and per-group spin weights; the hero cloud becomes the
+> G mark; the Particle Wave project gets a real driveable demo with in-browser
+> image tracing. Repo relocated under `nlp_application_toolbox/`. See §7 and §16.
+>
 > **v0.2.0** replaces the speculative visual system in v0.1.0 with one derived
 > from the actual reference. See §0.
 
@@ -256,17 +261,60 @@ Upstream is plain JS with JSDoc, whose inferred types are too narrow to use
 URL the engine requires). `particle-wave.d.ts` declares the surface separately
 rather than editing vendored code, which would be lost on the next sync.
 
+#### Ambient motion (v0.3.0)
+
+The engine as vendored was **purely input-driven**: with no cursor on the
+canvas the cloud was a still image, which next to a rotating HUD ring read as
+broken. Three config keys were added, and ported back to SenseRing:
+
+| Key                             | Meaning                            |
+| ------------------------------- | ---------------------------------- |
+| `restSpin`                      | Rigid rotation of the cloud, rad/s |
+| `driftAmplitude` / `driftSpeed` | Per-particle wander, px            |
+| `spinWeightByGroup`             | Per-group rotation multiplier      |
+
+Both effects move the **rest frame**, not the particles. This is the load-bearing
+decision: applied as forces they fight the spring and wash out to a small static
+offset, which is exactly how the first attempt (a curl-noise `AmbientDrift`
+force) failed — it moved neighbouring points together and read as breathing.
+Applied to the rest frame the spring carries the particles along, the motion is
+visible, and the amplitude is expressible in pixels.
+
+Drift phases are seeded from a hash of the particle index, not `Math.random()`,
+so a resize does not teleport every particle to a new point in its wander.
+
+`spinWeightByGroup` exists because **a spinning letter is upside down half the
+time**. The glyph groups sit at weight 0 and the corona at 1, so the mark holds
+still while its surroundings orbit — a still shape made of moving material.
+Weights are stored as a small lookup table (distinct weights are few), so the
+per-frame cost is two trig calls per _weight_, not per particle.
+
+Upstream had already diverged from the vendored copy by Prettier formatting
+only — no semantic drift — so the port applied the semantic hunks alone rather
+than imposing this repo's formatting on SenseRing.
+
 ### 7.2 The cloud
 
-`scripts/generate-cloud.mjs` emits `public/clouds/corona.pwcloud` — a corona:
-dense ring, 34 radial flares, a small core, and ambient dust (the dust exists so
-the cursor gets a response in the empty regions, not just on the ring).
+`scripts/generate-cloud.mjs` emits `public/clouds/corona.pwcloud` — **the
+CoronRing mark as particles**: a ring broken 18° either side of centre-right, a
+bar from the core out through the gap, a dense core, plus an orbiting corona of
+30 flares and ambient dust (the dust exists so the cursor gets a response in the
+empty regions, not just on the glyph).
+
+Proportions are lifted from `Mark.astro` (32-unit box, R=11, core=3) and
+re-expressed as fractions of the glyph radius, so the SVG and the cloud stay the
+same shape. The glyph radius is 0.27 of the field rather than the SVG's 0.344,
+to leave an outer margin for the corona to orbit in.
+
+The corona starts _outside_ the ring rather than growing from it: streamers
+rooted in a stationary ring but rotating themselves would visibly shear away
+from their own base.
 
 Parametric rather than traced from an image: no source bitmap to ship, no Python
 step in CI, and density is one number. **Seeded PRNG** — an unseeded generator
 would emit a different asset every run, showing a spurious diff and busting the
-CDN cache. 6,675 points, 121 kB raw / **32.8 kB gzipped**, verified
-byte-identical across runs.
+CDN cache. 5,831 points across five groups, 106 kB raw, verified byte-identical
+across runs.
 
 ### 7.3 Integration
 
@@ -304,6 +352,35 @@ A third, related hardening: `[data-reveal]` starts at `opacity: 0`, so any
 element the observer fails to reach would stay invisible **forever**. A 2 s
 safety timeout now reveals anything still pending. A hidden-content bug is worse
 than a missed animation.
+
+### 7.5 The live demo (v0.3.0)
+
+`ParticleWaveDemo.tsx` is the Particle Wave project's demo: the same engine,
+driveable. Seven sliders (spin, drift, wave strength, wave speed, spring,
+damping, particle size) and a cursor-mode select, all going through `setConfig`
+on the running instance. Claims about a physics engine are cheap; letting the
+reader move the spring constant is not.
+
+The instance is **rebuilt only on a cloud change** — particle count is fixed at
+construction because the SoA buffers are sized to it. Everything else is hot.
+The init effect reads parameters through a ref so a slider does not tear down
+the engine.
+
+**Image upload** (`src/lib/image-to-cloud.ts`) traces a dropped image to a point
+cloud in the tab: luminance → Sobel → importance sampling, emitted as a
+`.pwcloud` object, which `Loader.load` accepts as readily as a URL. Nothing is
+uploaded anywhere. It is a cut-down port of SenseRing's Python extractor — that
+one does multi-scale edges and Poisson-disc spacing; this one has to answer in
+under a second.
+
+> **Background estimation is the whole trick.** The first version weighted
+> pixels by distance from the _mean_ luminance. On a dark logo over white the
+> mean sits between the two, so every background pixel still scored a third of
+> full weight — and with far more background than subject, roughly half the
+> points landed on empty paper and the trace came out as a filled rectangle.
+> Using the **median** (which, for a subject on a ground, _is_ the ground) plus
+> a 0.06 deadband drives those to zero. Measured after the fix: 0.0% of the
+> bounding-box corners lit, against 98.1% in the subject band.
 
 ---
 
@@ -412,6 +489,35 @@ All internal links route through `href()`, which resolves against
 | Carousel over three stacked cards                                 | Three prose blocks compete for one glance                                                  |
 | Generated cover art over grey boxes                               | Says something true while real screenshots are pending                                     |
 | Verify by sampling pixels                                         | Both particle bugs were invisible to inspection                                            |
+| Ambient motion on the rest frame, not as a force                  | As a force it fights the spring and washes out to a static offset                          |
+| Glyph at spin weight 0, corona at 1                               | A spinning letter is upside down half the time                                             |
+| Median, not mean, as the extractor's background level             | The mean leaves background pixels at a third weight; the trace fills the frame             |
+| Real driveable demo over a recording                              | Claims about a physics engine are cheap; a spring-constant slider is not                   |
+
+---
+
+## 16. Repository location
+
+The working copy lives at:
+
+```
+C:\Users\guanz\Desktop\project-py-NLP toolbox\nlp_application_toolbox\coronring.github.io
+```
+
+Moved there in v0.3.0 to sit alongside the other projects, **SenseRing**
+included — which matters, because the particle engine is vendored from it and
+changes now get ported between two directories a few paths apart.
+
+Two consequences worth knowing:
+
+- It is a git repo nested inside another git repo. The outer toolbox sees it as
+  an untracked directory, same as the sibling projects. Do not `git add` it from
+  the outer repo — that would record a gitlink rather than the files.
+- The path contains a space. Quote it in shell commands.
+
+The move was done as copy → verify → remove rather than a rename: an editor
+holding the folder open blocks an atomic rename on Windows, and `node_modules`,
+`dist` and `.astro` are all reproducible, so only 506 real files were copied.
 
 ---
 

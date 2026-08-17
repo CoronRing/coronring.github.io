@@ -8,8 +8,10 @@
  *
  *  - **Theming.** Colour, alpha and radius come from live CSS tokens and are
  *    re-pushed when the theme changes.
- *  - **Ambient motion.** The engine is input-driven, so with no cursor the
- *    cloud is a still image. `AmbientDrift` adds an always-on flow field.
+ *  - **Ambient motion.** Slow rotation plus a per-particle wander, so the
+ *    cloud lives without a cursor on it. Both are engine config now; an
+ *    earlier revision bolted a curl-noise force on from here, which moved
+ *    neighbouring points together and read as breathing rather than drift.
  *  - **Cost control.** Nothing loads until the canvas is near the viewport,
  *    and the simulation pauses off-screen or in a background tab.
  *  - **Graceful absence.** Decorative: any failure leaves the page intact.
@@ -64,7 +66,6 @@ const cloudUrl = href(src);
 
 <script>
   import ParticleWave from '../../vendor/particle-wave/particle-wave.js';
-  import { AmbientDrift } from '../../lib/ambient-drift';
 
   /** Current value of a CSS custom property on :root. */
   function token(name: string, fallback: string): string {
@@ -95,11 +96,30 @@ const cloudUrl = href(src);
         particleSizeWeight: 0.9,
         particleOpacityWeight: 0.8,
 
-        // Loose spring + moderate damping so the drift field can actually
-        // move points. A stiff spring pins them and the cloud looks static
-        // however hard the field pushes.
+        // Loose spring + moderate damping. Particles lag slightly behind the
+        // rotating rest frame, which reads as drag and keeps the spin from
+        // looking like a rigid turntable.
         springK: 1.9,
         damping: 3.4,
+
+        // Always-on motion, both applied to the rest frame by the engine.
+        // One revolution every ~2.3 minutes: present when you watch for it,
+        // never competing with the text beside it.
+        restSpin: 0.045,
+        driftAmplitude: 6,
+        driftSpeed: 0.5,
+
+        // The glyph holds still; only the corona turns. Rotating everything
+        // would put the G upside down for half of every revolution. Dust
+        // trails the flares, which reads as depth rather than one rigid disc.
+        // Indices are defined in scripts/generate-cloud.mjs.
+        spinWeightByGroup: {
+          0: 0, // glyph ring
+          1: 0, // glyph bar
+          2: 0, // glyph core
+          3: 1, // flares
+          4: 0.55, // dust
+        },
 
         mouseEnabled: interactive && !reduce,
         mouseMode: 'repel',
@@ -125,9 +145,6 @@ const cloudUrl = href(src);
       requestAnimationFrame(() => requestAnimationFrame(() => instance?.pause()));
       return;
     }
-
-    // Always-on motion. Without this the cloud only moves under the cursor.
-    instance.addForce(new AmbientDrift({ amplitude: 26, scale: 0.006, speed: 0.35 }));
 
     // Pause when off-screen or backgrounded — an invisible rAF loop is pure
     // battery cost.

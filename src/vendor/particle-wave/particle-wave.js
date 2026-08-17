@@ -47,6 +47,24 @@ const DEFAULTS = {
   maxDisplacement: 160,
   mass: 1.0,
 
+  // Ambient motion
+  //
+  // Without these the engine is purely input-driven: with no cursor on the
+  // canvas the cloud is a still image. Both act on the rest frame rather than
+  // as forces — see ParticleSystem.updateRestFrame for why.
+  /** Rigid rotation of the whole cloud, radians/second. Negative reverses. */
+  restSpin: 0,
+  /** Per-particle wander amplitude, px. Reads as stars holding a shape. */
+  driftAmplitude: 0,
+  /** Wander rate multiplier. */
+  driftSpeed: 0.35,
+  /**
+   * Per-group rotation multiplier, `{ groupIndex: weight }`. Groups not
+   * listed rotate at full rate. Lets a legible foreground hold still while
+   * its surroundings orbit.
+   */
+  spinWeightByGroup: null,
+
   // Mouse interaction
   mouseEnabled: true,
   mouseMode: 'repel', // 'repel' | 'attract' | 'orbit' | 'none'
@@ -112,6 +130,10 @@ class ParticleWaveInstance {
     this._lastTs = null;
     this._frameMs = 1000 / config.targetFPS;
     this._accMs = 0;
+    /** Accumulated rest-frame rotation, radians. */
+    this._theta = 0;
+    /** Accumulated ambient-motion clock, seconds. */
+    this._driftT = 0;
 
     config._canvasW = canvas.width;
     config._canvasH = canvas.height;
@@ -249,6 +271,21 @@ class ParticleWaveInstance {
     if (this._accMs >= this._frameMs) {
       const stepDt = this._accMs;
       this._accMs = 0;
+
+      // Advance the rest frame before physics, so the spring integrates
+      // against this frame's targets rather than last frame's.
+      const stepS = stepDt / 1000;
+      const { restSpin, driftAmplitude, driftSpeed } = this._config;
+      if (restSpin || driftAmplitude > 0) {
+        this._theta += restSpin * stepS;
+        // Wrap: an unbounded angle loses float precision over a long session,
+        // and the rotation visibly quantises.
+        if (this._theta > Math.PI * 2 || this._theta < -Math.PI * 2) {
+          this._theta %= Math.PI * 2;
+        }
+        this._driftT += stepS;
+      }
+      this._ps.updateRestFrame(this._theta, this._driftT, driftAmplitude, driftSpeed);
 
       this._ps.clearForces();
       this._il.poll();

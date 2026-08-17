@@ -33,6 +33,18 @@ export interface ParticleWaveConfig {
   maxDisplacement?: number;
   mass?: number;
 
+  /** Rigid rotation of the whole cloud, radians/second. Negative reverses. */
+  restSpin?: number;
+  /** Per-particle wander amplitude, px. 0 disables. */
+  driftAmplitude?: number;
+  /** Wander rate multiplier. */
+  driftSpeed?: number;
+  /**
+   * Per-group rotation multiplier, keyed by the cloud's group index. Groups
+   * not listed rotate at the full `restSpin` rate.
+   */
+  spinWeightByGroup?: Record<number, number> | null;
+
   mouseEnabled?: boolean;
   mouseMode?: 'repel' | 'attract' | 'orbit' | 'none';
   mouseStrength?: number;
@@ -88,6 +100,12 @@ export interface ParticleWaveInstance {
   resume(): void;
   /** Tear down listeners and observers. */
   destroy(): void;
+  /** Live counters, sampled per frame. */
+  readonly stats: {
+    fps: number;
+    particleCount: number;
+    activeWaves: number;
+  };
 }
 
 declare const ParticleWave: {
