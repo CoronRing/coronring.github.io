@@ -112,6 +112,24 @@ class Usage:
         )
 
 
+#: `finishReason` meaning the response hit `maxOutputTokens`. The answer is
+#: real but cut off mid-sentence, so it must never be cached and reserved as
+#: the canonical answer to a question.
+TRUNCATED = "MAX_TOKENS"
+
+
+@dataclass
+class StreamEnd:
+    """Terminal metadata for a stream, delivered after the last delta."""
+
+    usage: Usage
+    finish_reason: str = ""
+
+    @property
+    def truncated(self) -> bool:
+        return self.finish_reason == TRUNCATED
+
+
 @dataclass
 class Turn:
     """One message in the conversation."""
@@ -128,6 +146,11 @@ class Completion:
     text: str
     usage: Usage = field(default_factory=Usage)
     finish_reason: str = ""
+
+    @property
+    def truncated(self) -> bool:
+        """Did the response stop because it ran out of budget rather than words?"""
+        return self.finish_reason == TRUNCATED
 
 
 def _retry_delay(payload: dict[str, Any], headers: Any) -> float | None:
@@ -289,12 +312,13 @@ def stream(
     temperature: float,
     thinking_budget: int,
     timeout: float,
-) -> Iterator[tuple[str, Usage | None]]:
+) -> Iterator[tuple[str, StreamEnd | None]]:
     """
     Stream the answer as it is produced.
 
-    Yields ``(text_delta, usage)``. `usage` is None until the final chunk, which
-    carries the accounting and an empty delta.
+    Yields ``(text_delta, end)``. `end` is None for every text chunk; the final
+    yield carries an empty delta and a `StreamEnd` with the accounting and the
+    finish reason.
 
     Failures raised *before the first delta* are ordinary `GeminiError`s and the
     router may retry them on another pair. Once a delta has been yielded the
@@ -322,6 +346,7 @@ def stream(
 
     produced = False
     usage = Usage()
+    finish_reason = ""
     blocked: str | None = None
 
     with response:
@@ -345,6 +370,11 @@ def stream(
                 blocked = blocked or _blocked_reason(chunk)
                 continue
 
+            # Only the last chunk carries one, but chunks arrive in order, so
+            # keeping the most recent non-empty value lands on the right one.
+            if candidates[0].get("finishReason"):
+                finish_reason = str(candidates[0]["finishReason"])
+
             delta = _candidate_text(candidates[0])
             if delta:
                 produced = True
@@ -353,7 +383,7 @@ def stream(
     if not produced:
         raise EmptyAnswer(blocked or "stream produced no text")
 
-    yield "", usage
+    yield "", StreamEnd(usage=usage, finish_reason=finish_reason)
 
 
 def _candidate_text(candidate: dict[str, Any]) -> str:

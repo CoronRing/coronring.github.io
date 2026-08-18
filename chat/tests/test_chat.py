@@ -195,6 +195,33 @@ class TestClassification:
         assert isinstance(gemini._classify(503, b"<html>oops", None), gemini.Unavailable)
 
 
+class TestTruncation:
+    """
+    Regression: an answer cut off by the output cap was being cached.
+
+    `maxOutputTokens` bounds thinking *plus* answer, so a cap sized for the
+    visible reply gets spent on deliberation. In production this produced an
+    answer that stopped mid-list after 38 output tokens — and the answer cache
+    then served that fragment for the next hour.
+    """
+
+    def test_completion_reports_truncation(self) -> None:
+        assert gemini.Completion(text="cut off", finish_reason="MAX_TOKENS").truncated
+
+    def test_normal_completion_is_not_truncated(self) -> None:
+        assert not gemini.Completion(text="done", finish_reason="STOP").truncated
+
+    def test_stream_end_reports_truncation(self) -> None:
+        assert gemini.StreamEnd(usage=gemini.Usage(), finish_reason="MAX_TOKENS").truncated
+        assert not gemini.StreamEnd(usage=gemini.Usage(), finish_reason="STOP").truncated
+
+    def test_output_cap_leaves_room_for_thinking(self) -> None:
+        """The cap must exceed the thinking budget by a wide margin, not a hair."""
+        from service.settings import settings
+
+        assert settings.max_output_tokens >= settings.thinking_budget * 4
+
+
 class TestCandidateText:
     def test_thought_parts_are_excluded(self) -> None:
         """The model's scratch work must never reach a visitor."""
@@ -308,11 +335,27 @@ class TestCitations:
     def test_ignores_protocol_relative_links(self) -> None:
         assert gemini_link_targets("[x](//elsewhere.test/x)") == []
 
+    def test_bare_bracket_route_is_recognised(self) -> None:
+        """Observed from gemini-3.6-flash in production: `[/resume]`, no label."""
+        assert bare_link_targets("built Railtracks [/resume]") == ["/resume"]
+
+    def test_bare_paren_route_is_recognised(self) -> None:
+        assert bare_link_targets("built Railtracks (/resources)") == ["/resources"]
+
+    def test_bare_matcher_ignores_offsite(self) -> None:
+        assert bare_link_targets("[//elsewhere.test/x]") == []
+
 
 def gemini_link_targets(text: str) -> list[str]:
     from service.main import _LINK_RE
 
     return [target for _, target in _LINK_RE.findall(text)]
+
+
+def bare_link_targets(text: str) -> list[str]:
+    from service.main import _BARE_LINK_RE
+
+    return _BARE_LINK_RE.findall(text)
 
 
 # ──────────────────────────────────────────────────────────────────────────

@@ -26,6 +26,16 @@ const LINK = /\[([^\]]+)\]\((\/(?!\/)[A-Za-z0-9._~\-/]*)\)/g;
 const BOLD = /\*\*([^*]+)\*\*/g;
 /** `` `code` `` */
 const CODE = /`([^`]+)`/g;
+/**
+ * A bare `[/route]`, with no label.
+ *
+ * Not the instructed citation format, but the one models fall back to under
+ * pressure — `gemini-3.6-flash` produced it in production. Rendering it as a
+ * link beats showing the reader a stray `[/resume]` in the middle of a
+ * sentence. Must come last in the combined pattern so a real `[label](/route)`
+ * is matched by `LINK` first.
+ */
+const BARE_LINK = /\[(\/(?!\/)[A-Za-z0-9._~\-/]*)\](?!\()/g;
 
 /**
  * Render the inline span syntax within one line of text.
@@ -35,7 +45,10 @@ const CODE = /`([^`]+)`/g;
  */
 function inline(text: string, keyPrefix: string): ReactNode[] {
   const out: ReactNode[] = [];
-  const pattern = new RegExp(`${LINK.source}|${BOLD.source}|${CODE.source}`, 'g');
+  const pattern = new RegExp(
+    `${LINK.source}|${BOLD.source}|${CODE.source}|${BARE_LINK.source}`,
+    'g',
+  );
   let last = 0;
   let match: RegExpExecArray | null;
   let index = 0;
@@ -44,8 +57,18 @@ function inline(text: string, keyPrefix: string): ReactNode[] {
     if (match.index > last) out.push(text.slice(last, match.index));
     const key = `${keyPrefix}-${index++}`;
 
-    const [, linkLabel, linkHref, boldText, codeText] = match;
-    if (linkHref !== undefined) {
+    const [, linkLabel, linkHref, boldText, codeText, bareHref] = match;
+    if (bareHref !== undefined) {
+      out.push(
+        <a
+          key={key}
+          href={bareHref}
+          className="text-accent underline decoration-[var(--c-accent-ring)] underline-offset-2 transition-colors hover:decoration-[var(--c-accent)]"
+        >
+          {bareHref}
+        </a>,
+      );
+    } else if (linkHref !== undefined) {
       out.push(
         <a
           key={key}

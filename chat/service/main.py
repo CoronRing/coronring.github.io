@@ -214,6 +214,15 @@ async def suggestions() -> dict:
 # refactor away from not being.
 _LINK_RE = re.compile(r"\[([^\]]{1,120})\]\((/(?!/)[A-Za-z0-9._~\-/]*)\)")
 
+# The same citation, written the way models actually write it when they drift
+# off the instructed format: a bare route in brackets or parentheses, with no
+# label. Observed from `gemini-3.6-flash` in production, emitting `[/resume]`.
+#
+# Worth matching rather than treating as the model's mistake to fix. The source
+# chips are the trust signal in the UI, and losing them because a fallback model
+# was fractionally less obedient is a worse outcome than accepting both spellings.
+_BARE_LINK_RE = re.compile(r"[\[(](/(?!/)[A-Za-z0-9._~\-/]*)[\])]")
+
 
 def _citations(answer: str) -> list[Citation]:
     """
@@ -230,7 +239,11 @@ def _citations(answer: str) -> list[Citation]:
 
     found: list[Citation] = []
     seen: set[str] = set()
-    for _, target in _LINK_RE.findall(answer):
+
+    targets = [target for _, target in _LINK_RE.findall(answer)]
+    targets.extend(_BARE_LINK_RE.findall(answer))
+
+    for target in targets:
         route = target.rstrip("/") or "/"
         page = by_route.get(route)
         if page is not None and route not in seen:
@@ -396,7 +409,19 @@ def _json_answer(system, turns, corpus_hash, cache_key, hit) -> JSONResponse:  #
                 outcome.key_index = attempt.key_index
                 outcome.degraded = router.is_fallback(attempt.model, settings.models)
                 _record(outcome, completion.usage)
-                answer_cache.put(cache_key, completion.text, attempt.model)
+
+                # See the streaming path: a cut-off answer is shown but never
+                # stored as the canonical one.
+                if completion.truncated:
+                    metrics.truncated_answers += 1
+                    log.warning(
+                        "truncated answer from %s (out=%d thoughts=%d) — not cached",
+                        attempt.model,
+                        completion.usage.output_tokens,
+                        completion.usage.thoughts_tokens,
+                    )
+                else:
+                    answer_cache.put(cache_key, completion.text, attempt.model)
 
                 elapsed = int((time.monotonic() - started) * 1000)
                 metrics.record_success(elapsed, degraded=outcome.degraded)
@@ -476,17 +501,17 @@ def _sse(system, turns, corpus_hash, cache_key, hit) -> Iterator[str]:  # type: 
                 attempts += 1
                 metrics.upstream_attempts += 1
                 pieces: list[str] = []
-                usage: gemini.Usage | None = None
+                end: gemini.StreamEnd | None = None
                 opened = False
 
                 try:
-                    for delta, chunk_usage in gemini.stream(
+                    for delta, chunk_end in gemini.stream(
                         api_key=attempt.api_key,
                         model=attempt.model,
                         **_call_kwargs(system, turns),
                     ):
-                        if chunk_usage is not None:
-                            usage = chunk_usage
+                        if chunk_end is not None:
+                            end = chunk_end
                             continue
                         if not opened:
                             opened = True
@@ -520,13 +545,27 @@ def _sse(system, turns, corpus_hash, cache_key, hit) -> Iterator[str]:  # type: 
                     continue
 
                 answer = "".join(pieces)
+                usage = end.usage if end else None
                 ring.record_success(attempt.key_index, attempt.model)
                 degraded = router.is_fallback(attempt.model, settings.models)
                 if usage is not None:
                     metrics.record_usage(
                         usage.prompt_tokens, usage.cached_tokens, usage.output_tokens
                     )
-                answer_cache.put(cache_key, answer, attempt.model)
+
+                # A truncated answer is a real answer and is shown, but it must
+                # not be stored: caching one pins a mid-sentence reply as the
+                # canonical response to that question for the next hour.
+                if end is not None and end.truncated:
+                    metrics.truncated_answers += 1
+                    log.warning(
+                        "truncated answer from %s (out=%d thoughts=%d) — not cached",
+                        attempt.model,
+                        usage.output_tokens if usage else 0,
+                        usage.thoughts_tokens if usage else 0,
+                    )
+                else:
+                    answer_cache.put(cache_key, answer, attempt.model)
 
                 elapsed = int((time.monotonic() - started) * 1000)
                 metrics.record_success(elapsed, degraded=degraded)
@@ -544,6 +583,7 @@ def _sse(system, turns, corpus_hash, cache_key, hit) -> Iterator[str]:  # type: 
                     model=attempt.model,
                     degraded=degraded,
                     cached=False,
+                    truncated=bool(end and end.truncated),
                     usage={
                         "prompt_tokens": usage.prompt_tokens if usage else 0,
                         "cached_tokens": usage.cached_tokens if usage else 0,

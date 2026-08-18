@@ -159,21 +159,33 @@ class Settings:
     has started producing is never cut off mid-answer for being thorough.
     """
 
-    max_output_tokens: int = 1400
+    max_output_tokens: int = 4096
     """
-    Generous on purpose. These models think before answering, and thinking is
-    billed against the same budget: a tight cap produces a 200 response whose
-    text is the empty string, which was observed on `gemini-3.7-flash` during
-    the model probe. `answers.py` treats empty text as a failure, but the real
-    fix is not to starve the model in the first place.
+    A ceiling on **thinking plus answer**, not on the answer.
+
+    This is the single most expensive thing to get wrong here, and it fails
+    silently in both directions. Thinking tokens are drawn from this same
+    budget, so a cap sized for the visible answer gets spent on deliberation
+    and the response is cut off — or, if thinking exhausts it entirely, comes
+    back as a 200 with empty text. Both were observed in production at 1400:
+    `gemini-3.7-flash` returned an answer that stopped mid-list after 38 output
+    tokens, having spent the rest on thoughts.
+
+    So this is set far above what any answer needs. It costs nothing to do so —
+    output is billed on tokens actually produced, not on the cap — and
+    `finish_reason` is checked besides, because a cap this size being hit at
+    all means something is wrong.
     """
 
     thinking_budget: int = 512
     """
     Thinking tokens allowed per answer. Non-zero because grounded, cited
     answers are measurably better with a little deliberation, and quality is
-    the stated priority. Set `0` to ask for none — note the API treats that as
-    a hint, not a guarantee.
+    the stated priority.
+
+    Treated by the API as a hint rather than a guarantee — an observed run
+    produced thought tokens with this set to `0` — which is the other half of
+    why `max_output_tokens` carries so much headroom.
     """
 
     temperature: float = 0.2
@@ -244,7 +256,7 @@ def load() -> Settings:
         models=_csv("CHAT_MODELS", DEFAULT_MODELS),
         fallback_models=_csv("CHAT_FALLBACK_MODELS", DEFAULT_FALLBACK_MODELS),
         request_timeout_s=_float("CHAT_REQUEST_TIMEOUT_S", 60.0, minimum=5.0),
-        max_output_tokens=_int("CHAT_MAX_OUTPUT_TOKENS", 1400, minimum=128),
+        max_output_tokens=_int("CHAT_MAX_OUTPUT_TOKENS", 4096, minimum=512),
         thinking_budget=_int("CHAT_THINKING_BUDGET", 512, minimum=0),
         temperature=_float("CHAT_TEMPERATURE", 0.2),
         corpus_url=os.environ.get(

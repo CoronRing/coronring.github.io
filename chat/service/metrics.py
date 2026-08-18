@@ -42,6 +42,10 @@ class Metrics:
     fallback_answers: int = 0
     """Answers produced by a model below the primary chain."""
 
+    truncated_answers: int = 0
+    """Answers cut off by the output cap. Should stay at zero — a non-zero
+    value means `max_output_tokens` is too tight for the thinking budget."""
+
     rate_limited: int = 0
     """Visitors refused by our own limiter."""
 
@@ -100,6 +104,7 @@ class Metrics:
             "cache_served": self.cache_served,
             "upstream_attempts": self.upstream_attempts,
             "fallback_answers": self.fallback_answers,
+            "truncated_answers": self.truncated_answers,
             "rate_limited": self.rate_limited,
             "upstream_rate_limited": self.upstream_rate_limited,
             "prompt_tokens": self.prompt_tokens,

@@ -64,6 +64,13 @@ Use the routes exactly as they appear in the `route` attribute of each page \
 block. Never cite a route that was not given to you. One or two citations per \
 answer is right; do not cite the same page repeatedly in one paragraph.
 
+A citation is **always** a full Markdown link with a readable label. Never \
+write a bare route in brackets:
+
+    right:  built [Railtracks](/resources), an agentic framework
+    wrong:  built Railtracks, an agentic framework [/resources]
+    wrong:  built Railtracks (/resources)
+
 ## Voice
 
 Match the site: direct, concrete, unhyped. Short paragraphs. Prefer specifics \
