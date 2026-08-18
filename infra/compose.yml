@@ -1,0 +1,62 @@
+# Runtime stack on the Oracle host: the service, behind Caddy for TLS.
+#
+# Caddy exists because the personal website is served over HTTPS from
+# github.io, and a page loaded over HTTPS cannot call an http:// backend —
+# browsers block it as mixed content. So the API has to have a certificate,
+# and a certificate needs a hostname rather than a bare IP.
+#
+# The hostname comes from sslip.io, which resolves 1-2-3-4.sslip.io to
+# 1.2.3.4 for any address. That gives Let's Encrypt something to issue
+# against without buying a domain. Point a real domain here later and only
+# SITE_ADDRESS changes.
+
+services:
+  app:
+    build:
+      context: ./app
+      dockerfile: Dockerfile
+    image: particle-wave:local
+    restart: unless-stopped
+    environment:
+      # Four ARM cores, so allow real parallelism. The semaphore is per
+      # process and this is the only process.
+      PW_MAX_CONCURRENCY: "3"
+      # The site, plus the Astro dev server so local work exercises the
+      # real request path rather than silently falling back to the
+      # in-browser tracer. The endpoint is open regardless of origin, so
+      # naming localhost grants a developer nothing they did not have.
+      PW_ALLOWED_ORIGINS: "https://coronring.github.io,http://localhost:4321,http://127.0.0.1:4321"
+      PW_TRUST_FORWARDED_FOR: "1"
+      PW_LOG_LEVEL: "info"
+      PORT: "7860"
+    expose:
+      - "7860"
+    healthcheck:
+      test: ["CMD", "python", "-c",
+             "import urllib.request;urllib.request.urlopen('http://127.0.0.1:7860/api/health')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    depends_on:
+      - app
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      SITE_ADDRESS: ${SITE_ADDRESS}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      # Named volumes so the issued certificate survives a recreate. Without
+      # this every redeploy asks Let's Encrypt for a new one and walks into
+      # the rate limit.
+      - caddy_data:/data
+      - caddy_config:/config
+
+volumes:
+  caddy_data:
+  caddy_config:

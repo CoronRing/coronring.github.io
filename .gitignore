@@ -32,3 +32,19 @@ desktop.ini
 !.vscode/extensions.json
 !.vscode/settings.json
 .idea/
+
+# Python backend (backend/) and operator tooling (infra/)
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+
+# Credentials, belt and braces — these live outside the repo, and a stray copy
+# landing here should never be committable.
+*.pem
+*.key
+*.p12
+id_rsa*
+id_ed25519*
+.oci/

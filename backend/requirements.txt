@@ -1,0 +1,21 @@
+# The SenseRing toolchain. `scripts/sync_wheel.py` builds the wheel from the
+# SenseRing checkout into vendor/ and rewrites the line below to match.
+#
+# A relative path works because the Dockerfile copies vendor/ in before it runs
+# pip, so the file is present in the build context. (An earlier revision pinned
+# an https:// URL instead — a workaround for Hugging Face's Gradio builder,
+# which bind-mounts only this file into the pip step. That host is gone, and
+# with it the reason to depend on a remote copy of a file sitting right here.)
+#
+# When the package reaches PyPI this becomes `particle-wave-tool==<version>`
+# and vendor/ goes away. Nothing in service/ changes either way — it only ever
+# imports the package by name.
+./vendor/particle_wave_tool-1.0.1-py3-none-any.whl
+
+# Faster Canny and proper CLAHE. Optional for the pipeline, which falls back to
+# scipy and Pillow, but the fallback is markedly slower.
+opencv-python-headless>=4.8,<5
+
+fastapi>=0.115,<1
+uvicorn[standard]>=0.32,<1
+python-multipart>=0.0.18

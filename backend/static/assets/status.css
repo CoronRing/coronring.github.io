@@ -1,0 +1,164 @@
+/* Status page. Layers on styles.css rather than restating the palette. */
+
+.status-body {
+  display: block;
+  overflow-y: auto;
+}
+
+.status-main {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 22px 20px 48px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* ── Verdict banner ──────────────────────────────────────────────── */
+
+.verdict {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 18px 20px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--bg-panel);
+}
+
+.verdict h2 {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 600;
+}
+
+.verdict-sub {
+  margin: 3px 0 0;
+  font-size: 12.5px;
+  color: var(--text-faint);
+}
+
+.verdict-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--text-faint);
+  flex: none;
+  box-shadow: 0 0 0 4px rgba(148, 155, 173, 0.12);
+}
+
+.verdict.is-ok .verdict-dot {
+  background: var(--py);
+  box-shadow: 0 0 0 4px rgba(111, 208, 140, 0.16);
+}
+
+.verdict.is-ok {
+  border-color: rgba(111, 208, 140, 0.28);
+}
+
+.verdict.is-bad .verdict-dot {
+  background: var(--danger);
+  box-shadow: 0 0 0 4px rgba(255, 107, 107, 0.16);
+}
+
+.verdict.is-bad {
+  border-color: rgba(255, 107, 107, 0.32);
+}
+
+.verdict.is-warn .verdict-dot {
+  background: var(--js);
+  box-shadow: 0 0 0 4px rgba(240, 198, 116, 0.16);
+}
+
+.verdict.is-warn {
+  border-color: rgba(240, 198, 116, 0.3);
+}
+
+/* ── Counter cards ───────────────────────────────────────────────── */
+
+.cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(148px, 1fr));
+  gap: 10px;
+}
+
+.card {
+  background: var(--bg-panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 13px 14px;
+}
+
+.card-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--text-faint);
+  margin-bottom: 5px;
+}
+
+.card-value {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 21px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+  line-height: 1.15;
+}
+
+.card-value.is-quiet {
+  color: var(--text-faint);
+}
+
+.card-value.is-warn {
+  color: var(--js);
+}
+
+.card-note {
+  font-size: 10.5px;
+  color: var(--text-faint);
+  margin-top: 4px;
+}
+
+/* ── Key/value tables ────────────────────────────────────────────── */
+
+.status-panel {
+  padding: 15px 16px;
+}
+
+.kv {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+}
+
+.kv th,
+.kv td {
+  text-align: left;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--line-soft);
+  vertical-align: top;
+}
+
+.kv tr:last-child th,
+.kv tr:last-child td {
+  border-bottom: 0;
+}
+
+.kv th {
+  font-weight: 500;
+  color: var(--text-dim);
+  width: 42%;
+}
+
+.kv td {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: var(--text);
+  word-break: break-word;
+}
+
+.status-foot {
+  font-size: 11.5px;
+  color: var(--text-faint);
+  line-height: 1.5;
+  margin: 4px 0 0;
+}

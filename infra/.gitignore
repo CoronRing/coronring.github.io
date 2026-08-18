@@ -1,0 +1,9 @@
+# Machine-specific deployment state: instance OCIDs, public IP, local key path.
+# Not secret, but not shareable either — regenerate it with provision.py.
+state.json
+known_hosts
+
+# Never let a key land here.
+*.pem
+*.key
+id_*

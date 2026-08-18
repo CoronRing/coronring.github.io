@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>particle-wave · status</title>
+    <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="/assets/styles.css" />
+    <link rel="stylesheet" href="/assets/status.css" />
+  </head>
+  <body class="status-body">
+    <header class="topbar">
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true"></span>
+        <div>
+          <h1>particle-wave · status</h1>
+          <p class="brand-sub">service health and counters since start</p>
+        </div>
+      </div>
+      <div class="topbar-status">
+        <span id="auto" class="pill">refreshing every 10s</span>
+        <a class="pill pill-link" href="/">Demo</a>
+        <a class="pill pill-link" href="/api/status">JSON</a>
+      </div>
+    </header>
+
+    <main class="status-main">
+      <section class="verdict" id="verdict">
+        <span class="verdict-dot" id="verdict-dot" aria-hidden="true"></span>
+        <div>
+          <h2 id="verdict-text">checking&hellip;</h2>
+          <p id="verdict-sub" class="verdict-sub">contacting the service</p>
+        </div>
+      </section>
+
+      <section class="cards" id="cards"></section>
+
+      <section class="panel status-panel">
+        <h2 class="panel-title">Limits in force</h2>
+        <table class="kv" id="limits">
+          <tbody></tbody>
+        </table>
+      </section>
+
+      <section class="panel status-panel">
+        <h2 class="panel-title">Build</h2>
+        <table class="kv" id="build">
+          <tbody></tbody>
+        </table>
+      </section>
+
+      <p class="status-foot">
+        Counters are in-process and reset whenever the container restarts, so a
+        low uptime after a redeploy is normal rather than a fault. Nothing is
+        persisted: uploaded images are converted in memory and never written to
+        disk.
+      </p>
+    </main>
+
+    <script type="module" src="/assets/status.js"></script>
+  </body>
+</html>

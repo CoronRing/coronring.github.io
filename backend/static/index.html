@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>SenseRing · particle-wave</title>
+    <meta
+      name="description"
+      content="Upload an image, tune the extraction, and see the point cloud rendered by the particle-wave engine."
+    />
+    <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="/assets/styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true"></span>
+        <div>
+          <h1>particle-wave</h1>
+          <p class="brand-sub">image &rarr; point cloud &rarr; physics</p>
+        </div>
+      </div>
+      <div class="topbar-status">
+        <span id="status-pill" class="pill pill-idle">connecting&hellip;</span>
+        <a class="pill pill-link" href="/api/docs">API</a>
+      </div>
+    </header>
+
+    <main class="layout">
+      <!-- ── Controls ─────────────────────────────────────────────── -->
+      <section class="rail" aria-label="Controls">
+        <div class="panel">
+          <h2 class="panel-title">
+            <span class="tag tag-py">Python</span>
+            Source image
+          </h2>
+          <div
+            id="dropzone"
+            class="dropzone"
+            tabindex="0"
+            role="button"
+            aria-label="Choose an image, or drop one here"
+          >
+            <img id="preview" class="preview" alt="" hidden />
+            <div id="dropzone-hint" class="dropzone-hint">
+              <strong>Drop an image</strong>
+              <span>or click to choose &middot; PNG, JPEG, WebP, BMP, GIF</span>
+            </div>
+            <input id="file-input" type="file" accept="image/*" hidden />
+          </div>
+          <p id="file-meta" class="file-meta"></p>
+        </div>
+
+        <div class="panel">
+          <h2 class="panel-title">
+            <span class="tag tag-py">Python</span>
+            Extraction
+          </h2>
+          <p class="panel-note">
+            Runs server-side in the <code>particle_wave</code> package. Changing
+            these needs a re-convert.
+          </p>
+          <div id="server-controls" class="controls">
+            <p class="loading">loading options&hellip;</p>
+          </div>
+        </div>
+
+        <div class="panel">
+          <h2 class="panel-title">
+            <span class="tag tag-js">Browser</span>
+            Render &amp; physics
+          </h2>
+          <p class="panel-note">
+            Runs in the engine bundled with the same wheel. Applies live.
+          </p>
+          <div id="engine-controls" class="controls"></div>
+        </div>
+      </section>
+
+      <!-- ── Stage ────────────────────────────────────────────────── -->
+      <section class="stage" aria-label="Rendered point cloud">
+        <div class="stage-canvas-wrap">
+          <canvas id="stage" role="img" aria-label="Particle rendering of the converted image"></canvas>
+          <div id="stage-empty" class="stage-empty">
+            <p>Choose an image, then convert.</p>
+            <p class="stage-empty-sub">
+              The cloud is produced by Python and rendered here by the engine
+              shipped inside the same package.
+            </p>
+          </div>
+          <div id="stage-busy" class="stage-busy" hidden>
+            <span class="spinner" aria-hidden="true"></span>
+            <span>converting&hellip;</span>
+          </div>
+        </div>
+
+        <div class="stage-bar">
+          <div class="actions">
+            <button id="convert" class="btn btn-primary" type="button" disabled>
+              Convert
+            </button>
+            <button id="download" class="btn" type="button" disabled>
+              Download .pwcloud
+            </button>
+            <button id="reset" class="btn btn-quiet" type="button">Reset options</button>
+          </div>
+          <dl class="stats" id="stats">
+            <div><dt>points</dt><dd id="stat-points">&mdash;</dd></div>
+            <div><dt>server</dt><dd id="stat-ms">&mdash;</dd></div>
+            <div><dt>size</dt><dd id="stat-size">&mdash;</dd></div>
+            <div><dt>fps</dt><dd id="stat-fps">&mdash;</dd></div>
+          </dl>
+        </div>
+
+        <div id="message" class="message" hidden></div>
+      </section>
+    </main>
+
+    <script type="module" src="/assets/app.js"></script>
+  </body>
+</html>

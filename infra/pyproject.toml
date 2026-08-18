@@ -1,0 +1,15 @@
+# Tooling config only — these are operator scripts, not a distributable
+# package, so there is no [project] table. Mirrors the rule set used in
+# backend/ so the two read the same way and `noqa` directives written
+# for one are meaningful in the other.
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "N", "UP", "B", "S"]
+
+[tool.mypy]
+python_version = "3.11"
+ignore_missing_imports = true

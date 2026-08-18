@@ -1,0 +1,5 @@
+# Development and CI extras. Not installed into the runtime image.
+-r requirements.txt
+
+pytest>=8.0
+httpx>=0.27               # FastAPI's TestClient transport

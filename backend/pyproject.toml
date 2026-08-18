@@ -1,0 +1,35 @@
+# Tooling config only. This service is deployed as a container, not published
+# as a package, so there is no [project] table and nothing to build here — the
+# distributable artefact is the image, and its dependencies live in
+# requirements.txt where the Dockerfile can cache them as their own layer.
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+# The service package sits at the repo root rather than in src/, so the root
+# has to be importable for `from service.main import app` to resolve.
+pythonpath = ["."]
+filterwarnings = [
+    "error::DeprecationWarning:service.*",
+]
+
+[tool.ruff]
+line-length = 100
+# Match the Dockerfile base image. Keep the two in step: when this was
+# briefly wrong, ruff "fixed" code into 3.11-only spellings that the
+# runtime could not parse, and a bare `except TimeoutError` silently
+# stopped catching the asyncio one.
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "N", "UP", "B", "S"]
+ignore = [
+    "S101",  # pytest is built on assert
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["S105", "S106"]  # hard-coded test credentials are the point
+
+[tool.mypy]
+python_version = "3.10"
+ignore_missing_imports = true

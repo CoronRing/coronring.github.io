@@ -1,0 +1,23 @@
+# Caddy obtains and renews the certificate itself; there is nothing to run by
+# hand. SITE_ADDRESS is the sslip.io hostname for the instance's public IP.
+
+{$SITE_ADDRESS} {
+	encode zstd gzip
+
+	reverse_proxy app:7860 {
+		# The service rate-limits per client and reads X-Forwarded-For to do
+		# it. Without these every request would appear to come from Caddy and
+		# one visitor's burst would throttle everyone.
+		header_up X-Real-IP {remote_host}
+	}
+
+	# Conversions take seconds, not milliseconds.
+	request_body {
+		max_size 10MB
+	}
+
+	log {
+		output stdout
+		format console
+	}
+}

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import ParticleWave from '../../vendor/particle-wave/particle-wave.js';
 import type { ParticleWaveInstance } from '../../vendor/particle-wave/particle-wave';
 import { imageToCloud, type PwCloud } from '../../lib/image-to-cloud';
+import { API_BASE, convertViaApi } from '../../lib/particle-wave-api';
 import { href } from '../../lib/url';
 import type { DemoProps } from './registry';
 
@@ -10,8 +11,16 @@ import type { DemoProps } from './registry';
  *
  * This is the real thing rather than a recording: the same vendored engine
  * that renders the hero, wired to live controls so the parameters can be felt
- * instead of described. Upload an image and it is traced to a point cloud in
- * the browser — no upload leaves the tab.
+ * instead of described.
+ *
+ * ## Two tracers, one contract
+ *
+ * An upload is sent to the SenseRing Python service, which runs the real
+ * extractor and returns a `.pwcloud`. If that service is unreachable — it is a
+ * free-tier host, and this page must not depend on it — the image is traced in
+ * the tab instead by a cut-down port of the same idea. The renderer cannot tell
+ * the two apart, because they emit the identical format; the readout names
+ * whichever ran, since the quality difference is the interesting part.
  *
  * ## Why the instance is rebuilt on a cloud change
  *
@@ -134,6 +143,10 @@ export default function ParticleWaveDemo({ title }: DemoProps): React.ReactEleme
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const [message, setMessage] = useState<string>('');
   const [readout, setReadout] = useState<{ points: number; fps: number }>({ points: 0, fps: 0 });
+  /** Which tracer produced the current cloud, and what it cost. */
+  const [trace, setTrace] = useState<
+    { via: 'service'; ms: number } | { via: 'browser'; reason: string } | null
+  >(null);
 
   /*
    * The init effect must not re-run when a slider moves, so it reads the
@@ -245,13 +258,47 @@ export default function ParticleWaveDemo({ title }: DemoProps): React.ReactEleme
     if (!file) return;
 
     setStatus('loading');
-    setMessage('Tracing image…');
-    try {
-      const cloud = await imageToCloud(file, { targetPoints: 6000 });
+    setMessage('Tracing with the Python service…');
+
+    const apply = (cloud: PwCloud): void =>
       setSource({ key: `upload:${file.name}:${Date.now()}`, label: file.name, src: cloud });
+
+    /*
+     * Server first, browser second. The service does the better job and is the
+     * half of the project worth showing; the local tracer exists so that a
+     * sleeping, rate-limited, or simply absent backend degrades the demo
+     * instead of breaking it. A failure here is expected often enough that it
+     * is reported as provenance rather than as an error.
+     */
+    try {
+      /*
+       * Measured on the deployed host, not guessed. The point cap — not the
+       * radius — is what a visitor waits on, and after the sampler was given a
+       * coarse acceleration grid the curve moved enough to change the answer:
+       * 2,500 points went from 2.2 s to 0.5 s, and 3,500 from 5.8 s to 1.2 s.
+       * 3,500 is now the denser cloud the canvas can show while still landing
+       * inside the couple of seconds a visitor will wait.
+       */
+      const { cloud, meta } = await convertViaApi(file, {
+        target_points: 3500,
+        min_radius: 1.8,
+      });
+      apply(cloud);
+      setTrace({ via: 'service', ms: meta.elapsed_ms });
+      return;
     } catch (err) {
-      setStatus('error');
-      setMessage(err instanceof Error ? err.message : 'Could not read that image.');
+      const reason = err instanceof Error ? err.message : 'unreachable';
+      setMessage('Service unavailable — tracing in this tab…');
+      try {
+        apply(await imageToCloud(file, { targetPoints: 6000 }));
+        setTrace({ via: 'browser', reason });
+      } catch (localErr) {
+        setStatus('error');
+        setTrace(null);
+        setMessage(
+          localErr instanceof Error ? localErr.message : 'Could not read that image.',
+        );
+      }
     }
   }, []);
 
@@ -286,13 +333,14 @@ export default function ParticleWaveDemo({ title }: DemoProps): React.ReactEleme
         <span className="eyebrow mr-1">Source</span>
         <button
           type="button"
-          onClick={() =>
+          onClick={() => {
+            setTrace(null);
             setSource({
               key: 'corona',
               label: 'CoronRing mark',
               src: href('/clouds/corona.pwcloud'),
-            })
-          }
+            });
+          }}
           disabled={source.key === 'corona'}
           className="rounded-sm border border-[var(--c-line)] px-2.5 py-1 font-mono text-[10px] text-[var(--c-text-muted)] transition-colors hover:border-[var(--c-accent)] hover:text-[var(--c-accent)] disabled:border-[var(--c-accent)] disabled:text-[var(--c-accent)]"
         >
@@ -316,6 +364,20 @@ export default function ParticleWaveDemo({ title }: DemoProps): React.ReactEleme
         {source.key.startsWith('upload:') && (
           <span className="truncate font-mono text-[10px] text-[var(--c-text-faint)]">
             {source.label}
+          </span>
+        )}
+        {trace !== null && (
+          <span
+            className="font-mono text-[10px] text-[var(--c-text-faint)]"
+            title={
+              trace.via === 'service'
+                ? `Extracted by the particle_wave Python package at ${API_BASE}`
+                : `The service could not be reached (${trace.reason}), so the image was traced in this tab with the cut-down JavaScript extractor.`
+            }
+          >
+            {trace.via === 'service'
+              ? `traced by the Python service · ${trace.ms} ms`
+              : 'traced in this tab · service unavailable'}
           </span>
         )}
         <button
@@ -379,8 +441,10 @@ export default function ParticleWaveDemo({ title }: DemoProps): React.ReactEleme
       </div>
 
       <p className="text-xs leading-relaxed text-[var(--c-text-faint)]">
-        Move the cursor to push the field; click to send a wave. Uploaded images are traced to a
-        point cloud in your browser — nothing is sent anywhere.
+        Move the cursor to push the field; click to send a wave. An uploaded image is sent to the
+        SenseRing service, which extracts the point cloud in Python and returns it; if that service
+        is unreachable the image is traced in this tab instead, at lower quality. Nothing is stored
+        either way — the cloud comes back in the response and the upload is discarded.
       </p>
 
       <style>{`

@@ -1,0 +1,13 @@
+# Local development
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+
+# Real values never belong here; .env.example is the template.
+.env
+
+# Scratch
+.log/
+*.local.*
