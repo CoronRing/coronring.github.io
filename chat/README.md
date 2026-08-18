@@ -55,9 +55,26 @@ Taken 2026-08-18 against the deployed free-tier keys, five calls each:
 
 | Model | Latency | Success | Implicit cache |
 | --- | --- | --- | --- |
-| `gemini-3.5-flash` | 2.7–4.0 s | 5/5 | 41 % of prompt |
+| `gemini-3.5-flash` | 2.7–4.0 s | 5/5 | **41 % of prompt** |
 | `gemini-3.6-flash` | 4–40 s | 4/5 | 0 % |
-| `gemini-3.7-flash` | 32–55 s | frequent 503s | 0 % |
+| `gemini-3.7-flash` | 0.8–77 s | 2/5 | 0 % |
+
+### The caching result is the important one
+
+Only `gemini-3.5-flash` engaged the implicit cache. `gemini-3.6-flash` and
+`gemini-3.7-flash` reported `cachedContentTokenCount: 0` on **every** call,
+including consecutive calls with a byte-identical prefix on the same key —
+the exact condition the cache exists for. Production agrees: 34,125 prompt
+tokens across seven answers on the 3.7/3.6 chain, 0 served from cache.
+
+So the two goals are in tension. `gemini-3.7-flash` at the head of the chain
+means the prompt cache never fires, and the repeated corpus is paid for in
+full on every request. `gemini-3.5-flash` at the head means ~41 % of the
+prompt is free, answers arrive in a third of the time — and the model is a
+generation older.
+
+This is a deployment decision, not a code one, which is why the chain is a
+single environment variable.
 
 Two consequences are baked into the defaults:
 
@@ -68,12 +85,15 @@ Two consequences are baked into the defaults:
   broadly-overloaded model is retried on essentially every request, and each
   retry costs a visitor most of a minute.
 
-If chat latency ever matters more than running the newest model, promoting the
-fast one is a single variable:
+To trade the newest model for speed and a working prompt cache:
 
 ```
 CHAT_MODELS=gemini-3.5-flash,gemini-3.7-flash,gemini-3.6-flash
 ```
+
+Set it in `infra/compose.yml` under the `chat` service and redeploy. Nothing
+else changes — the chain is read at startup and the corpus, prompt, and cache
+behaviour are identical either way.
 
 ## Caching, at three levels
 
@@ -127,7 +147,7 @@ in the repo.
 | `CHAT_MODELS` | see above | Primary chain, best first |
 | `CHAT_FALLBACK_MODELS` | `gemini-3.5-flash-lite,…` | Tried after the chain |
 | `CHAT_REQUEST_TIMEOUT_S` | `20` | Per attempt; bounds time-to-first-token |
-| `CHAT_MAX_OUTPUT_TOKENS` | `1400` | Generous — thinking is billed here too |
+| `CHAT_MAX_OUTPUT_TOKENS` | `4096` | Bounds thinking **plus** answer, not the answer |
 | `CHAT_THINKING_BUDGET` | `512` | Grounded answers measurably improve |
 | `CHAT_CORPUS_URL` | published `corpus.json` | |
 | `CHAT_CORPUS_REFRESH_S` | `900` | |
@@ -156,7 +176,7 @@ Point `CHAT_CORPUS_URL` at any static server over the site's `dist/`.
 .venv/Scripts/python.exe -m pytest tests -q
 ```
 
-54 tests, covering the failures that are otherwise **silent**: a key list parsed
+61 tests, covering the failures that are otherwise **silent**: a key list parsed
 into subtly corrupt keys, a cooldown that never expires, a citation pointing at
 a page that does not exist, an answer cache that could serve one visitor's
 context to another, and the prompt prefix losing byte-stability and taking the
