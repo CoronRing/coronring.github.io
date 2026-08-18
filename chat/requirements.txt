@@ -1,0 +1,6 @@
+# Deliberately tiny. The provider client is hand-written against the REST API
+# (see service/gemini.py for why), so there is no SDK here — and no LiteLLM,
+# no LangChain, and nothing that pulls a hundred transitive packages onto a
+# free-tier ARM box for the sake of one HTTP call.
+fastapi>=0.115,<1
+uvicorn[standard]>=0.32,<1

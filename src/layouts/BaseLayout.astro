@@ -22,6 +22,7 @@ import Veil from '../components/layout/Veil.astro';
 import Backdrop from '../components/decor/Backdrop.astro';
 import Sidebar from '../components/layout/Sidebar.astro';
 import Footer from '../components/layout/Footer.astro';
+import ChatDock from '../components/chat/ChatDock';
 
 interface Props {
   title?: string;
@@ -30,6 +31,11 @@ interface Props {
   image?: string;
   /** Adds `noindex` — for drafts and utility routes. */
   noindex?: boolean;
+  /**
+   * Hide the corner assistant. Set by `/chat`, which *is* the assistant — a
+   * floating copy of it over its own page is clutter, not a second door in.
+   */
+  hideChatDock?: boolean;
 }
 
 const {
@@ -37,9 +43,10 @@ const {
   description = SITE.description,
   image = '/og-default.png',
   noindex = false,
+  hideChatDock = false,
 } = Astro.props;
 
-const pageTitle = title ? `${title} — ${SITE.handle}` : SITE.title;
+const pageTitle = title ? `${title} · ${SITE.handle}` : SITE.title;
 const canonical = new URL(Astro.url.pathname, Astro.site ?? SITE.url).toString();
 const ogImage = absolute(image, SITE.url);
 ---
@@ -85,7 +92,7 @@ const ogImage = absolute(image, SITE.url);
             document.documentElement.setAttribute('data-theme', t);
           }
         } catch (e) {
-          /* localStorage unavailable — fall through to system preference. */
+          /* localStorage unavailable; fall through to system preference. */
         }
       })();
     </script>
@@ -103,5 +110,12 @@ const ogImage = absolute(image, SITE.url);
       </main>
       <Footer />
     </div>
+
+    {/*
+      `client:idle` — the dock is never the reason someone opened the page, so
+      it hydrates once the main thread is free rather than competing with the
+      content for it. Collapsed, it makes no network requests at all.
+    */}
+    {!hideChatDock && <ChatDock client:idle />}
   </body>
 </html>

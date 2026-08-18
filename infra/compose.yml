@@ -39,11 +39,47 @@ services:
       retries: 3
       start_period: 20s
 
+  chat:
+    build:
+      context: ./chat
+      dockerfile: Dockerfile
+    image: site-chat:local
+    restart: unless-stopped
+    # The Gemini keys live here and nowhere else. `chat.env` is written onto
+    # the host by `infra/configure.py` from the operator's local .env, mode
+    # 0600, and is not in the repo — which is why this is an env_file rather
+    # than an `environment:` block like everything below it.
+    env_file:
+      - ./chat.env
+    environment:
+      # Fetched from the published site, so content changes reach the
+      # assistant without redeploying this container.
+      CHAT_CORPUS_URL: "https://coronring.github.io/corpus.json"
+      CHAT_CORPUS_REFRESH_S: "900"
+      CHAT_ALLOWED_ORIGINS: "https://coronring.github.io,http://localhost:4321,http://127.0.0.1:4321"
+      CHAT_TRUST_FORWARDED_FOR: "1"
+      CHAT_LOG_LEVEL: "info"
+      PORT: "7870"
+    expose:
+      - "7870"
+    healthcheck:
+      # /api/health answers `degraded` rather than failing when the corpus or
+      # the keys are missing, so this probes liveness only. A container that is
+      # up and honestly reporting a misconfiguration should not be restarted in
+      # a loop — the logs say what is wrong and a restart will not fix it.
+      test: ["CMD", "python", "-c",
+             "import urllib.request;urllib.request.urlopen('http://127.0.0.1:7870/api/health')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
   caddy:
     image: caddy:2-alpine
     restart: unless-stopped
     depends_on:
       - app
+      - chat
     ports:
       - "80:80"
       - "443:443"

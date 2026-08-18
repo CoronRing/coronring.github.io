@@ -5,6 +5,8 @@ import mdx from '@astrojs/mdx';
 import sitemap from '@astrojs/sitemap';
 import tailwindcss from '@tailwindcss/vite';
 
+import { corpusIntegration } from './scripts/build-corpus.mjs';
+
 /**
  * User-site deployment: https://coronring.github.io serves from the domain root,
  * so `base` stays "/" . If this ever moves to a project page, set `base` to the
@@ -15,7 +17,7 @@ export default defineConfig({
   base: '/',
   trailingSlash: 'ignore',
   output: 'static',
-  integrations: [react(), mdx(), sitemap()],
+  integrations: [react(), mdx(), sitemap(), corpusIntegration()],
   vite: {
     plugins: [tailwindcss()],
   },

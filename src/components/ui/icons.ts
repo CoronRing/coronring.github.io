@@ -31,13 +31,17 @@ export type IconName =
   | 'home'
   | 'grid'
   | 'file-text'
-  | 'book';
+  | 'book'
+  | 'message-circle';
 
 /** Stroke-based paths, rendered with `fill="none"`. */
 export const STROKE_ICONS: Partial<Record<IconName, string>> = {
   mail: 'M3 7.5A1.5 1.5 0 0 1 4.5 6h15A1.5 1.5 0 0 1 21 7.5v9a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 16.5v-9Zm0 .5 9 6 9-6',
   rss: 'M5 19a1 1 0 1 0 0-2 1 1 0 0 0 0 2ZM5 11a8 8 0 0 1 8 8M5 5a14 14 0 0 1 14 14',
   'arrow-right': 'M4 12h15m-6-6 6 6-6 6',
+  // Speech bubble with a tail, on the same 24x24 grid as the rest.
+  'message-circle':
+    'M21 11.5a8.4 8.4 0 0 1-9 8.4 9 9 0 0 1-3.8-.8L3 21l1.9-5a8.4 8.4 0 0 1-.9-3.8 8.4 8.4 0 0 1 8.4-8.4 8.4 8.4 0 0 1 8.6 8.2Z',
   'arrow-up-right': 'M7 17 17 7M8 7h9v9',
   'arrow-left': 'M20 12H5m6-6-6 6 6 6',
 

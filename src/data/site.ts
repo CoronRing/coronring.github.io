@@ -54,9 +54,9 @@ export const SITE: SiteConfig = {
   name: 'Guan Zheng Huang',
   handle: 'CoronRing',
   role: 'Applied ML Engineer',
-  title: 'Guan Zheng Huang — Applied ML Engineer',
+  title: 'Guan Zheng Huang · Applied ML Engineer',
   description:
-    'Applied ML engineer building agentic systems, evaluation tooling, and the infrastructure around them. Interactive demos, research, and open-source work.',
+    'Applied ML engineer. I work on agent systems, the evaluation tooling that keeps them honest, and the infrastructure both run on. Interactive demos and open-source work.',
   url: 'https://coronring.github.io',
   locale: 'en',
   location: 'Toronto, Canada',
@@ -96,6 +96,13 @@ export const SITE: SiteConfig = {
       index: '04',
       icon: 'terminal',
       blurb: 'Utilities that run in your browser.',
+    },
+    {
+      label: 'Ask',
+      href: '/chat',
+      index: '05',
+      icon: 'message-circle',
+      blurb: 'Ask this site a question.',
     },
   ],
 

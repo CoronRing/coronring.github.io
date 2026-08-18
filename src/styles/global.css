@@ -376,3 +376,21 @@
     font-variant-numeric: tabular-nums;
   }
 }
+
+/* ─────────────────────────────────────────────────────────────────────
+ * Chat assistant
+ *
+ * The "thinking" indicator, shown while the first token is in flight. It can
+ * be a while: the backend may be walking its model fallback chain underneath.
+ * Reduced-motion is already handled globally, which flattens this to a static
+ * row of dots rather than removing the affordance.
+ * ─────────────────────────────────────────────────────────────────── */
+@keyframes chat-pulse {
+  0%,
+  100% {
+    opacity: 0.25;
+  }
+  50% {
+    opacity: 1;
+  }
+}

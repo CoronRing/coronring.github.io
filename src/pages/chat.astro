@@ -1,0 +1,24 @@
+---
+/**
+ * The full assistant page.
+ *
+ * `client:load` rather than `client:visible`: the island *is* the page and sits
+ * above the fold, so deferring hydration would only show the visitor an inert
+ * text box for a beat.
+ *
+ * `BaseLayout` is told to suppress the corner dock here — the same assistant
+ * floating over its own dedicated page is noise, not a second entry point.
+ */
+import PageLayout from '../layouts/PageLayout.astro';
+import ChatPage from '../components/chat/ChatPage';
+---
+
+<PageLayout
+  hideChatDock
+  title="Ask"
+  eyebrow="05 Assistant"
+  description="Ask questions about this site and get answers drawn from its own pages, with sources."
+  lede="Ask about the projects, the stack behind them, or the experience. Answers are grounded in this site's pages and link back to them."
+>
+  <ChatPage client:load />
+</PageLayout>

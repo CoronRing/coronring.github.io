@@ -21,6 +21,10 @@ pnpm-debug.log*
 .env.production
 .env*.local
 
+# Generated onto the host by infra/configure.py from the operator's local
+# .env. Should never exist here, and must never be committable if it does.
+infra/chat.env
+
 # agent / scratch work — never tracked
 .agent_temp/
 

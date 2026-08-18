@@ -1,14 +1,39 @@
 # Caddy obtains and renews the certificate itself; there is nothing to run by
 # hand. SITE_ADDRESS is the sslip.io hostname for the instance's public IP.
+#
+# Two backends share the certificate and the hostname:
+#   /chat/*   the site-chat assistant
+#   /*        the particle-wave service (the original occupant)
 
 {$SITE_ADDRESS} {
-	encode zstd gzip
+	# `handle_path` strips the `/chat` prefix, so the service sees its own
+	# routes (`/api/chat`) and stays unaware of where it is mounted. Ordered
+	# before the catch-all because Caddy evaluates `handle` blocks in order.
+	handle_path /chat/* {
+		reverse_proxy chat:7870 {
+			# The service rate-limits per client and reads X-Forwarded-For to
+			# do it. Without this every request appears to come from Caddy and
+			# one visitor's burst throttles everyone.
+			header_up X-Real-IP {remote_host}
 
-	reverse_proxy app:7860 {
-		# The service rate-limits per client and reads X-Forwarded-For to do
-		# it. Without these every request would appear to come from Caddy and
-		# one visitor's burst would throttle everyone.
-		header_up X-Real-IP {remote_host}
+			# Answers stream as server-sent events. The default response
+			# buffering would hold the whole answer and release it in one go,
+			# turning a streaming UI into a long pause followed by a wall of
+			# text. -1 flushes each write straight through.
+			flush_interval -1
+		}
+	}
+
+	handle {
+		# Compression lives here rather than at the site level on purpose: an
+		# encoder sitting in front of an SSE stream is the other common way to
+		# accidentally buffer it. The chat responses are small JSON and text
+		# deltas, so there is nothing to gain by compressing them anyway.
+		encode zstd gzip
+
+		reverse_proxy app:7860 {
+			header_up X-Real-IP {remote_host}
+		}
 	}
 
 	# Conversions take seconds, not milliseconds.

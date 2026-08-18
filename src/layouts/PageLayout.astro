@@ -16,13 +16,15 @@ interface Props {
   lede?: string;
   eyebrow?: string;
   noindex?: boolean;
+  /** Forwarded to BaseLayout — see the note there. */
+  hideChatDock?: boolean;
 }
 
-const { title, description, lede, eyebrow, noindex = false } = Astro.props;
+const { title, description, lede, eyebrow, noindex = false, hideChatDock = false } = Astro.props;
 const hasAction = Astro.slots.has('action');
 ---
 
-<BaseLayout title={title} description={description} noindex={noindex}>
+<BaseLayout title={title} description={description} noindex={noindex} hideChatDock={hideChatDock}>
   <header class="relative overflow-hidden">
     <!-- A quarter of the dial, bleeding off the right edge. -->
     <div
