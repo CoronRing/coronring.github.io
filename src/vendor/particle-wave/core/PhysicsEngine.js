@@ -45,17 +45,45 @@ export class PhysicsEngine {
    */
   integrate(dt) {
     const ps = this._ps;
-    const { springK, damping, maxForce, maxDisplacement, mass } = this._config;
+    const {
+      springK,
+      damping,
+      maxForce,
+      maxDisplacement,
+      mass,
+      springAttenuateNearCursor,
+      springCursorFalloff,
+    } = this._config;
 
-    const dtS = dt / 1000; // seconds
+    const dtS = dt / 1000;  // seconds
     const N = ps.N;
     const dampFactor = Math.max(0, 1 - damping * dtS);
     const invMass = 1 / mass;
 
-    // [1] Spring-to-rest force
+    const cursorActive = Boolean(ps.cursorActive && springAttenuateNearCursor !== false);
+    const cx = ps.cursorX ?? -9999;
+    const cy = ps.cursorY ?? -9999;
+    const cr = ps.cursorRadius ?? 0;
+    const cr2 = cr * cr;
+    const minFalloff = springCursorFalloff ?? 0.12;
+
+    // [1] Spring-to-rest force (with cursor-disturbance attenuation)
     for (let i = 0; i < N; i++) {
-      ps.fx[i] += springK * (ps.ox[i] - ps.px[i]);
-      ps.fy[i] += springK * (ps.oy[i] - ps.py[i]);
+      let k = springK;
+      if (cursorActive && cr2 > 0) {
+        const dx = ps.px[i] - cx;
+        const dy = ps.py[i] - cy;
+        const d2 = dx * dx + dy * dy;
+        if (d2 < cr2) {
+          const d = Math.sqrt(d2);
+          const t = d / cr; // 0 at cursor center, 1 at edge
+          // Soft quadratic curve: right under cursor k drops to minFalloff * springK
+          const factor = minFalloff + (1 - minFalloff) * (t * t);
+          k *= factor;
+        }
+      }
+      ps.fx[i] += k * (ps.ox[i] - ps.px[i]);
+      ps.fy[i] += k * (ps.oy[i] - ps.py[i]);
     }
 
     // [2] Custom forces

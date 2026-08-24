@@ -13,6 +13,38 @@
  * Upstream: SenseRing — `src/particle_wave/FE/`.
  */
 
+export type ParticleShape =
+  | 'circle'
+  | 'nofill_circle'
+  | 'triangle'
+  | 'square'
+  | 'hexagon'
+  | 'octagon';
+
+export type ClickMode =
+  | 'outward_wave'
+  | 'inward_wave'
+  | 'attract_burst'
+  | 'repel_burst'
+  | 'none';
+
+export type MouseMode = 'repel' | 'attract' | 'orbit' | 'none';
+
+export type SpinAxis = 'clock' | 'z';
+
+export type ColorMode = 'single' | 'source' | 'gradient';
+
+export type ColorPalette =
+  | 'rainbow'
+  | 'aurora'
+  | 'cyberpunk'
+  | 'sunset'
+  | 'neon'
+  | 'fire'
+  | 'ocean';
+
+export type ColorMapping = 'weight' | 'position_x' | 'position_y' | 'radial' | 'velocity';
+
 export interface ParticleWaveConfig {
   /** URL of the `.pwcloud` asset, or a pre-parsed cloud object. */
   src: string | object;
@@ -26,15 +58,33 @@ export interface ParticleWaveConfig {
   particleColor?: string;
   particleOpacity?: number;
   particleOpacityWeight?: number;
+  particleShape?: ParticleShape;
+  particleStrokeWidth?: number;
+
+  colorMode?: ColorMode;
+  colorPalette?: ColorPalette;
+  colorMapping?: ColorMapping;
+
+  trailEnabled?: boolean;
+  trailLength?: number;
+  trailWidth?: number;
+  trailDisappearSpeed?: number;
+  trailOpacity?: number;
 
   springK?: number;
   damping?: number;
   maxForce?: number;
   maxDisplacement?: number;
   mass?: number;
+  springAttenuateNearCursor?: boolean;
+  springCursorFalloff?: number;
 
   /** Rigid rotation of the whole cloud, radians/second. Negative reverses. */
   restSpin?: number;
+  /** Spin axis: 'clock' (2D in-plane) or 'z' (3D depth rotation). */
+  spinAxis?: SpinAxis;
+  /** Max rotation degree (360/0 = continuous full circle, <360 = bounce back). */
+  spinMaxDegree?: number;
   /** Per-particle wander amplitude, px. 0 disables. */
   driftAmplitude?: number;
   /** Wander rate multiplier. */
@@ -46,14 +96,50 @@ export interface ParticleWaveConfig {
   spinWeightByGroup?: Record<number, number> | null;
 
   mouseEnabled?: boolean;
-  mouseMode?: 'repel' | 'attract' | 'orbit' | 'none';
+  mouseMode?: MouseMode;
   mouseStrength?: number;
+  mouseStrengthMultiplier?: number;
   interactionRadius?: number;
   touchEnabled?: boolean;
+
+  leftClickMode?: ClickMode;
+  rightClickMode?: ClickMode;
+  leftClickWaveAmplitude?: number;
+  rightClickWaveAmplitude?: number;
+  leftClickBurstStrength?: number;
+  rightClickBurstStrength?: number;
+  continuousPressEnabled?: boolean;
+  continuousWaveInterval?: number;
+
+  /**
+   * Burst geometry and feel. A burst is a stationary radial field centred on
+   * the click, as opposed to a wave, which is a front that travels outward.
+   */
+  /** Explicit outer radius in canvas px. 0 derives it from `interactionRadius`. */
+  burstRadius?: number;
+  /** Multiplier applied to `interactionRadius` when `burstRadius` is 0. */
+  burstRadiusScale?: number;
+  /** An inward burst never pulls past this radius. 0 derives 16% of the radius. */
+  burstStopRadius?: number;
+  /** Milliseconds a released burst takes to fade out. */
+  burstDuration?: number;
+  /**
+   * Gain applied to outward bursts only. A converging field concentrates
+   * particles and a diverging one dilutes them, so equal force does not read
+   * as equal effect without this.
+   */
+  burstOutwardGain?: number;
+  /** 0..1 — how far the cursor hover field stands down while a burst is live. */
+  burstHoverSuppression?: number;
+  /** Draw a ring marking the burst extent. */
+  burstVisual?: boolean;
+  maxConcurrentBursts?: number;
 
   waveEnabled?: boolean;
   waveSpeed?: number;
   waveStrength?: number;
+  waveStrengthOut?: number;
+  waveStrengthIn?: number;
   waveDecay?: number;
   waveWidth?: number;
   rippleCount?: number;
@@ -89,12 +175,14 @@ export interface ParticleStateView {
 export interface ParticleWaveInstance {
   /** Merge a partial config into the running instance. */
   setConfig(partial: Partial<ParticleWaveConfig>): void;
+  /** Supply per-particle RGB source colors directly. */
+  setColors(colors: Uint8Array | number[]): void;
   /** Register a per-frame force. Composes with spring, mouse, and waves. */
   addForce(force: CustomForce): void;
   removeForce(force: CustomForce): void;
   setMode(mode: NonNullable<ParticleWaveConfig['mouseMode']>): void;
   /** Emit a wave from a point in canvas coordinates. */
-  triggerWave(origin: { x: number; y: number }): void;
+  triggerWave(origin: { x: number; y: number }, amplitude?: number): void;
   /** Stop the animation loop. Safe to call when already paused. */
   pause(): void;
   resume(): void;
@@ -105,6 +193,7 @@ export interface ParticleWaveInstance {
     fps: number;
     particleCount: number;
     activeWaves: number;
+    activeBursts: number;
   };
 }
 

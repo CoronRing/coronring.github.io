@@ -23,8 +23,8 @@ export interface PwCloud {
     generator: string;
   };
   encoding: 'flat';
-  stride: 4;
-  fields: ['x', 'y', 'w', 'g'];
+  stride: 4 | 7;
+  fields: string[];
   data: number[];
 }
 
@@ -222,7 +222,18 @@ export async function imageToCloud(source: Blob, options: ExtractOptions = {}): 
     const x = (px + rand()) / W;
     const y = (py + rand()) / H;
     const w = Math.min(1, Math.max(0.08, mag[lo]! * 0.75 + 0.25));
-    data.push(Number(x.toFixed(4)), Number(y.toFixed(4)), Number(w.toFixed(2)), 0);
+    const r = rgba[lo * 4] ?? 255;
+    const g = rgba[lo * 4 + 1] ?? 255;
+    const b = rgba[lo * 4 + 2] ?? 255;
+    data.push(
+      Number(x.toFixed(4)),
+      Number(y.toFixed(4)),
+      Number(w.toFixed(2)),
+      0,
+      r,
+      g,
+      b
+    );
   }
 
   return {
@@ -231,12 +242,12 @@ export async function imageToCloud(source: Blob, options: ExtractOptions = {}): 
       source_image: source instanceof File ? source.name : null,
       source_size: [W, H],
       extractor: 'browser:sobel-importance',
-      point_count: data.length / 4,
+      point_count: data.length / 7,
       generator: 'coronring-site/1.1.0',
     },
     encoding: 'flat',
-    stride: 4,
-    fields: ['x', 'y', 'w', 'g'],
+    stride: 7,
+    fields: ['x', 'y', 'w', 'g', 'r', 'g_col', 'b'],
     data,
   };
 }

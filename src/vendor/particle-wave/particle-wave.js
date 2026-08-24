@@ -14,11 +14,12 @@
  *   </script>
  */
 
-import { Loader } from './core/Loader.js';
-import { ParticleSystem } from './core/ParticleSystem.js';
-import { PhysicsEngine } from './core/PhysicsEngine.js';
-import { WaveManager } from './core/WaveManager.js';
-import { Renderer } from './core/Renderer.js';
+import { Loader }           from './core/Loader.js';
+import { ParticleSystem }   from './core/ParticleSystem.js';
+import { PhysicsEngine }    from './core/PhysicsEngine.js';
+import { WaveManager }      from './core/WaveManager.js';
+import { BurstManager }     from './core/BurstManager.js';
+import { Renderer }         from './core/Renderer.js';
 import { InteractionLayer } from './interaction/InteractionLayer.js';
 
 // ---------------------------------------------------------------------------
@@ -30,82 +31,106 @@ const DEFAULTS = {
   src: null,
 
   // Layout
-  padding: 0.05,
-  scaleMode: 'fit', // 'fit' | 'fill' | 'stretch'
+  padding:    0.05,
+  scaleMode: 'fit',   // 'fit' | 'fill' | 'stretch'
 
-  // Particle appearance
-  particleSize: 2.0,
-  particleSizeWeight: 0.8,
-  particleColor: '#ffffff',
-  particleOpacity: 0.85,
+  // Particle appearance & color
+  particleSize:          2.0,
+  particleSizeWeight:    0.8,
+  particleColor:        '#ffffff',
+  particleOpacity:       0.85,
   particleOpacityWeight: 0.6,
+  particleShape:        'circle',   // 'circle' | 'nofill_circle' | 'triangle' | 'square' | 'hexagon' | 'octagon'
+  particleStrokeWidth:   1.2,
+  colorMode:            'single',   // 'single' | 'source' | 'gradient'
+  colorPalette:         'rainbow',  // 'rainbow' | 'aurora' | 'cyberpunk' | 'sunset' | 'neon' | 'fire' | 'ocean'
+  colorMapping:         'weight',   // 'weight' | 'position_x' | 'position_y' | 'radial' | 'velocity'
+
+  // Trajectory Trails (Meteor & Star Effect)
+  trailEnabled:          true,
+  trailLength:           0,         // 0 = off, 1-16 = active meteor tail steps
+  trailWidth:            1.0,       // tail width scale multiplier
+  trailDisappearSpeed:   0.65,      // tail decay / fade-out rate
+  trailOpacity:          0.60,      // overall tail opacity multiplier
 
   // Physics
-  springK: 3.2,
-  damping: 7.5,
-  maxForce: 1800,
+  springK:   3.2,
+  damping:   7.5,
+  maxForce:  1800,
   maxDisplacement: 160,
-  mass: 1.0,
+  mass:      1.0,
+  springAttenuateNearCursor: true,
+  springCursorFalloff: 0.12,
 
   // Ambient motion
-  //
-  // Without these the engine is purely input-driven: with no cursor on the
-  // canvas the cloud is a still image. Both act on the rest frame rather than
-  // as forces — see ParticleSystem.updateRestFrame for why.
-  /** Rigid rotation of the whole cloud, radians/second. Negative reverses. */
-  restSpin: 0,
-  /** Per-particle wander amplitude, px. Reads as stars holding a shape. */
-  driftAmplitude: 0,
-  /** Wander rate multiplier. */
-  driftSpeed: 0.35,
-  /**
-   * Per-group rotation multiplier, `{ groupIndex: weight }`. Groups not
-   * listed rotate at full rate. Lets a legible foreground hold still while
-   * its surroundings orbit.
-   */
+  restSpin:        0,     // rigid rotation of the whole cloud, rad/s
+  spinAxis:       'clock', // 'clock' | 'z'
+  spinMaxDegree:   360,   // 360/0 = continuous full circle; <360 = oscillate & bounce back
+  driftAmplitude:  0,     // per-particle wander amplitude, px (0 disables)
+  driftSpeed:      0.35,  // wander rate multiplier
   spinWeightByGroup: null,
 
   // Mouse interaction
-  mouseEnabled: true,
-  mouseMode: 'repel', // 'repel' | 'attract' | 'orbit' | 'none'
-  mouseStrength: 60,
+  mouseEnabled:      true,
+  mouseMode:        'repel',   // 'repel' | 'attract' | 'orbit' | 'none'
+  mouseStrength:     60,
+  mouseStrengthMultiplier: 3.0,
   interactionRadius: 120,
+  leftClickMode:     'outward_wave',  // 'outward_wave' | 'inward_wave' | 'attract_burst' | 'repel_burst' | 'none'
+  rightClickMode:    'inward_wave',   // 'inward_wave' | 'outward_wave' | 'attract_burst' | 'repel_burst' | 'none'
+  middleClickMode:   'attract_burst',
   leftClickWaveAmplitude: 1.35,
   rightClickWaveAmplitude: 1.35,
-  clickAmplitudeScale: 100,
-  maxClickAmplitude: 8,
-  inwardPullRadius: 220,
-  inwardStopRadius: 20,
+  middleClickWaveAmplitude: 1.35,
+  leftClickBurstStrength: 350,
+  rightClickBurstStrength: 350,
+  middleClickBurstStrength: 350,
+
+  // Burst (a stationary radial field, as opposed to a travelling wave front)
+  burstRadius:        0,      // 0 = derive from interactionRadius * burstRadiusScale
+  burstRadiusScale:   2.4,    // burst reaches beyond the hover halo so it is its own event
+  burstStopRadius:    0,      // 0 = 16% of the burst radius; an inward burst gathers, never collapses
+  burstDuration:      260,    // ms for a released burst to fade out
+  burstOutwardGain:   1.75,   // an outward burst dilutes where an inward one concentrates
+  burstHoverSuppression: 1.0, // 0..1 — how far the hover field stands down during a burst
+  burstVisual:        true,
+  maxConcurrentBursts: 8,
+
+  continuousPressEnabled: true,
+  continuousWaveInterval: 130,      // ms between continuous waves when holding mouse
+  maxClickAmplitude: 10,
+  inwardPullRadius: 280,
+  inwardStopRadius: 16,
   inwardDistanceBoost: 1.0,
   inwardDistanceExponent: 1.2,
-  inwardCenterGuardRadius: 20,
-  touchEnabled: false,
+  inwardCenterGuardRadius: 16,
+  touchEnabled:      true,
 
   // Wave
-  waveEnabled: true,
-  waveSpeed: 350,
-  waveStrength: 120,
-  waveStrengthOut: 120,
-  waveStrengthIn: 180,
-  waveDecay: 1.8,
-  waveWidth: 30,
-  waveMinAmplitude: 0.01,
-  rippleCount: 2,
-  rippleInterval: 80,
-  rippleDecay: 0.55,
-  maxConcurrentWaves: 16,
+  waveEnabled:        true,
+  waveSpeed:          380,
+  waveStrength:       140,
+  waveStrengthOut:    140,
+  waveStrengthIn:     180,
+  waveDecay:          1.8,
+  waveWidth:          36,
+  waveMinAmplitude:   0.01,
+  rippleCount:        2,
+  rippleInterval:     80,
+  rippleDecay:        0.55,
+  maxConcurrentWaves: 24,
 
   // Renderer
-  renderer: 'canvas2d',
+  renderer:        'canvas2d',
   backgroundColor: 'transparent',
-  targetFPS: 60,
-  clickWaveVisual: true,
-  clickWaveVisualMaxRadius: 160,
+  targetFPS:        60,
+  clickWaveVisual:   true,
+  clickWaveVisualMaxRadius: 180,
   clickWaveVisualOpacity: 0.45,
   clickWaveVisualShowRipples: false,
-  debugWaves: false,
+  debugWaves:        false,
 
-  // Internal (set by the Instance after canvas is known)
+  // Internal
   _canvasW: 0,
   _canvasH: 0,
 };
@@ -122,29 +147,33 @@ class ParticleWaveInstance {
    * @param {import('./core/Loader.js').ParsedCloud}       cloud
    */
   constructor(canvas, config, cloud) {
-    this._canvas = canvas;
-    this._config = config;
-    this._cloud = cloud;
-    this._rafId = null;
-    this._paused = false;
-    this._lastTs = null;
+    this._canvas  = canvas;
+    this._config  = config;
+    this._cloud   = cloud;
+    this._rafId   = null;
+    this._paused  = false;
+    this._lastTs  = null;
     this._frameMs = 1000 / config.targetFPS;
-    this._accMs = 0;
-    /** Accumulated rest-frame rotation, radians. */
-    this._theta = 0;
-    /** Accumulated ambient-motion clock, seconds. */
-    this._driftT = 0;
+    this._accMs   = 0;
+    this._theta   = 0;
+    this._driftT  = 0;
+    this._spinDir = 1;
 
     config._canvasW = canvas.width;
     config._canvasH = canvas.height;
 
     // Sub-systems
-    this._ps = new ParticleSystem(cloud, config, canvas.width, canvas.height);
-    this._pe = new PhysicsEngine(this._ps, config);
-    this._wm = new WaveManager(this._ps, config, (e) => this._emitEvent(e));
-    const RendererClass = typeof config.renderer === 'function' ? config.renderer : Renderer;
+    this._ps   = new ParticleSystem(cloud, config, canvas.width, canvas.height);
+    this._pe   = new PhysicsEngine(this._ps, config);
+    this._wm   = new WaveManager(this._ps, config, (e) => this._emitEvent(e));
+    this._bm   = new BurstManager(this._ps, config, (e) => this._emitEvent(e));
+    const RendererClass = typeof config.renderer === 'function'
+      ? config.renderer
+      : Renderer;
     this._rend = new RendererClass(canvas, config);
-    this._il = new InteractionLayer(canvas, this._ps, this._wm, config, (e) => this._emitEvent(e));
+    this._il   = new InteractionLayer(
+      canvas, this._ps, this._wm, config, (e) => this._emitEvent(e), this._bm
+    );
 
     // Resize observer
     this._ro = new ResizeObserver(() => this._handleResize());
@@ -167,6 +196,7 @@ class ParticleWaveInstance {
     this._ps.updateConfig(partial);
     this._pe.updateConfig(partial);
     this._wm.updateConfig(partial);
+    this._bm.updateConfig(partial);
     this._rend.updateConfig(partial);
     this._il.updateConfig(partial);
     if ('targetFPS' in partial) {
@@ -186,15 +216,21 @@ class ParticleWaveInstance {
   /**
    * Programmatically emit a wave from a canvas-coordinate origin.
    * @param {{ x: number, y: number }} origin  — canvas pixels
+   * @param {number} [amplitude]
    */
-  triggerWave(origin) {
-    this._wm.spawnWave(origin);
+  triggerWave(origin, amplitude = 1.0) {
+    this._wm.spawnWave(origin, amplitude);
   }
 
   /**
-   * Register a custom force.
-   * @param {{ apply(ps, dt): void }} force
+   * Supply per-particle RGB source colors directly (e.g. sampled from an HTMLImageElement).
+   * @param {Uint8Array|Array<number>} colors — length N*3 (RGB)
    */
+  setColors(colors) {
+    this._ps.setSourceColors(colors);
+  }
+
+  /** Register a custom force. */
   addForce(force) {
     this._pe.addForce(force);
   }
@@ -223,16 +259,15 @@ class ParticleWaveInstance {
 
   /** Capture the current canvas content. */
   snapshot() {
-    return this._canvas
-      .getContext('2d')
-      .getImageData(0, 0, this._canvas.width, this._canvas.height);
+    return this._canvas.getContext('2d').getImageData(0, 0, this._canvas.width, this._canvas.height);
   }
 
-  /** Fully tear down the instance — removes listeners, cancels animation. */
+  /** Fully tear down the instance. */
   destroy() {
     this.pause();
     this._il.destroy();
     this._wm.clear();
+    this._bm.clear();
     this._rend.destroy();
     this._ro.disconnect();
   }
@@ -240,9 +275,10 @@ class ParticleWaveInstance {
   /** Runtime statistics. */
   get stats() {
     return {
-      fps: this._lastFps ?? 0,
+      fps:          this._lastFps ?? 0,
       particleCount: this._ps.N,
-      activeWaves: this._wm.activeWaves,
+      activeWaves:  this._wm.activeWaves,
+      activeBursts: this._bm.activeCount,
     };
   }
 
@@ -260,39 +296,49 @@ class ParticleWaveInstance {
     let dt = ts - this._lastTs;
     this._lastTs = ts;
 
-    // FPS tracking
     this._lastFps = dt > 0 ? Math.round(1000 / dt) : 0;
-
-    // Cap dt to prevent spiral-of-death on tab focus restore
     dt = Math.min(dt, 50);
 
-    // FPS throttle: accumulate and only step when enough time has passed
     this._accMs += dt;
     if (this._accMs >= this._frameMs) {
       const stepDt = this._accMs;
       this._accMs = 0;
 
-      // Advance the rest frame before physics, so the spring integrates
-      // against this frame's targets rather than last frame's.
       const stepS = stepDt / 1000;
-      const { restSpin, driftAmplitude, driftSpeed } = this._config;
-      if (restSpin || driftAmplitude > 0) {
-        this._theta += restSpin * stepS;
-        // Wrap: an unbounded angle loses float precision over a long session,
-        // and the rotation visibly quantises.
-        if (this._theta > Math.PI * 2 || this._theta < -Math.PI * 2) {
-          this._theta %= Math.PI * 2;
+      const { restSpin, driftAmplitude, driftSpeed, spinAxis, spinMaxDegree } = this._config;
+      if (restSpin !== 0 || driftAmplitude > 0) {
+        const maxDeg = Number(spinMaxDegree ?? 360);
+        const isBounded = maxDeg > 0 && maxDeg < 360;
+        const maxRad = (maxDeg * Math.PI) / 180;
+
+        if (isBounded && restSpin !== 0) {
+          this._theta += (this._spinDir || 1) * Math.abs(restSpin) * stepS;
+          if (this._theta >= maxRad) {
+            this._theta = maxRad;
+            this._spinDir = -1;
+          } else if (this._theta <= -maxRad) {
+            this._theta = -maxRad;
+            this._spinDir = 1;
+          }
+        } else {
+          this._theta += restSpin * stepS;
+          if (this._theta > Math.PI * 2 || this._theta < -Math.PI * 2) {
+            this._theta %= Math.PI * 2;
+          }
         }
         this._driftT += stepS;
       }
-      this._ps.updateRestFrame(this._theta, this._driftT, driftAmplitude, driftSpeed);
+      this._ps.updateRestFrame(this._theta, this._driftT, driftAmplitude, driftSpeed, spinAxis);
 
       this._ps.clearForces();
       this._il.poll();
       this._wm.advance(stepDt);
+      this._bm.advance(stepDt);
       this._pe.integrate(stepDt);
       this._wm.enforceInwardGuards();
-      this._rend.draw(this._ps, this._wm);
+      this._bm.enforceGuards();
+      this._ps.updateTrails();
+      this._rend.draw(this._ps, this._wm, this._bm);
     }
 
     this._scheduleFrame();
@@ -301,12 +347,12 @@ class ParticleWaveInstance {
   _handleResize() {
     const { width, height } = this._canvas.getBoundingClientRect();
     const dpr = window.devicePixelRatio || 1;
-    const w = Math.round(width * dpr);
+    const w = Math.round(width  * dpr);
     const h = Math.round(height * dpr);
 
     if (w === this._canvas.width && h === this._canvas.height) return;
 
-    this._canvas.width = w;
+    this._canvas.width  = w;
     this._canvas.height = h;
     this._config._canvasW = w;
     this._config._canvasH = h;
@@ -314,47 +360,59 @@ class ParticleWaveInstance {
     this._rend.resize(w, h);
   }
 
-  _emitEvent({ type, detail }) {
-    const event = new CustomEvent(type, { detail, bubbles: false });
-    this._canvas.dispatchEvent(event);
+  _emitEvent(event) {
+    this._canvas.dispatchEvent(
+      new CustomEvent(event.type, {
+        bubbles: true,
+        detail:  event.detail,
+      })
+    );
   }
 }
 
 // ---------------------------------------------------------------------------
-// ParticleWave — static factory
+// Factory
 // ---------------------------------------------------------------------------
 
 const ParticleWave = {
   /**
-   * Initialise a new Particle Wave instance.
-   * @param {HTMLCanvasElement}                canvas
-   * @param {Partial<typeof DEFAULTS>}         userConfig
+   * Initialise the Particle Wave runtime on a <canvas> element.
+   * @param {HTMLCanvasElement} canvas
+   * @param {Partial<typeof DEFAULTS>} [userConfig]
    * @returns {Promise<ParticleWaveInstance>}
    */
   async init(canvas, userConfig = {}) {
     if (!(canvas instanceof HTMLCanvasElement)) {
-      throw new TypeError('[ParticleWave] First argument must be an HTMLCanvasElement');
+      throw new TypeError('[ParticleWave.init] First argument must be an HTMLCanvasElement');
     }
-    const config = Object.assign({}, DEFAULTS, userConfig);
 
-    const src = config.src ?? userConfig.src;
-    if (!src) throw new Error('[ParticleWave] config.src is required');
+    const config = { ...DEFAULTS, ...userConfig };
 
-    // Size canvas to match CSS layout (once) before building the system
-    const rect = canvas.getBoundingClientRect();
-    const dpr = window.devicePixelRatio || 1;
-    if (canvas.width === 0) canvas.width = Math.round(rect.width * dpr);
-    if (canvas.height === 0) canvas.height = Math.round(rect.height * dpr);
+    if (!config.src) {
+      throw new Error('[ParticleWave.init] config.src is required');
+    }
 
-    const cloud = await Loader.load(src);
+    const cloud = await Loader.load(config.src);
     return new ParticleWaveInstance(canvas, config, cloud);
   },
 
-  /** Expose default config so host apps can inspect and extend it. */
   DEFAULTS,
+  Loader,
+  ParticleSystem,
+  PhysicsEngine,
+  WaveManager,
+  Renderer,
+  InteractionLayer,
 };
 
 export default ParticleWave;
-
-// Named export for convenience
-export { ParticleWaveInstance };
+export {
+  ParticleWave,
+  Loader,
+  ParticleSystem,
+  PhysicsEngine,
+  WaveManager,
+  Renderer,
+  InteractionLayer,
+  DEFAULTS,
+};

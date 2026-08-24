@@ -1,10 +1,11 @@
 /**
  * @file Loader.js
  * @description Fetches, validates, and parses .pwcloud point cloud files.
- * Supports both the object encoding and the compact flat-array encoding.
+ * Supports both the object encoding and the compact flat-array encoding,
+ * as well as optional per-particle color data.
  */
 
-const SUPPORTED_VERSIONS = ['1.0.0'];
+const SUPPORTED_VERSIONS = ['1.0.0', '1.1.0'];
 
 /**
  * @typedef {Object} PointCloudMeta
@@ -17,21 +18,14 @@ const SUPPORTED_VERSIONS = ['1.0.0'];
  */
 
 /**
- * @typedef {Object} PointCloudPoint
- * @property {number} x  — normalised x ∈ [0,1]
- * @property {number} y  — normalised y ∈ [0,1]
- * @property {number} w  — saliency weight ∈ [0,1]
- * @property {number} g  — semantic group index
- */
-
-/**
  * @typedef {Object} ParsedCloud
  * @property {PointCloudMeta} meta
- * @property {Float32Array}   x   — length N
- * @property {Float32Array}   y   — length N
- * @property {Float32Array}   w   — length N
- * @property {Int32Array}     g   — length N
- * @property {number}         N   — point count
+ * @property {Float32Array}   x       — length N
+ * @property {Float32Array}   y       — length N
+ * @property {Float32Array}   w       — length N
+ * @property {Int32Array}     g       — length N
+ * @property {Uint8Array|null} colors — length N*3 (RGB) or null
+ * @property {number}         N       — point count
  */
 
 export class Loader {
@@ -66,7 +60,7 @@ export class Loader {
     if (!SUPPORTED_VERSIONS.includes(raw.version)) {
       console.warn(
         `[ParticleWave/Loader] Unknown version "${raw.version}". ` +
-          `Supported: ${SUPPORTED_VERSIONS.join(', ')}. Proceeding anyway.`,
+        `Supported: ${SUPPORTED_VERSIONS.join(', ')}. Proceeding anyway.`
       );
     }
 
@@ -75,9 +69,9 @@ export class Loader {
 
     let N = 0;
     let x, y, w, g;
+    let colors = null;
 
     if (encoding === 'flat') {
-      // Compact: data is [x0,y0,w0,g0, x1,y1,w1,g1, ...]
       const stride = raw.stride ?? 4;
       const fields = raw.fields ?? ['x', 'y', 'w', 'g'];
       const data = raw.data;
@@ -87,11 +81,26 @@ export class Loader {
       const yi = fields.indexOf('y');
       const wi = fields.indexOf('w');
       const gi = fields.indexOf('g');
+      const ri = fields.indexOf('r');
+      const gi_c = fields.indexOf('g_col') !== -1 ? fields.indexOf('g_col') : fields.indexOf('gc');
+      const bi = fields.indexOf('b');
 
       x = new Float32Array(N);
       y = new Float32Array(N);
       w = new Float32Array(N);
       g = new Int32Array(N);
+
+      if (raw.colors && raw.colors.length >= N * 3) {
+        colors = new Uint8Array(raw.colors);
+      } else if (ri >= 0 && gi_c >= 0 && bi >= 0) {
+        colors = new Uint8Array(N * 3);
+        for (let i = 0; i < N; i++) {
+          const base = i * stride;
+          colors[i * 3]     = Math.round(data[base + ri]);
+          colors[i * 3 + 1] = Math.round(data[base + gi_c]);
+          colors[i * 3 + 2] = Math.round(data[base + bi]);
+        }
+      }
 
       for (let i = 0; i < N; i++) {
         const base = i * stride;
@@ -108,6 +117,18 @@ export class Loader {
       y = new Float32Array(N);
       w = new Float32Array(N);
       g = new Int32Array(N);
+
+      if (raw.colors && raw.colors.length >= N * 3) {
+        colors = new Uint8Array(raw.colors);
+      } else if (pts.length > 0 && pts[0].c && pts[0].c.length === 3) {
+        colors = new Uint8Array(N * 3);
+        for (let i = 0; i < N; i++) {
+          colors[i * 3]     = pts[i].c[0];
+          colors[i * 3 + 1] = pts[i].c[1];
+          colors[i * 3 + 2] = pts[i].c[2];
+        }
+      }
+
       for (let i = 0; i < N; i++) {
         x[i] = pts[i].x ?? 0;
         y[i] = pts[i].y ?? 0;
@@ -120,18 +141,6 @@ export class Loader {
       throw new Error('[ParticleWave/Loader] Point cloud is empty');
     }
 
-    // Validate value ranges (warn only — don't throw)
-    let oobCount = 0;
-    for (let i = 0; i < N; i++) {
-      if (x[i] < 0 || x[i] > 1 || y[i] < 0 || y[i] > 1) oobCount++;
-    }
-    if (oobCount > 0) {
-      console.warn(
-        `[ParticleWave/Loader] ${oobCount}/${N} points have coordinates outside [0,1]. ` +
-          'They will be clamped by the renderer.',
-      );
-    }
-
-    return { meta, x, y, w, g, N };
+    return { meta, x, y, w, g, colors, N };
   }
 }
