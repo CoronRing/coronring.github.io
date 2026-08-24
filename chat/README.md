@@ -78,12 +78,18 @@ single environment variable.
 
 Two consequences are baked into the defaults:
 
-- **`request_timeout_s` is 20 s, not 60.** A busy `gemini-3.7-flash` takes
-  roughly *forty seconds to return a 503*. A generous timeout buys a longer wait
-  for the same failure, not a better answer.
 - **Transient cooldowns escalate.** A fixed short cooldown means a
   broadly-overloaded model is retried on essentially every request, and each
   retry costs a visitor most of a minute.
+- **`request_timeout_s` is a socket timeout, so it applies per read.** Measured
+  inter-frame gaps on a healthy `gemini-3.7-flash` stream reach **12 seconds**,
+  so a tight budget risks expiring mid-answer. A truncated answer is worse for a
+  visitor than a slow one, so the budget is generous and the cooldowns above are
+  what keep a flapping model out of rotation.
+- **A stream that ends without a `finishReason` is treated as truncated.** It is
+  otherwise indistinguishable from success: the loop exits normally, nothing
+  raises, and the fragment reads fine until the last sentence. In production this
+  cached "…project page, it" as the canonical answer to a question.
 
 To trade the newest model for speed and a working prompt cache:
 
@@ -146,7 +152,7 @@ in the repo.
 | `CHAT_GEMINI_API_KEYS` | — | CSV, JSON array, or bracketed-unquoted |
 | `CHAT_MODELS` | see above | Primary chain, best first |
 | `CHAT_FALLBACK_MODELS` | `gemini-3.5-flash-lite,…` | Tried after the chain |
-| `CHAT_REQUEST_TIMEOUT_S` | `20` | Per attempt; bounds time-to-first-token |
+| `CHAT_REQUEST_TIMEOUT_S` | `40` | Socket timeout, per read — see below |
 | `CHAT_MAX_OUTPUT_TOKENS` | `4096` | Bounds thinking **plus** answer, not the answer |
 | `CHAT_THINKING_BUDGET` | `512` | Grounded answers measurably improve |
 | `CHAT_CORPUS_URL` | published `corpus.json` | |

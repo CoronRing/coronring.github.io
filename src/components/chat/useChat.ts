@@ -63,10 +63,19 @@ export function useChat(active: boolean = true): UseChat {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<ChatHealth | null>(null);
-  /** Probe started. */
-  const [probed, setProbed] = useState(false);
-  /** Probe finished — distinct from `probed`, so an in-flight check does
-   *  not read as an unreachable backend and grey out the composer. */
+  /**
+   * Probe started.
+   *
+   * A ref, not state, and that is the whole point. As state it belonged in the
+   * health effect's dependency array, so setting it re-ran the effect — and
+   * React runs the *previous* effect's cleanup first, which aborted the health
+   * request that had just been issued. The probe could never finish, `health()`
+   * returned null on the AbortError, and every visitor was told the assistant
+   * was offline while the backend sat there answering curl perfectly.
+   */
+  const probedRef = useRef(false);
+  /** Probe finished — distinct from started, so an in-flight check does not
+   *  read as an unreachable backend. */
   const [settled, setSettled] = useState(false);
   const [suggestions, setSuggestions] = useState<string[]>(FALLBACK_SUGGESTIONS);
 
@@ -82,11 +91,13 @@ export function useChat(active: boolean = true): UseChat {
     };
   }, []);
 
-  // Probe once, the first time this surface becomes active.
+  // Probe once, the first time this surface becomes active. `active` is the
+  // only dependency — anything set inside this effect must stay out of the
+  // array, or the effect cancels its own request. See `probedRef`.
   useEffect(() => {
-    if (!active || probed) return;
+    if (!active || probedRef.current) return;
+    probedRef.current = true;
     const controller = new AbortController();
-    setProbed(true);
 
     void health(controller.signal).then((result) => {
       if (!mountedRef.current) return;
@@ -100,7 +111,7 @@ export function useChat(active: boolean = true): UseChat {
     });
 
     return () => controller.abort();
-  }, [active, probed]);
+  }, [active]);
 
   const stop = useCallback(() => {
     abortRef.current?.abort();
@@ -154,7 +165,30 @@ export function useChat(active: boolean = true): UseChat {
               prev.map((m) => (m.id === answerId ? { ...m, content: m.content + delta } : m)),
             );
           },
-          onDone: ({ citations, model }) => patch({ citations, model }),
+          onDone: ({ citations, model, truncated }) => {
+            if (!truncated) {
+              patch({ citations, model });
+              return;
+            }
+            // The backend told us the stream stopped early. Keep the text —
+            // it is usually still useful — but never let a fragment read as a
+            // finished answer.
+            if (!mountedRef.current) return;
+            setMessages((prev) =>
+              prev.map((m) =>
+                m.id === answerId
+                  ? {
+                      ...m,
+                      citations,
+                      model,
+                      content: `${m.content.trimEnd()}
+
+_(cut off — ask again for the rest)_`,
+                    }
+                  : m,
+              ),
+            );
+          },
           onError: (message) => {
             if (!mountedRef.current) return;
             setMessages((prev) =>

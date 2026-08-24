@@ -123,7 +123,17 @@ export default function Conversation({
 
   const offline = !reachable;
   const notReady = status !== null && !status.ready;
-  const disabled = busy || offline || notReady;
+  /**
+   * Only an in-flight answer blocks sending.
+   *
+   * A failed health probe used to disable the composer outright, which turned
+   * one transient check — a cold container, a dropped request — into a dead UI
+   * for the rest of the page load, with no way for the visitor to retry. The
+   * banner below still says what the probe found; the attempt is allowed
+   * anyway, and a genuine outage surfaces as a real error in the transcript
+   * rather than as a permanently greyed-out box.
+   */
+  const disabled = busy;
   const empty = messages.length === 0;
 
   return (
@@ -163,13 +173,21 @@ export default function Conversation({
         )}
       </div>
 
-      {/* Composer */}
-      <div className="border-line shrink-0 border-t pt-3">
+      {/* Composer.
+          The compact surface pads its own edges: the dock's panel has no inner
+          padding of its own, so without this the textarea and the "Clear" link
+          sit flush against the border and clip. The full page is already inside
+          a padded card, so it adds nothing. */}
+      <div
+        className={`border-line shrink-0 border-t pt-3 ${
+          density === 'compact' ? 'px-4 pb-4' : ''
+        }`}
+      >
         {(offline || notReady) && (
           <p className="text-[var(--c-warn)] mb-2 font-mono text-[11px]">
             {offline
-              ? 'The assistant is offline — it runs on a small free host.'
-              : 'The assistant is starting up. Try again shortly.'}
+              ? 'Could not reach the assistant just now — it runs on a small free host. You can still try.'
+              : 'The assistant is still loading the site content. An answer may take a moment.'}
           </p>
         )}
 
@@ -189,7 +207,6 @@ export default function Conversation({
             }}
             placeholder={placeholder}
             aria-label="Ask a question about this site"
-            disabled={offline || notReady}
             className="border-line bg-surface text-fg placeholder:text-faint focus:border-accent min-h-0 flex-1 resize-none rounded-[var(--r-md)] border px-3 py-2 text-sm leading-relaxed outline-none transition-colors disabled:opacity-60"
           />
           <button

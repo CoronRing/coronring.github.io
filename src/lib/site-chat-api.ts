@@ -53,7 +53,14 @@ export interface StreamHandlers {
   /** First event: the answer is committed and text is about to arrive. */
   onStart?: (info: { model: string; cached: boolean; degraded: boolean }) => void;
   onDelta: (text: string) => void;
-  onDone: (info: { citations: Citation[]; model: string; elapsedMs: number }) => void;
+  onDone: (info: {
+    citations: Citation[];
+    model: string;
+    elapsedMs: number;
+    /** The answer stopped before it was finished. Say so rather than
+     *  presenting a fragment as a complete reply. */
+    truncated: boolean;
+  }) => void;
   onError: (message: string) => void;
 }
 
@@ -212,6 +219,7 @@ function dispatch(event: Record<string, unknown>, handlers: StreamHandlers): voi
         citations: Array.isArray(event.citations) ? (event.citations as Citation[]) : [],
         model: String(event.model ?? ''),
         elapsedMs: Number(event.elapsed_ms ?? 0),
+        truncated: Boolean(event.truncated),
       });
       break;
     case 'error':

@@ -215,11 +215,49 @@ class TestTruncation:
         assert gemini.StreamEnd(usage=gemini.Usage(), finish_reason="MAX_TOKENS").truncated
         assert not gemini.StreamEnd(usage=gemini.Usage(), finish_reason="STOP").truncated
 
+    def test_stream_with_no_finish_reason_is_incomplete(self) -> None:
+        """
+        The production bug: a stream ended after one delta with no reason given,
+        the loop exited normally, and a mid-sentence fragment was cached and
+        served as the canonical answer.
+        """
+        assert gemini.StreamEnd(usage=gemini.Usage(), finish_reason=gemini.INCOMPLETE).truncated
+        assert gemini.Completion(text="frag", finish_reason=gemini.INCOMPLETE).truncated
+
     def test_output_cap_leaves_room_for_thinking(self) -> None:
         """The cap must exceed the thinking budget by a wide margin, not a hair."""
         from service.settings import settings
 
         assert settings.max_output_tokens >= settings.thinking_budget * 4
+
+
+class TestSettingsDefaults:
+    """
+    Regression: the loader used to repeat every default as a literal, so the
+    dataclass field and the loader disagreed and only the loader mattered.
+    Editing a documented default changed nothing at runtime. It shipped twice
+    that way — `max_output_tokens` and `request_timeout_s`.
+    """
+
+    def test_loader_matches_dataclass_defaults(self, monkeypatch) -> None:
+        from dataclasses import fields
+
+        from service import settings as settings_mod
+
+        for name in [f.name for f in fields(settings_mod.Settings)]:
+            monkeypatch.delenv(f"CHAT_{name.upper()}", raising=False)
+        monkeypatch.delenv("PORT", raising=False)
+
+        declared = settings_mod.Settings()
+        loaded = settings_mod.load()
+
+        skip = {"gemini_api_keys", "_unused"}
+        mismatched = {
+            name: (getattr(declared, name), getattr(loaded, name))
+            for name in [f.name for f in fields(settings_mod.Settings)]
+            if name not in skip and getattr(declared, name) != getattr(loaded, name)
+        }
+        assert not mismatched, f"loader defaults diverge from the dataclass: {mismatched}"
 
 
 class TestCandidateText:

@@ -117,6 +117,19 @@ class Usage:
 #: the canonical answer to a question.
 TRUNCATED = "MAX_TOKENS"
 
+#: Our own marker for a stream that stopped without ever reporting a reason.
+#:
+#: Not a value the API returns. A well-formed stream always ends with a chunk
+#: carrying `finishReason`, so its *absence* means the connection went away
+#: mid-answer — observed in production, where the response ended cleanly after
+#: a single delta and the visitor was shown "…project page, it".
+#:
+#: This is worth a named state rather than a silent success because it is
+#: indistinguishable from a complete answer at the call site: the loop exits
+#: normally, no exception is raised, and the partial text looks fine right up
+#: until you read the last sentence.
+INCOMPLETE = "INCOMPLETE"
+
 
 @dataclass
 class StreamEnd:
@@ -127,7 +140,8 @@ class StreamEnd:
 
     @property
     def truncated(self) -> bool:
-        return self.finish_reason == TRUNCATED
+        """Did the answer stop before it was finished, for any reason?"""
+        return self.finish_reason in (TRUNCATED, INCOMPLETE)
 
 
 @dataclass
@@ -149,8 +163,8 @@ class Completion:
 
     @property
     def truncated(self) -> bool:
-        """Did the response stop because it ran out of budget rather than words?"""
-        return self.finish_reason == TRUNCATED
+        """Did the response stop before it was finished, for any reason?"""
+        return self.finish_reason in (TRUNCATED, INCOMPLETE)
 
 
 def _retry_delay(payload: dict[str, Any], headers: Any) -> float | None:
@@ -299,7 +313,13 @@ def generate(
             f"thoughts={usage.thoughts_tokens})"
         )
 
-    return Completion(text=text, usage=usage, finish_reason=str(candidate.get("finishReason") or ""))
+    return Completion(
+        text=text,
+        usage=usage,
+        # Same reasoning as the streaming path: a response that never reported
+        # why it stopped did not finish. See `INCOMPLETE`.
+        finish_reason=str(candidate.get("finishReason") or INCOMPLETE),
+    )
 
 
 def stream(
@@ -382,6 +402,15 @@ def stream(
 
     if not produced:
         raise EmptyAnswer(blocked or "stream produced no text")
+
+    # The stream ended but never said why. Something dropped the connection
+    # mid-answer; the text in hand is a fragment, not a reply. Reported rather
+    # than raised: the caller has already sent these bytes to the browser, so
+    # the honest move is to flag it, not to pretend the answer never happened.
+    if not finish_reason:
+        finish_reason = INCOMPLETE
+        log.warning("stream ended with no finishReason after %d output tokens",
+                    usage.output_tokens)
 
     yield "", StreamEnd(usage=usage, finish_reason=finish_reason)
 

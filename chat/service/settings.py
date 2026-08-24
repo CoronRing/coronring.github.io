@@ -144,19 +144,20 @@ class Settings:
     fallback_models: tuple[str, ...] = DEFAULT_FALLBACK_MODELS
     """Tried only after `models` is exhausted."""
 
-    request_timeout_s: float = 20.0
+    request_timeout_s: float = 40.0
     """
     Per-attempt ceiling. The chain may outlast this; a single call may not.
 
-    Sized from measurement, not taste. `gemini-3.7-flash` takes roughly *forty
-    seconds to return a 503* when it is busy, which it frequently is on the free
-    tier — so a generous timeout does not buy a better answer, it buys a longer
-    wait for the same failure. Twenty seconds abandons a stalled model early and
-    spends the time on one that will actually answer.
+    This is a *socket* timeout, so it applies per read, not to the call as a
+    whole — which cuts both ways and is why the value moved.
 
-    On the streaming path this bounds *time to first token* rather than total
-    time, because the underlying socket timeout applies per read: a model that
-    has started producing is never cut off mid-answer for being thorough.
+    It was 20 s, sized around `gemini-3.7-flash` taking roughly forty seconds to
+    return a 503 when busy. That reasoning held for the failure case and broke
+    the success case: measured inter-frame gaps on a healthy 3.7-flash stream
+    reach **12 seconds**, so a tight budget risks expiring in the middle of a
+    perfectly good answer. A truncated answer is a worse outcome for a visitor
+    than a slow one, so the budget is generous and the escalating cooldowns in
+    `keyring.py` are what keep a flapping model out of rotation.
     """
 
     max_output_tokens: int = 4096
@@ -250,32 +251,47 @@ class Settings:
 
 
 def load() -> Settings:
-    """Build the settings snapshot from the current environment."""
+    """
+    Build the settings snapshot from the current environment.
+
+    Every fallback below is read off `d`, a default-constructed `Settings`,
+    rather than written out again as a literal. That is not tidiness — it is the
+    fix for a bug this file shipped twice.
+
+    When the fallbacks were literals, the dataclass field and the loader each
+    held their own copy of the same default, and only the loader's copy had any
+    effect. Editing the field (with its carefully reasoned docstring) changed
+    *nothing at runtime*, silently: `max_output_tokens` was documented as 4096
+    while the service ran on 1400, and `request_timeout_s` was documented as 20
+    while it ran on 60. Both were found by accident, in production.
+
+    With the defaults sourced from the dataclass there is one copy, and the
+    docstring next to it is necessarily the truth.
+    """
+    d = Settings()
     return Settings(
         gemini_api_keys=parse_key_list(os.environ.get("CHAT_GEMINI_API_KEYS", "")),
-        models=_csv("CHAT_MODELS", DEFAULT_MODELS),
-        fallback_models=_csv("CHAT_FALLBACK_MODELS", DEFAULT_FALLBACK_MODELS),
-        request_timeout_s=_float("CHAT_REQUEST_TIMEOUT_S", 60.0, minimum=5.0),
-        max_output_tokens=_int("CHAT_MAX_OUTPUT_TOKENS", 4096, minimum=512),
-        thinking_budget=_int("CHAT_THINKING_BUDGET", 512, minimum=0),
-        temperature=_float("CHAT_TEMPERATURE", 0.2),
-        corpus_url=os.environ.get(
-            "CHAT_CORPUS_URL", "https://coronring.github.io/corpus.json"
-        ).strip(),
-        corpus_refresh_s=_float("CHAT_CORPUS_REFRESH_S", 900.0, minimum=30.0),
-        corpus_max_bytes=_int("CHAT_CORPUS_MAX_BYTES", 8 * 1024 * 1024, minimum=1024),
-        allowed_origins=_csv("CHAT_ALLOWED_ORIGINS", ()),
-        max_question_chars=_int("CHAT_MAX_QUESTION_CHARS", 2_000, minimum=16),
-        max_history_turns=_int("CHAT_MAX_HISTORY_TURNS", 12, minimum=0),
-        max_history_chars=_int("CHAT_MAX_HISTORY_CHARS", 12_000, minimum=0),
-        max_concurrency=_int("CHAT_MAX_CONCURRENCY", 6),
-        rate_limit_per_min=_int("CHAT_RATE_LIMIT_PER_MIN", 10),
-        rate_limit_burst=_int("CHAT_RATE_LIMIT_BURST", 4),
-        answer_cache_size=_int("CHAT_ANSWER_CACHE_SIZE", 256, minimum=0),
-        answer_cache_ttl_s=_float("CHAT_ANSWER_CACHE_TTL_S", 3600.0, minimum=0.0),
-        port=_int("PORT", DEFAULT_PORT),
+        models=_csv("CHAT_MODELS", d.models),
+        fallback_models=_csv("CHAT_FALLBACK_MODELS", d.fallback_models),
+        request_timeout_s=_float("CHAT_REQUEST_TIMEOUT_S", d.request_timeout_s, minimum=5.0),
+        max_output_tokens=_int("CHAT_MAX_OUTPUT_TOKENS", d.max_output_tokens, minimum=512),
+        thinking_budget=_int("CHAT_THINKING_BUDGET", d.thinking_budget, minimum=0),
+        temperature=_float("CHAT_TEMPERATURE", d.temperature),
+        corpus_url=os.environ.get("CHAT_CORPUS_URL", d.corpus_url).strip(),
+        corpus_refresh_s=_float("CHAT_CORPUS_REFRESH_S", d.corpus_refresh_s, minimum=30.0),
+        corpus_max_bytes=_int("CHAT_CORPUS_MAX_BYTES", d.corpus_max_bytes, minimum=1024),
+        allowed_origins=_csv("CHAT_ALLOWED_ORIGINS", d.allowed_origins),
+        max_question_chars=_int("CHAT_MAX_QUESTION_CHARS", d.max_question_chars, minimum=16),
+        max_history_turns=_int("CHAT_MAX_HISTORY_TURNS", d.max_history_turns, minimum=0),
+        max_history_chars=_int("CHAT_MAX_HISTORY_CHARS", d.max_history_chars, minimum=0),
+        max_concurrency=_int("CHAT_MAX_CONCURRENCY", d.max_concurrency),
+        rate_limit_per_min=_int("CHAT_RATE_LIMIT_PER_MIN", d.rate_limit_per_min),
+        rate_limit_burst=_int("CHAT_RATE_LIMIT_BURST", d.rate_limit_burst),
+        answer_cache_size=_int("CHAT_ANSWER_CACHE_SIZE", d.answer_cache_size, minimum=0),
+        answer_cache_ttl_s=_float("CHAT_ANSWER_CACHE_TTL_S", d.answer_cache_ttl_s, minimum=0.0),
+        port=_int("PORT", d.port),
         trust_forwarded_for=os.environ.get("CHAT_TRUST_FORWARDED_FOR", "1") != "0",
-        log_level=os.environ.get("CHAT_LOG_LEVEL", "info"),
+        log_level=os.environ.get("CHAT_LOG_LEVEL", d.log_level),
     )
 
 
