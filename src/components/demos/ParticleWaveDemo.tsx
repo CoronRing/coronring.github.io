@@ -400,6 +400,7 @@ export default function ParticleWaveDemo({ title }: DemoProps): React.ReactEleme
           touchEnabled: true,
           waveEnabled: true,
           rippleCount: 2,
+          ...waveFrontConfig(),
           ...toEngineConfig(paramsRef.current),
         });
 
@@ -489,6 +490,7 @@ export default function ParticleWaveDemo({ title }: DemoProps): React.ReactEleme
       instanceRef.current?.setConfig({
         particleColor: readToken('--c-particle', '#ffffff'),
         particleOpacity: Number(readToken('--particle-opacity', '0.85')),
+        ...waveFrontConfig(),
       });
     const mo = new MutationObserver(retheme);
     mo.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
@@ -957,4 +959,35 @@ function readToken(name: string, fallback: string): string {
   if (typeof window === 'undefined') return fallback;
   const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
   return v || fallback;
+}
+
+/** Whether the page is currently rendering dark, explicit choice or system. */
+function isDarkTheme(): boolean {
+  if (typeof window === 'undefined') return true;
+  const chosen = document.documentElement.dataset.theme;
+  if (chosen === 'dark') return true;
+  if (chosen === 'light') return false;
+  return window.matchMedia('(prefers-color-scheme: dark)').matches;
+}
+
+/**
+ * How the travelling wave front should be drawn for the current theme.
+ *
+ * The front's glow is an *additive* band: it brightens whatever it crosses.
+ * Over the dark theme's near-black ground that is exactly right and is what
+ * makes a click read as a wave. Over the light theme's near-white ground it is
+ * very nearly a no-op — adding white to white — so the front all but vanished
+ * there. Light therefore gets the ink colour with the glow off, which draws the
+ * core line with normal blending and is legible for the opposite reason.
+ *
+ * `--c-text` is used rather than the particle colour because the front is not a
+ * particle: it needs to contrast with the background in either theme, which is
+ * precisely what the ink token already guarantees.
+ */
+function waveFrontConfig(): Partial<ParticleWaveConfig> {
+  const dark = isDarkTheme();
+  return {
+    clickWaveVisualColor: readToken('--c-text', dark ? '#f5f5f5' : '#191919'),
+    clickWaveVisualGlow: dark,
+  };
 }

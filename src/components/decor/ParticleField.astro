@@ -74,6 +74,29 @@ const cloudUrl = href(src);
     return v || fallback;
   }
 
+  /**
+   * How the click wave's front should be drawn for the current theme.
+   *
+   * The front's glow is an additive band, so it brightens what it crosses: right
+   * over the dark theme's near-black ground, and close to a no-op over the light
+   * theme's near-white one. Light gets the ink colour with the glow off, drawn
+   * with normal blending instead. `--c-text` rather than the particle colour,
+   * because the front has to contrast with the background in either theme.
+   */
+  function waveFront(): { clickWaveVisualColor: string; clickWaveVisualGlow: boolean } {
+    const chosen = document.documentElement.dataset.theme;
+    const dark =
+      chosen === 'dark'
+        ? true
+        : chosen === 'light'
+          ? false
+          : window.matchMedia('(prefers-color-scheme: dark)').matches;
+    return {
+      clickWaveVisualColor: token('--c-text', dark ? '#f5f5f5' : '#191919'),
+      clickWaveVisualGlow: dark,
+    };
+  }
+
   async function initField(host: HTMLElement): Promise<void> {
     const canvas = host.querySelector<HTMLCanvasElement>('[data-particle-canvas]');
     const src = host.dataset.cloud;
@@ -132,6 +155,7 @@ const cloudUrl = href(src);
         waveSpeed: 340,
         waveStrength: 110,
         rippleCount: 2,
+        ...waveFront(),
       });
     } catch (err) {
       // Decorative: a failure here must never surface to the visitor.
@@ -171,6 +195,7 @@ const cloudUrl = href(src);
         particleColor: token('--c-particle', '#ffffff'),
         particleOpacity: Number(token('--particle-opacity', '0.85')),
         particleSize: Number(token('--particle-size', '1.8')),
+        ...waveFront(),
       });
 
     new MutationObserver(retheme).observe(document.documentElement, {
