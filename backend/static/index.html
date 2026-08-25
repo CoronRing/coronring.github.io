@@ -3,13 +3,13 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>SenseRing · particle-wave</title>
+    <title>particle-wave · playground</title>
     <meta
       name="description"
       content="Upload an image, tune the extraction, and see the point cloud rendered by the particle-wave engine."
     />
     <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml" />
-    <link rel="stylesheet" href="/assets/styles.css" />
+    <link rel="stylesheet" href="/assets/styles.css?v=__ASSET_V__" />
   </head>
   <body>
     <header class="topbar">
@@ -21,6 +21,10 @@
         </div>
       </div>
       <div class="topbar-status">
+        <span id="cloud-tags" class="cloud-tags" hidden>
+          <span class="tag tag-quiet" id="tag-colours">no colours</span>
+          <span class="tag tag-quiet" id="tag-preview">no source</span>
+        </span>
         <span id="status-pill" class="pill pill-idle">connecting&hellip;</span>
         <a class="pill pill-link" href="/api/docs">API</a>
       </div>
@@ -29,11 +33,8 @@
     <main class="layout">
       <!-- ── Controls ─────────────────────────────────────────────── -->
       <section class="rail" aria-label="Controls">
-        <div class="panel">
-          <h2 class="panel-title">
-            <span class="tag tag-py">Python</span>
-            Source image
-          </h2>
+        <!-- Source: the entry point, so it stays visible on every tab. -->
+        <div class="panel panel-source">
           <div
             id="dropzone"
             class="dropzone"
@@ -51,36 +52,62 @@
           <p id="file-meta" class="file-meta"></p>
         </div>
 
-        <div class="panel">
-          <h2 class="panel-title">
+        <!--
+          The two halves of the work, as the top-level split. Which side a
+          control lives on is the thing worth knowing about it: one costs a
+          round trip and a re-convert, the other lands on the next frame.
+        -->
+        <div class="modes" role="tablist" aria-label="Where the work happens">
+          <button
+            type="button"
+            class="mode"
+            role="tab"
+            data-mode="extract"
+            aria-selected="true"
+          >
             <span class="tag tag-py">Python</span>
-            Extraction
-          </h2>
-          <p class="panel-note">
-            Runs server-side in the <code>particle_wave</code> package. Changing
-            these needs a re-convert.
-          </p>
-          <div id="server-controls" class="controls">
-            <p class="loading">loading options&hellip;</p>
-          </div>
+            Extract
+          </button>
+          <button type="button" class="mode" role="tab" data-mode="render" aria-selected="false">
+            <span class="tag tag-js">Browser</span>
+            Render
+          </button>
         </div>
 
-        <div class="panel">
-          <h2 class="panel-title">
-            <span class="tag tag-js">Browser</span>
-            Render &amp; physics
-          </h2>
-          <p class="panel-note">
-            Runs in the engine bundled with the same wheel. Applies live.
-          </p>
-          <div id="engine-controls" class="controls"></div>
-        </div>
+        <p class="mode-note" id="mode-note"></p>
+
+        <div class="tabs" id="tabs" role="tablist" aria-label="Parameter groups"></div>
+
+        <div class="rail-body" id="panel" role="tabpanel"></div>
+
+        <p class="hint-strip is-idle" id="hint">Hover a control to see what it does.</p>
       </section>
 
       <!-- ── Stage ────────────────────────────────────────────────── -->
       <section class="stage" aria-label="Rendered point cloud">
-        <div class="stage-canvas-wrap">
-          <canvas id="stage" role="img" aria-label="Particle rendering of the converted image"></canvas>
+        <div class="stage-canvas-wrap" id="stage-wrap">
+          <canvas
+            id="stage"
+            role="img"
+            aria-label="Particle rendering of the converted image"
+          ></canvas>
+
+          <div id="compare-layer" class="compare-layer" hidden>
+            <img id="compare-img" alt="The image this cloud was traced from" />
+          </div>
+          <div id="compare-handle" class="compare-handle" hidden>
+            <button
+              type="button"
+              class="grip"
+              id="compare-grip"
+              aria-label="Drag to compare the original image against the particles"
+            >
+              &#9668;&#9658;
+            </button>
+          </div>
+          <span class="compare-tag compare-tag-left" id="tag-original" hidden>ORIGINAL</span>
+          <span class="compare-tag compare-tag-right" id="tag-particles" hidden>PARTICLES</span>
+
           <div id="stage-empty" class="stage-empty">
             <p>Choose an image, then convert.</p>
             <p class="stage-empty-sub">
@@ -94,6 +121,25 @@
           </div>
         </div>
 
+        <!-- The wipe: off until asked for, because it covers half the render. -->
+        <div class="wipe-bar" id="wipe-bar" data-on="false">
+          <label class="check" id="compare-label">
+            <input type="checkbox" id="compare-toggle" disabled />
+            Compare with original
+          </label>
+          <input
+            type="range"
+            id="compare-range"
+            min="0"
+            max="100"
+            step="0.5"
+            value="50"
+            disabled
+            aria-label="Compare wipe position"
+          />
+          <span class="wipe-readout" id="compare-readout">50%</span>
+        </div>
+
         <div class="stage-bar">
           <div class="actions">
             <button id="convert" class="btn btn-primary" type="button" disabled>
@@ -102,6 +148,7 @@
             <button id="download" class="btn" type="button" disabled>
               Download .pwcloud
             </button>
+            <button id="copy-config" class="btn" type="button">Copy engine config</button>
             <button id="reset" class="btn btn-quiet" type="button">Reset options</button>
           </div>
           <dl class="stats" id="stats">
@@ -116,6 +163,6 @@
       </section>
     </main>
 
-    <script type="module" src="/assets/app.js"></script>
+    <script type="module" src="/assets/app.js?v=__ASSET_V__"></script>
   </body>
 </html>

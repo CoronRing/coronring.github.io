@@ -17,6 +17,7 @@ import time
 from pathlib import Path
 
 import pytest
+from fastapi import Request
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
@@ -496,3 +497,54 @@ class TestRateLimiter:
         for i in range(100):
             limiter.check(f"ip-{i}")
         assert len(limiter._buckets) <= 10
+
+# ──────────────────────────────────────────────────────────────────────────
+# Rate-limit bucket key
+# ──────────────────────────────────────────────────────────────────────────
+#
+# This endpoint spends money, so choosing your own bucket is the expensive bug.
+# Caddy appends the real peer to `X-Forwarded-For` and *sets* `X-Real-IP`; keying
+# on the first forwarded hop let one host rotate a fabricated address and draw a
+# fresh budget per request.
+
+
+def _request(headers: dict[str, str], peer: str = "10.0.1.5") -> Request:
+    """A bare ASGI request carrying the given headers, with no app in the way."""
+    return Request(
+        {
+            "type": "http",
+            "http_version": "1.1",
+            "method": "POST",
+            "path": "/api/chat",
+            "headers": [(k.lower().encode(), v.encode()) for k, v in headers.items()],
+            "client": (peer, 51234),
+        }
+    )
+
+
+def test_real_ip_wins_over_a_forged_forwarded_for() -> None:
+    ip = security.client_ip(
+        _request({"X-Forwarded-For": "9.9.9.9, 203.0.113.7", "X-Real-IP": "203.0.113.7"})
+    )
+    assert ip == "203.0.113.7"
+
+
+def test_last_forwarded_hop_is_used_when_real_ip_is_absent() -> None:
+    ip = security.client_ip(_request({"X-Forwarded-For": "9.9.9.9, 203.0.113.7"}))
+    assert ip == "203.0.113.7"
+
+
+def test_peer_is_used_when_no_proxy_headers_are_present() -> None:
+    assert security.client_ip(_request({})) == "10.0.1.5"
+
+
+def test_rotating_a_forged_header_does_not_refill_the_budget() -> None:
+    limiter = security.RateLimiter(per_minute=2, burst=2)
+    keys = [
+        security.client_ip(
+            _request({"X-Forwarded-For": f"9.9.9.{n}, 203.0.113.7", "X-Real-IP": "203.0.113.7"})
+        )
+        for n in range(10)
+    ]
+    assert set(keys) == {"203.0.113.7"}
+    assert sum(limiter.check(key)[0] for key in keys) == 2

@@ -2,9 +2,10 @@
 /**
  * ParticleField — the interactive corona point cloud.
  *
- * Wraps the vendored SenseRing `particle_wave` engine
- * (`src/vendor/particle-wave/`). The engine owns physics, rendering, and
- * pointer handling; this component owns what is specific to this site:
+ * Wraps the published ParticleWave engine (`@npmring/particle-wave`, built from
+ * https://github.com/CoronRing/ParticleWave). The engine owns physics,
+ * rendering, and pointer handling; this component owns what is specific to this
+ * site:
  *
  *  - **Theming.** Colour, alpha and radius come from live CSS tokens and are
  *    re-pushed when the theme changes.
@@ -65,7 +66,7 @@ const cloudUrl = href(src);
 </div>
 
 <script>
-  import ParticleWave from '../../vendor/particle-wave/particle-wave.js';
+  import ParticleWave from '@npmring/particle-wave';
 
   /** Current value of a CSS custom property on :root. */
   function token(name: string, fallback: string): string {

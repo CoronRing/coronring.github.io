@@ -36,12 +36,33 @@ log = logging.getLogger(__name__)
 _slots: Final[asyncio.Semaphore] = asyncio.Semaphore(settings.max_concurrency)
 
 
+# The distribution was renamed `particle-wave-tool` -> `particle-wave` at 1.4.0.
+# Both are tried so a rollback to an older wheel still reports its version
+# instead of silently answering "unknown", which is what the single hardcoded
+# name did the moment the rename landed.
+PACKAGE_NAMES: Final[tuple[str, ...]] = ("particle-wave", "particle-wave-tool")
+
+
 def package_version() -> str:
     """Installed version of the particle-wave wheel, for the health endpoint."""
-    try:
-        return version("particle-wave-tool")
-    except PackageNotFoundError:  # pragma: no cover — only if run from source
-        return "unknown"
+    for name in PACKAGE_NAMES:
+        try:
+            return version(name)
+        except PackageNotFoundError:
+            continue
+    return "unknown"  # pragma: no cover — only if run from source
+
+
+def package_name() -> str:
+    """Distribution name actually installed, for the health endpoint."""
+    for name in PACKAGE_NAMES:
+        try:
+            version(name)
+        except PackageNotFoundError:
+            continue
+        else:
+            return name
+    return PACKAGE_NAMES[0]  # pragma: no cover — only if run from source
 
 
 def engine_dir() -> Path:

@@ -11,12 +11,15 @@ from __future__ import annotations
 import dataclasses
 import io
 import json
+from importlib.metadata import version as metadata_version
 
 import pytest
+from fastapi import Request
 from fastapi.testclient import TestClient
 from PIL import Image
 
-from service import security
+from service import converter, security
+from service import main as main_mod
 from service.main import app
 from service.schemas import ConvertOptions
 
@@ -78,9 +81,18 @@ def post_convert(client: TestClient, raw: bytes, options: dict | None = None, **
 def test_health_reports_the_installed_package(client: TestClient) -> None:
     body = client.get("/api/health").json()
     assert body["status"] == "ok"
-    assert body["package"] == "particle-wave-tool"
+    # Not a hardcoded name. This assertion used to pin "particle-wave-tool", so
+    # when the distribution was renamed the endpoint quietly began reporting
+    # version "unknown" in production and the suite still passed.
+    assert body["package"] in converter.PACKAGE_NAMES
     assert body["version"] != "unknown", "the wheel must be installed, not run from source"
     assert "classic" in body["extractors"]
+
+
+def test_health_version_matches_the_installed_distribution(client: TestClient) -> None:
+    """The reported version must come from metadata, not a literal that can rot."""
+    body = client.get("/api/health").json()
+    assert body["version"] == metadata_version(body["package"])
 
 
 def test_options_schema_is_renderable(client: TestClient) -> None:
@@ -146,18 +158,46 @@ def test_convert_returns_a_loadable_cloud(client: TestClient) -> None:
     body = response.json()
     cloud, meta = body["cloud"], body["meta"]
 
-    assert cloud["version"] == "1.0.0"
+    # Pinned to what the frontend Loader accepts rather than to one release of
+    # the format: 1.1.0 added the optional `preview` block additively, and a
+    # test that forbids the newer version fails on a change that broke nothing.
+    assert cloud["version"] in {"1.0.0", "1.1.0"}
     assert cloud["encoding"] == "flat"
-    assert cloud["fields"] == ["x", "y", "w", "g"]
-    assert len(cloud["data"]) == cloud["meta"]["point_count"] * 4
+    assert cloud["fields"][:4] == ["x", "y", "w", "g"]
+    stride = cloud.get("stride", len(cloud["fields"]))
+    assert len(cloud["data"]) == cloud["meta"]["point_count"] * stride
     assert meta["point_count"] > 0
     assert meta["elapsed_ms"] >= 0
 
     # Normalised coordinates, or the renderer will place points off-canvas.
-    xs = cloud["data"][0::4]
-    ys = cloud["data"][1::4]
+    xs = cloud["data"][0::stride]
+    ys = cloud["data"][1::stride]
     assert all(0.0 <= v <= 1.0 for v in xs)
     assert all(0.0 <= v <= 1.0 for v in ys)
+
+
+def test_convert_carries_the_source_image(client: TestClient) -> None:
+    """
+    The cloud comes back with a copy of what it was traced from.
+
+    The page wipes between the two, and a visitor who downloads the .pwcloud
+    should be able to do the same later without still having the original file.
+    """
+    response = post_convert(client, make_image(), {"target_points": 400, "rng_seed": 3})
+    assert response.status_code == 200, response.text
+
+    preview = response.json()["cloud"]["preview"]
+    assert preview["mime"].startswith("image/")
+    assert preview["width"] > 0 and preview["height"] > 0
+    assert len(preview["data"]) > 0
+
+
+def test_convert_carries_point_colours(client: TestClient) -> None:
+    """Per-point RGB, which is what the engine's 'source' colour mode reads."""
+    response = post_convert(client, make_image(), {"target_points": 400, "rng_seed": 3})
+    cloud = response.json()["cloud"]
+    assert cloud["fields"] == ["x", "y", "w", "g", "r", "g_col", "b"]
+    assert cloud["stride"] == 7
 
 
 def test_convert_uses_defaults_when_options_omitted(client: TestClient) -> None:
@@ -489,3 +529,89 @@ def test_conversion_timeout_is_caught_and_reported(
     response = post_convert(client, make_image())
     assert response.status_code == 504
     assert "too long" in response.json()["detail"]
+
+# ── Rate-limit bucket key ─────────────────────────────────────────────────
+#
+# Caddy appends the real peer to `X-Forwarded-For` and *sets* `X-Real-IP`. Keying
+# the token bucket on the first `X-Forwarded-For` hop therefore let one host pick
+# its own bucket and rotate it, which is no rate limit at all. These pin the
+# behaviour so it cannot drift back.
+
+
+def _request(headers: dict[str, str], peer: str = "10.0.1.5") -> Request:
+    """A bare ASGI request carrying the given headers, with no app in the way."""
+    return Request(
+        {
+            "type": "http",
+            "http_version": "1.1",
+            "method": "GET",
+            "path": "/",
+            "headers": [(k.lower().encode(), v.encode()) for k, v in headers.items()],
+            "client": (peer, 51234),
+        }
+    )
+
+
+def test_real_ip_wins_over_a_forged_forwarded_for() -> None:
+    """A caller that sends its own X-Forwarded-For must not choose the bucket."""
+    ip = security.client_ip(
+        _request({"X-Forwarded-For": "9.9.9.9, 203.0.113.7", "X-Real-IP": "203.0.113.7"})
+    )
+    assert ip == "203.0.113.7"
+
+
+def test_last_forwarded_hop_is_used_when_real_ip_is_absent() -> None:
+    """Caddy appends the peer, so the trustworthy hop is the last one."""
+    ip = security.client_ip(_request({"X-Forwarded-For": "9.9.9.9, 203.0.113.7"}))
+    assert ip == "203.0.113.7"
+
+
+def test_peer_is_used_when_no_proxy_headers_are_present() -> None:
+    assert security.client_ip(_request({})) == "10.0.1.5"
+
+
+def test_rotating_a_forged_header_does_not_refill_the_bucket() -> None:
+    """The whole point: distinct forged values must land in one bucket."""
+    limiter = security.RateLimiter(per_minute=2, burst=2)
+    keys = [
+        security.client_ip(
+            _request({"X-Forwarded-For": f"9.9.9.{n}, 203.0.113.7", "X-Real-IP": "203.0.113.7"})
+        )
+        for n in range(10)
+    ]
+    assert set(keys) == {"203.0.113.7"}
+    assert sum(limiter.check(key)[0] for key in keys) == 2
+
+# ── Cache freshness ───────────────────────────────────────────────────────
+#
+# A returning visitor once held a stale `app.js` against a fresh `index.html`
+# and the page died on the mismatch: StaticFiles sends an ETag but no
+# Cache-Control, so browsers guessed a freshness lifetime and skipped
+# revalidation. Both halves of the fix are pinned here.
+
+
+def test_static_assets_must_be_revalidated(client: TestClient) -> None:
+    for path in ("/", "/status", "/assets/app.js", "/assets/styles.css"):
+        cache = client.get(path).headers.get("cache-control")
+        assert cache == "no-cache", f"{path} sent {cache!r}"
+
+
+def test_api_responses_are_not_stored(client: TestClient) -> None:
+    """Live counters must not be served from a cache."""
+    for path in ("/api/health", "/api/status", "/api/options"):
+        assert client.get(path).headers.get("cache-control") == "no-store"
+
+
+def test_pages_stamp_asset_urls_with_the_version(client: TestClient) -> None:
+    """The query string is what evicts a copy a browser already holds."""
+    version = converter.package_version()
+    for path, asset in (("/", "app.js"), ("/status", "status.js")):
+        html = client.get(path).text
+        assert main_mod.ASSET_VERSION_PLACEHOLDER not in html, "token left unsubstituted"
+        assert f"{asset}?v={version}" in html, f"{path} does not stamp {asset}"
+
+
+def test_stamped_asset_urls_resolve(client: TestClient) -> None:
+    """A version query must not turn into a 404."""
+    version = converter.package_version()
+    assert client.get(f"/assets/app.js?v={version}").status_code == 200

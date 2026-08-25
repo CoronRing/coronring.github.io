@@ -36,7 +36,6 @@ from fastapi import HTTPException, Request, status
 from .metrics import metrics
 from .settings import settings
 
-
 # ──────────────────────────────────────────────────────────────────────────
 # Client identity
 # ──────────────────────────────────────────────────────────────────────────
@@ -46,16 +45,27 @@ def client_ip(request: Request) -> str:
     """
     Best-effort client address for rate-limit bucketing.
 
-    Behind Caddy the peer is always the proxy, so the visitor is the first hop
-    of `X-Forwarded-For`. Trivially forged with no proxy in front, hence the
-    `trust_forwarded_for` switch.
+    `X-Real-IP` is consulted first because Caddy *sets* it from the real peer
+    (`header_up X-Real-IP {remote_host}` in the Caddyfile), replacing whatever
+    the caller sent. `X-Forwarded-For` is only ever *appended* to, so its first
+    hop is caller-controlled: reading that hop let one host rotate a fabricated
+    address and draw a fresh token bucket on every request, which is to say
+    there was no rate limit at all on the one endpoint here that spends money. The last hop is the one the nearest
+    proxy added, so that is the fallback when `X-Real-IP` is absent.
+
+    Still best-effort rather than a boundary — with no proxy in front both
+    headers are forgeable, which is what `trust_forwarded_for` is for. The
+    controls that hold unconditionally are the option caps and the semaphore.
     """
     if settings.trust_forwarded_for:
+        real = (request.headers.get("x-real-ip") or "").strip()
+        if real:
+            return real
         forwarded = request.headers.get("x-forwarded-for")
         if forwarded:
-            first = forwarded.split(",")[0].strip()
-            if first:
-                return first
+            hops = [hop.strip() for hop in forwarded.split(",") if hop.strip()]
+            if hops:
+                return hops[-1]
     return request.client.host if request.client else "unknown"
 
 

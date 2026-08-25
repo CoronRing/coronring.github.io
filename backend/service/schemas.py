@@ -24,25 +24,31 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 # Field groups, in the order the page should render them.
 # ──────────────────────────────────────────────────────────────────────────
 
+# `short` is shown beside the heading; `help` is the tier the page surfaces on
+# hover. Same split as the fields themselves - see `_f`.
 GROUPS: list[dict[str, str]] = [
     {
         "id": "preprocess",
         "label": "Preprocess",
+        "short": "before anything is measured",
         "help": "What the image looks like before anything is measured.",
     },
     {
         "id": "edges",
         "label": "Edge detection",
+        "short": "where the contours are",
         "help": "Canny thresholds. Lower values keep fainter contours.",
     },
     {
         "id": "importance",
         "label": "Importance map",
+        "short": "where points are worth spending",
         "help": "How the pixels are scored for where points are worth spending.",
     },
     {
         "id": "sampling",
         "label": "Point sampling",
+        "short": "how many points, and how far apart",
         "help": "Poisson-disk placement. min radius is the real density lever.",
     },
 ]
@@ -53,12 +59,23 @@ def _f(
     *,
     group: str,
     label: str,
+    short: str | None = None,
     step: float | None = None,
     help: str | None = None,
     **kwargs: Any,
 ) -> Any:
-    """Field with the extra metadata the page needs to render a control."""
+    """
+    Field with the extra metadata the page needs to render a control.
+
+    Descriptions come in two tiers. `short` is a few words shown under the
+    control, so a panel can be read at a glance; `help` is the full explanation,
+    surfaced on hover. Either tier alone fails one way or the other: a label
+    does not say what a parameter does, and a paragraph under every control
+    turns the panel into a scroll.
+    """
     extra: dict[str, Any] = {"x-group": group, "x-label": label}
+    if short is not None:
+        extra["x-short"] = short
     if step is not None:
         extra["x-step"] = step
     if help is not None:
@@ -78,6 +95,7 @@ class ConvertOptions(BaseModel):
         1024,
         group="preprocess",
         label="Max resolution",
+        short="longest edge before anything is measured",
         step=64,
         help="Longest edge is capped to this before processing, in pixels.",
     )
@@ -85,15 +103,20 @@ class ConvertOptions(BaseModel):
         2.0,
         group="preprocess",
         label="CLAHE clip",
+        short="local contrast boost; 0 is off",
         step=0.1,
-        help="Local contrast boost. 0 disables it.",
+        help="Contrast Limited Adaptive Histogram Equalization. Divides image into contextual "
+             "tiles, clips histogram peaks, and enhances subtle gradients in dark/shadow regions "
+             "without noise blowup. 0 disables it.",
     )
     blur_sigma: Annotated[float, Field(ge=0.0, le=5.0)] = _f(
         0.0,
         group="preprocess",
         label="Pre-blur sigma",
+        short="smoothing before contrast equalisation",
         step=0.1,
-        help="Gaussian blur before extraction. Suppresses sensor noise.",
+        help="Gaussian pre-blur before contrast equalization. Suppresses high-frequency sensor "
+             "noise.",
     )
 
     # ── Edges ─────────────────────────────────────────────────────────
@@ -101,22 +124,27 @@ class ConvertOptions(BaseModel):
         1.4,
         group="edges",
         label="Canny blur",
+        short="smoothing before the gradient",
         step=0.1,
-        help="Blur applied inside the edge detector.",
+        help="Gaussian blur applied inside the edge detector to smooth gradient differentiation.",
     )
     canny_low: Annotated[float, Field(ge=0.0, le=1.0)] = _f(
         0.05,
         group="edges",
         label="Low threshold",
+        short="faint edges kept above this",
         step=0.01,
-        help="Hysteresis floor. Must be below the high threshold.",
+        help="Hysteresis lower floor. Continuous edges extending from strong contours are "
+             "preserved above this.",
     )
     canny_high: Annotated[float, Field(ge=0.0, le=1.0)] = _f(
         0.15,
         group="edges",
         label="High threshold",
+        short="strong edges seeded above this",
         step=0.01,
-        help="Hysteresis ceiling. Only edges above this seed a contour.",
+        help="Hysteresis upper ceiling. Pixels with gradient magnitude above this unconditionally "
+             "seed edge contours.",
     )
 
     # ── Importance ────────────────────────────────────────────────────
@@ -124,55 +152,66 @@ class ConvertOptions(BaseModel):
         "hybrid",
         group="importance",
         label="Feature mode",
-        help="hybrid blends edges with local contrast; bw_intensity ignores "
-        "edges and follows brightness.",
+        short="what the trace scores pixels on",
+        help="Saliency algorithm: 'hybrid' blends edge silhouettes with local tonal contrast; "
+             "'edge' isolates geometric contours; 'tone' tracks shading; 'bw_intensity' maps raw "
+             "pixel luminance to point density.",
     )
     edge_weight: Annotated[float, Field(ge=0.0, le=2.0)] = _f(
         0.8,
         group="importance",
         label="Edge weight",
+        short="how much contours count",
         step=0.05,
-        help="Edge contribution in hybrid mode.",
+        help="Edge gradient contribution multiplier in hybrid mode.",
     )
     tone_weight: Annotated[float, Field(ge=0.0, le=2.0)] = _f(
         0.65,
         group="importance",
         label="Tone weight",
+        short="how much shading counts",
         step=0.05,
-        help="Local-contrast contribution in hybrid mode.",
+        help="Local-contrast tone contribution multiplier in hybrid mode.",
     )
     tone_sigma: Annotated[float, Field(ge=1.0, le=40.0)] = _f(
         10.0,
         group="importance",
         label="Tone sigma",
+        short="size of the shading detail kept",
         step=0.5,
-        help="Neighbourhood size for local contrast, in pixels.",
+        help="Neighbourhood radius for local contrast calculation, in pixels.",
     )
     tone_gamma: Annotated[float, Field(ge=0.1, le=3.0)] = _f(
         0.85,
         group="importance",
         label="Tone gamma",
+        short="contrast curve on the shading",
         step=0.05,
-        help="Below 1 lifts mid-tones into the map.",
+        help="Gamma curve exponent for tone saliency. Values below 1.0 lift subtle mid-tones into "
+             "the feature map.",
     )
     bw_polarity: Literal["white_more", "black_more"] = _f(
         "white_more",
         group="importance",
         label="BW polarity",
-        help="Which end of the brightness range attracts points "
-        "(bw_intensity mode only).",
+        short="trace the light or the dark side",
+        help="Density target in bw_intensity mode: 'black_more' concentrates dense particles on "
+             "dark/black regions (great for logos, text, silhouettes); 'white_more' concentrates "
+             "on bright highlights.",
     )
     bw_gamma: Annotated[float, Field(ge=0.1, le=4.0)] = _f(
         1.0,
         group="importance",
         label="BW gamma",
+        short="contrast curve on brightness",
         step=0.05,
-        help="Contrast curve for bw_intensity mode.",
+        help="Nonlinear contrast curve exponent for bw_intensity mode.",
     )
     feature_quantile: Annotated[float, Field(ge=0.0, le=0.99)] = _f(
         0.62,
         group="importance",
         label="Feature quantile",
+        short="share of the image left untraced",
         step=0.01,
         help="Keeps the top slice of the importance map. Higher is more "
         "selective.",
@@ -181,6 +220,7 @@ class ConvertOptions(BaseModel):
         0.08,
         group="importance",
         label="Feature floor",
+        short="lowest score still worth a point",
         step=0.01,
         help="Absolute minimum importance for a pixel to be eligible.",
     )
@@ -195,6 +235,7 @@ class ConvertOptions(BaseModel):
         4000,
         group="sampling",
         label="Target points",
+        short="how many points to aim for",
         step=100,
         help="Upper bound on point count. The min radius below usually binds "
         "first — if raising this does nothing, lower the radius.",
@@ -203,6 +244,7 @@ class ConvertOptions(BaseModel):
         2.0,
         group="sampling",
         label="Min radius",
+        short="closest two points may sit",
         step=0.1,
         help="Closest two points may sit, in pixels. The real density lever.",
     )
@@ -210,6 +252,7 @@ class ConvertOptions(BaseModel):
         12.0,
         group="sampling",
         label="Max radius",
+        short="furthest apart in empty areas",
         step=0.5,
         help="Spacing in the flattest regions of the image.",
     )
@@ -217,6 +260,7 @@ class ConvertOptions(BaseModel):
         0.5,
         group="sampling",
         label="Radius gamma",
+        short="how sharply density follows detail",
         step=0.05,
         help="Below 1 concentrates points harder onto detail.",
     )
@@ -224,6 +268,7 @@ class ConvertOptions(BaseModel):
         30,
         group="sampling",
         label="Candidates (k)",
+        short="placement attempts per point",
         step=1,
         help="Bridson trial count per active point. Higher packs tighter and "
         "costs more.",
@@ -232,6 +277,7 @@ class ConvertOptions(BaseModel):
         False,
         group="sampling",
         label="Fill background",
+        short="scatter points over empty areas",
         help="Scatter sparse points across empty regions so the whole canvas "
         "reacts to the cursor.",
     )
@@ -239,6 +285,7 @@ class ConvertOptions(BaseModel):
         0.15,
         group="sampling",
         label="Background ratio",
+        short="how many of those to add",
         step=0.01,
         help="Background points as a fraction of the traced points.",
     )
@@ -246,6 +293,7 @@ class ConvertOptions(BaseModel):
         7,
         group="sampling",
         label="Seed",
+        short="fix it to reproduce a cloud",
         step=1,
         help="Fixed seed makes a conversion reproducible. Clear it for a new "
         "arrangement each run.",

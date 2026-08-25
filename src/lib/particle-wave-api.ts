@@ -4,7 +4,7 @@
  * The demo has two ways to turn an upload into a point cloud, and the whole
  * point of the project is the difference between them:
  *
- * - **This module** posts the image to the SenseRing service, which runs the
+ * - **This module** posts the image to the ParticleWave service, which runs the
  *   real extractor — multi-scale edges, CLAHE, Poisson-disc spacing. It is the
  *   same code path the CLI uses, so what the page renders is what the tool
  *   produces.

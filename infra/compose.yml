@@ -10,8 +10,24 @@
 # against without buying a domain. Point a real domain here later and only
 # SITE_ADDRESS changes.
 
+# Bounded container logs. Docker's json-file driver defaults to *unlimited*, so
+# a long-lived container fills the disk eventually and the first symptom is the
+# whole host failing rather than anything log-shaped. 10 MB x 3 caps each
+# service at 30 MB, which at this traffic is far more than the 24 hours anyone
+# actually reads back with `docker compose logs --since 24h`.
+#
+# Oracle's Unified Monitoring Agent is already running on the host, so these
+# files are also what OCI Logging ingests if custom log collection is turned on
+# for the instance — see infra/README.md.
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 services:
   app:
+    logging: *logging
     build:
       context: ./app
       dockerfile: Dockerfile
@@ -40,6 +56,7 @@ services:
       start_period: 20s
 
   chat:
+    logging: *logging
     build:
       context: ./chat
       dockerfile: Dockerfile
@@ -75,6 +92,7 @@ services:
       start_period: 20s
 
   caddy:
+    logging: *logging
     image: caddy:2-alpine
     restart: unless-stopped
     depends_on:

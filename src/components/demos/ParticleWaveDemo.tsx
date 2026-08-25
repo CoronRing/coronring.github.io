@@ -1,9 +1,8 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
-import ParticleWave from '../../vendor/particle-wave/particle-wave.js';
-import type {
-  ParticleWaveConfig,
-  ParticleWaveInstance,
-} from '../../vendor/particle-wave/particle-wave';
+import ParticleWave, {
+  type ParticleWaveConfig,
+  type ParticleWaveInstance,
+} from '@npmring/particle-wave';
 import { imageToCloud, type PwCloud } from '../../lib/image-to-cloud';
 import { API_BASE, convertViaApi } from '../../lib/particle-wave-api';
 import { href } from '../../lib/url';
@@ -12,13 +11,13 @@ import type { DemoProps } from './registry';
 /**
  * ParticleWaveDemo — the engine itself, driveable.
  *
- * This is the real thing rather than a recording: the same vendored engine
+ * This is the real thing rather than a recording: the same published engine
  * that renders the hero, wired to live controls so the parameters can be felt
  * instead of described.
  *
  * ## Two tracers, one contract
  *
- * An upload is sent to the SenseRing Python service, which runs the real
+ * An upload is sent to the ParticleWave Python service, which runs the real
  * extractor and returns a `.pwcloud`. If that service is unreachable — it is a
  * free-tier host, and this page must not depend on it — the image is traced in
  * the tab instead by a cut-down port of the same idea. The renderer cannot tell
@@ -43,8 +42,14 @@ interface Params {
   damping: number;
   particleSize: number;
   particleShape: 'circle' | 'nofill_circle' | 'triangle' | 'square' | 'hexagon' | 'octagon';
-  colorMode: 'single' | 'source' | 'gradient';
+  colorMode: 'single' | 'source' | 'gradient' | 'palette';
   colorPalette: 'rainbow' | 'aurora' | 'cyberpunk' | 'sunset' | 'neon' | 'fire' | 'ocean';
+  gradientTopLeft: string;
+  gradientTopRight: string;
+  gradientBottomLeft: string;
+  gradientBottomRight: string;
+  gradientCenter: string;
+  gradientCenterStrength: number;
   trailLength: number;
   trailWidth: number;
   trailDisappearSpeed: number;
@@ -74,7 +79,9 @@ function toEngineConfig(p: Params): Partial<ParticleWaveConfig> {
 }
 
 const DEFAULT_PARAMS: Params = {
-  restSpin: 0.12,
+  // Spin off by default. A cloud that is already turning makes every other
+  // parameter harder to judge, and it is one click away for anyone who wants it.
+  restSpin: 0,
   spinAxis: 'clock',
   spinMaxDegree: 360,
   driftAmplitude: 8,
@@ -86,6 +93,12 @@ const DEFAULT_PARAMS: Params = {
   particleShape: 'circle',
   colorMode: 'single',
   colorPalette: 'rainbow',
+  gradientTopLeft: '#ff8a5c',
+  gradientTopRight: '#7b93ff',
+  gradientBottomLeft: '#ffd166',
+  gradientBottomRight: '#3ddad7',
+  gradientCenter: '#ffffff',
+  gradientCenterStrength: 0.55,
   trailLength: 0,
   trailWidth: 1.0,
   trailDisappearSpeed: 0.65,
@@ -113,7 +126,8 @@ type SliderKey =
   | 'particleSize'
   | 'trailLength'
   | 'trailWidth'
-  | 'trailDisappearSpeed';
+  | 'trailDisappearSpeed'
+  | 'gradientCenterStrength';
 
 /** Sliders, declared as data so the panel stays structured and maintainable. */
 const SLIDERS: ReadonlyArray<{
@@ -230,6 +244,14 @@ const SLIDERS: ReadonlyArray<{
     hint: 'How quickly the meteor tail fades out.',
   },
   {
+    key: 'gradientCenterStrength',
+    label: 'Gradient center',
+    min: 0,
+    max: 1,
+    step: 0.05,
+    hint: 'How far the center color wins in the middle of the cloud. 0 leaves the corners to blend on their own.',
+  },
+  {
     key: 'springK',
     label: 'Spring',
     min: 0.2,
@@ -258,9 +280,22 @@ const SLIDERS: ReadonlyArray<{
 
 const MOUSE_MODES: ReadonlyArray<Params['mouseMode']> = ['repel', 'attract', 'orbit', 'none'];
 const COLOR_MODES: ReadonlyArray<{ value: Params['colorMode']; label: string }> = [
-  { value: 'single', label: 'Single Color' },
-  { value: 'source', label: 'Source Image' },
-  { value: 'gradient', label: 'Gradient Palette' },
+  { value: 'single', label: 'Single color' },
+  { value: 'source', label: 'Original image' },
+  { value: 'gradient', label: 'Gradient — corners' },
+  { value: 'palette', label: 'Palette ramp' },
+];
+
+/** The five wells of the four-corner gradient, in the order they are shown. */
+const GRADIENT_CORNERS: ReadonlyArray<{
+  key: 'gradientTopLeft' | 'gradientTopRight' | 'gradientBottomLeft' | 'gradientBottomRight' | 'gradientCenter';
+  label: string;
+}> = [
+  { key: 'gradientTopLeft', label: 'Top left' },
+  { key: 'gradientTopRight', label: 'Top right' },
+  { key: 'gradientCenter', label: 'Center' },
+  { key: 'gradientBottomLeft', label: 'Bottom left' },
+  { key: 'gradientBottomRight', label: 'Bottom right' },
 ];
 const COLOR_PALETTES: ReadonlyArray<{ value: Params['colorPalette']; label: string }> = [
   { value: 'rainbow', label: 'Rainbow' },
@@ -314,6 +349,23 @@ export default function ParticleWaveDemo({ title }: DemoProps): React.ReactEleme
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const [message, setMessage] = useState<string>('');
   const [readout, setReadout] = useState<{ points: number; fps: number }>({ points: 0, fps: 0 });
+  /*
+   * The wipe between the source image and the trace of it.
+   *
+   * Off by default: the demo is about the particles, and an overlay covering
+   * half of them is a comparison the visitor should have to ask for. It is
+   * only offered at all when the cloud carries its source, which the tool
+   * embeds and the in-tab tracer now does too.
+   */
+  const [sourceUrl, setSourceUrl] = useState<string | null>(null);
+  const [compare, setCompare] = useState(false);
+  const [wipe, setWipe] = useState(50);
+  const [imageBox, setImageBox] = useState<{
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  } | null>(null);
   /** Which tracer produced the current cloud, and what it cost. */
   const [trace, setTrace] = useState<
     { via: 'service'; ms: number } | { via: 'browser'; reason: string } | null
@@ -360,6 +412,8 @@ export default function ParticleWaveDemo({ title }: DemoProps): React.ReactEleme
         instanceRef.current = instance;
         setStatus('ready');
         setReadout({ points: instance.stats.particleCount, fps: 0 });
+        setSourceUrl(instance.sourcePreview?.url ?? null);
+        setImageBox(instance.drawArea);
       } catch (err) {
         if (disposed) return;
         setStatus('error');
@@ -373,6 +427,30 @@ export default function ParticleWaveDemo({ title }: DemoProps): React.ReactEleme
       instanceRef.current = null;
     };
   }, [source]);
+
+  useEffect(() => {
+    if (!sourceUrl) setCompare(false);
+  }, [sourceUrl]);
+
+  /*
+   * Keep the overlay on the same rectangle as the cloud.
+   *
+   * The engine letterboxes the cloud inside the canvas, so an image stretched
+   * to the canvas instead would compare two differently-scaled pictures —
+   * worse than showing no comparison at all.
+   */
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas || !compare) return;
+    const sync = (): void => {
+      const area = instanceRef.current?.drawArea;
+      if (area) setImageBox(area);
+    };
+    sync();
+    const ro = new ResizeObserver(sync);
+    ro.observe(canvas);
+    return () => ro.disconnect();
+  }, [compare]);
 
   // ── Push slider changes to the running instance ───────────────────
   useEffect(() => {
@@ -482,6 +560,37 @@ export default function ParticleWaveDemo({ title }: DemoProps): React.ReactEleme
           className="block h-[320px] w-full cursor-crosshair touch-none sm:h-[420px]"
         />
 
+        {compare && sourceUrl && imageBox && (
+          <>
+            <div
+              className="pointer-events-none absolute inset-0"
+              style={{ clipPath: `inset(0 ${(100 - wipe).toFixed(2)}% 0 0)` }}
+            >
+              <img
+                src={sourceUrl}
+                alt="The original image this cloud was traced from"
+                className="absolute block"
+                style={{
+                  left: imageBox.x,
+                  top: imageBox.y,
+                  width: imageBox.width,
+                  height: imageBox.height,
+                }}
+              />
+            </div>
+            <div
+              className="pointer-events-none absolute inset-y-0 border-l border-white/70"
+              style={{ left: `${wipe.toFixed(2)}%` }}
+            />
+            <span className="pointer-events-none absolute bottom-2 left-3 font-mono text-[9px] tracking-[0.1em] text-white/70">
+              ORIGINAL
+            </span>
+            <span className="pointer-events-none absolute right-3 bottom-2 font-mono text-[9px] tracking-[0.1em] text-white/70">
+              PARTICLES
+            </span>
+          </>
+        )}
+
         <div className="pointer-events-none absolute top-2 right-3 font-mono text-[10px] text-[var(--c-text-faint)] tabular-nums">
           {readout.points.toLocaleString()} pts · {readout.fps} fps
         </div>
@@ -495,6 +604,38 @@ export default function ParticleWaveDemo({ title }: DemoProps): React.ReactEleme
             </p>
           </div>
         )}
+      </div>
+
+      {/* Compare */}
+      <div className="flex flex-wrap items-center gap-3">
+        <label
+          className={`flex items-center gap-2 font-mono text-[10px] ${sourceUrl ? 'cursor-pointer text-[var(--c-text-muted)]' : 'cursor-not-allowed text-[var(--c-text-faint)]'}`}
+          title={
+            sourceUrl
+              ? 'Wipe between the image and the cloud traced from it'
+              : 'This cloud does not carry its source image'
+          }
+        >
+          <input
+            type="checkbox"
+            checked={compare}
+            disabled={!sourceUrl}
+            onChange={(e) => setCompare(e.target.checked)}
+            className="accent-[var(--c-accent)]"
+          />
+          Compare with original
+        </label>
+        <input
+          type="range"
+          min={0}
+          max={100}
+          step={0.5}
+          value={wipe}
+          disabled={!compare}
+          aria-label="Compare wipe position"
+          onChange={(e) => setWipe(Number(e.target.value))}
+          className="pw-range w-full max-w-[260px] disabled:opacity-30"
+        />
       </div>
 
       {/* Source */}
@@ -560,7 +701,9 @@ export default function ParticleWaveDemo({ title }: DemoProps): React.ReactEleme
 
       {/* Controls */}
       <div className="grid gap-x-6 gap-y-3 sm:grid-cols-2">
-        {SLIDERS.map((s) => {
+        {SLIDERS.filter(
+          (s) => s.key !== 'gradientCenterStrength' || params.colorMode === 'gradient',
+        ).map((s) => {
           const id = `${uid}-${s.key}`;
           return (
             <div key={s.key}>
@@ -691,9 +834,35 @@ export default function ParticleWaveDemo({ title }: DemoProps): React.ReactEleme
         </div>
 
         {params.colorMode === 'gradient' && (
+          <div className="sm:col-span-2">
+            <span className="eyebrow">Corner colors</span>
+            <div className="mt-1 flex flex-wrap gap-2">
+              {GRADIENT_CORNERS.map((corner) => (
+                <label
+                  key={corner.key}
+                  className="flex items-center gap-1.5 font-mono text-[10px] text-[var(--c-text-faint)]"
+                  title={`${corner.label} of the gradient`}
+                >
+                  <input
+                    type="color"
+                    value={params[corner.key]}
+                    aria-label={`${corner.label} color`}
+                    onChange={(e) =>
+                      setParams((prev) => ({ ...prev, [corner.key]: e.target.value }))
+                    }
+                    className="h-6 w-6 cursor-pointer rounded-full border border-[var(--c-line)] bg-transparent p-0"
+                  />
+                  {corner.label}
+                </label>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {params.colorMode === 'palette' && (
           <div>
             <label htmlFor={`${uid}-color-palette`} className="eyebrow">
-              Gradient Palette
+              Palette
             </label>
             <select
               id={`${uid}-color-palette`}
@@ -742,7 +911,7 @@ export default function ParticleWaveDemo({ title }: DemoProps): React.ReactEleme
         it is a standing radial field that holds everything within its radius for as long as the
         button is down, hardest at the centre, so what you see is the cloud opening or gathering
         and then relaxing on release. An uploaded image goes to the
-        SenseRing service, which extracts the point cloud in Python and sends it back. If that
+        ParticleWave service, which extracts the point cloud in Python and sends it back. If that
         service is unreachable, the image is traced in this tab instead, at lower quality. Nothing
         is stored either way. The cloud comes back in the response and the upload is discarded.
       </p>

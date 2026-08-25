@@ -1,11 +1,19 @@
 # particle-wave service — design
 
-**Version 1.3.0** · website demo wired to the service; sampler 4-6x faster
+**Version 1.4.0** · the page became a playground; clouds carry their source
 
-A Python service that exposes the SenseRing `particle_wave` pipeline over HTTP,
-with a page that drives it end to end. It lives in the personal-website
+A Python service that exposes the ParticleWave `particle_wave` pipeline over
+HTTP, with a page that drives it end to end. It lives in the personal-website
 repository as `backend/`, beside the operator tooling in `infra/` that
 provisions and deploys it; the GitHub Pages workflow builds neither.
+
+> **1.4.0** — the page was rebuilt as a playground (section 6): the rail is a
+> dock of tabs rather than one long scroll, presets set both halves at once,
+> and a wipe along the bottom of the stage compares the render against the
+> image it was traced from. The engine's parameter schema is now read from
+> `/engine` instead of a copy in `static/`, and `.pwcloud` grew an embedded
+> source preview (format 1.1.0). The upstream project was renamed SenseRing ->
+> ParticleWave and its distribution `particle-wave-tool` -> `particle-wave`.
 
 > **1.3.0** — the Poisson-disc sampler was given a coarse acceleration grid,
 > cutting conversion time 4-6x with bit-identical output (section 4.1). The
@@ -62,7 +70,8 @@ One directory up, `../infra/` holds provisioning and deployment: the OCI
 scripts, the compose stack, the Caddyfile, and the host bootstrap.
 
 No frontend build step. The page is three files served as-is; adding a bundler
-would mean a second toolchain in the image for a page with eleven controls.
+would mean a second toolchain in the image for a page that has no dependencies
+to bundle — every control on it is generated from a schema at runtime.
 
 ## 3. How the package is consumed
 
@@ -273,22 +282,79 @@ The container drops to UID 1000 before anything listens.
 
 ## 6. The page
 
-Two panels, tagged **Python** and **Browser**, because which half does what is
+Two halves, tagged **Python** and **Browser**, because which half does what is
 the thing the demo is meant to show. Extraction options cost a request; render
-options apply live.
+options apply on the next frame. The split is the rail's top-level control, so
+it is structural rather than a label on a panel.
 
-The extraction controls are **generated from `GET /api/options`**, which serves
-the pydantic model's JSON Schema plus `x-group` / `x-label` / `x-step` / `x-help`
-metadata. A control therefore cannot advertise a range the server will reject,
-because both come from one declaration. Adding an option to `schemas.py` makes
-a control appear with no page change.
+### 6.1 Every control is generated
 
-Engine controls are hand-declared — the engine's config is plain JavaScript
-with no schema to read — but their defaults come from `ParticleWave.DEFAULTS`,
-so the list names fields without restating values.
+Extraction controls come from `GET /api/options`, which serves the pydantic
+model's JSON Schema plus `x-group` / `x-label` / `x-step` / `x-help` metadata.
+A control therefore cannot advertise a range the server will reject, because
+both come from one declaration. Adding an option to `schemas.py` makes a
+control appear with no page change.
 
-Ambient motion (`restSpin`, `driftAmplitude`) starts non-zero even though the
-engine defaults them to 0, because a still cloud looks broken.
+Engine controls come from `engine_fields.json`, fetched from **`/engine`** —
+the installed wheel — rather than from a copy in `static/`. The copy that used
+to live there went stale the moment the engine gained a parameter, and a
+control list that disagrees with the engine is worse than no control list.
+Defaults still come from `ParticleWave.DEFAULTS`, so the schema names fields
+without restating values.
+
+Both schemas carry **two description tiers**, and the page shows both:
+`x-short` / `short` is a few words rendered under the control, and `x-help` /
+`help` is the sentence-length version the hint strip shows on hover. One tier
+alone fails either way — a label does not say what a parameter does, and a
+paragraph under each of eight controls is what turned this rail into a scroll
+in the first place.
+
+### 6.2 A dock, not a scroll
+
+Each half is cut into tabs of roughly eight controls, sized so that no tab
+scrolls at a normal window height: the whole point is to reach any parameter
+without losing sight of the render. Two rules keep it that way.
+
+- Per-control help lives in **one hint strip** at the foot of the rail, fed by
+  whatever is under the pointer. Help text under every slider is what made the
+  rail a scroll in the first place.
+- A control that cannot do anything in the current mode is **hidden**, not
+  disabled — the palette picker in gradient mode, the trail sliders with trails
+  off. A parameter that does nothing invites the reader to turn it and conclude
+  the engine is broken.
+
+Where a schema group is too big for one tab (`interaction` carries fifteen
+fields, `importance` nine) the split is written out as key lists in `app.js`.
+
+### 6.3 Presets set both halves
+
+Tracing a photograph and tracing a line drawing want different importance maps
+as much as they want different particles, so a preset that set only the render
+half would be half an answer. Applying one rewrites the extraction options *and*
+the engine config, and marks the cloud stale so the Python half can be re-run.
+
+### 6.4 The wipe
+
+The stage can wipe between the render and the image behind it, dragged from a
+grip along the bottom. It is **off by default** — it covers half the render,
+which the visitor should have to ask for.
+
+The overlay is laid out on `instance.drawArea` rather than on the canvas: the
+engine letterboxes the cloud, and an image stretched to the canvas would
+compare two differently-scaled pictures, which is worse than no comparison.
+
+The image is the file in the dropzone when there is one, and otherwise the copy
+the cloud carries with it (`.pwcloud` 1.1.0 `preview`). That second path is why
+the format grew the field: a downloaded cloud stops being self-describing the
+moment it is separated from the image it came from.
+
+### 6.5 Ambient motion starts at rest
+
+`restSpin` and `driftAmplitude` used to be started non-zero on the grounds that
+a still cloud looks broken. They now start at the engine's own default of 0: a
+cloud that is already turning makes every other parameter harder to judge, and
+this page exists to judge parameters. The presets are where a moving cloud is
+offered, deliberately.
 
 ## 7. Verification
 

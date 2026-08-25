@@ -46,6 +46,39 @@ entirely: the SSH key at `~/.ssh/oracle_particle_wave`, the OCI API signing
 key at `~/.oci/particle-wave.pem`, and the tenancy details in the gitignored
 `.env` at the repository root.
 
+## Logs
+
+Container logs are capped in `compose.yml` at 10 MB x 3 files per service.
+Docker's `json-file` driver defaults to *unlimited*, so before this the disk was
+the only bound and the first symptom of hitting it would have been the whole
+host failing rather than anything log-shaped.
+
+Read them back over the window you care about:
+
+```bash
+python infra/configure.py --logs                  # live tail, all services
+ssh ... 'cd /opt/particle-wave && docker compose logs --since 24h app'
+ssh ... 'cd /opt/particle-wave && docker compose logs --since 1h --tail 200 chat'
+```
+
+**There is no custom log endpoint on the service, on purpose.** Oracle already
+provides one: the Unified Monitoring Agent is installed and active on this host
+(`oci-managementagent` and `unifiedmonitoring` are among the Oracle Cloud Agent
+plugins), so container logs can be shipped into OCI Logging and queried from the
+console or the CLI with the same API signing key `provision.py` already uses.
+Enabling it is console work rather than anything in this repo:
+
+1. **Observability & Management -> Logging -> Log groups** — create one.
+2. **Logs -> Create custom log**, agent configuration pointed at
+   `/var/lib/docker/containers/*/*-json.log`.
+3. Add the dynamic group and IAM policy the wizard prints, so the instance may
+   write to the log group.
+
+That path was chosen over building an authenticated `/api/logs` route because a
+log-reading endpoint on a public host is a new secret to rotate, a new way to
+leak request contents, and a new thing to get wrong — for something the platform
+already does behind credentials that exist.
+
 ## Two traps worth knowing
 
 **Opening a port in OCI is two jobs, not one.** Oracle's Ubuntu images ship an

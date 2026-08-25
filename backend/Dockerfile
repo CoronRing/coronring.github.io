@@ -28,10 +28,16 @@ ENV PYTHONUNBUFFERED=1 \
 
 WORKDIR /home/app/service
 
-# Dependencies first, and the wheel with them: both change far less often than
-# the application code, so this layer stays cached across ordinary edits.
+# Dependencies first: they change far less often than the application code, so
+# this layer stays cached across ordinary edits.
+#
+# vendor/ is copied only when it exists, which is how an unreleased wheel gets
+# tested: `scripts/sync_wheel.py` drops one there and repins requirements.txt
+# at it. On the released path the directory is absent and pip resolves the pin
+# from PyPI. The `[r]` glob matches nothing rather than failing when vendor/ is
+# missing, which a bare `COPY vendor` cannot do.
 COPY --chown=app:app requirements.txt ./
-COPY --chown=app:app vendor ./vendor
+COPY --chown=app:app vendo[r] ./vendor
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY --chown=app:app service ./service

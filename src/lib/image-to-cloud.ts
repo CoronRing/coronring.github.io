@@ -1,7 +1,7 @@
 /**
  * Browser-side image → point cloud extraction.
  *
- * A port of the idea behind SenseRing's Python extractor, cut down to what
+ * A port of the idea behind ParticleWave's Python extractor, cut down to what
  * runs comfortably in a tab: luminance, a Sobel gradient, and importance
  * sampling weighted by edge strength. The Python tool does a better job
  * (multi-scale edges, Poisson-disc spacing); this one exists so the demo can
@@ -12,9 +12,9 @@
  * object as readily as a URL.
  */
 
-/** A `.pwcloud` v1.0.0 document in the compact flat encoding. */
+/** A `.pwcloud` document in the compact flat encoding. */
 export interface PwCloud {
-  version: '1.0.0';
+  version: '1.0.0' | '1.1.0';
   meta: {
     source_image: string | null;
     source_size: [number, number];
@@ -26,6 +26,18 @@ export interface PwCloud {
   stride: 4 | 7;
   fields: string[];
   data: number[];
+  /**
+   * The image the cloud was traced from, downscaled and inlined (format
+   * v1.1.0). It is what lets a viewer wipe between the source and the
+   * particles without being handed the original file separately.
+   */
+  preview?: {
+    mime: string;
+    width: number;
+    height: number;
+    /** Base64, without the `data:` prefix. */
+    data: string;
+  };
 }
 
 export interface ExtractOptions {
@@ -236,18 +248,34 @@ export async function imageToCloud(source: Blob, options: ExtractOptions = {}): 
     );
   }
 
+  /*
+   * The analysis raster doubles as the preview. It is already decoded, already
+   * downscaled, and — crucially — it is the exact image the points were placed
+   * against, so the wipe compares like with like rather than the trace against
+   * a differently-scaled original.
+   */
+  let preview: PwCloud['preview'];
+  try {
+    const url = canvas.toDataURL('image/webp', 0.8);
+    preview = { mime: 'image/webp', width: W, height: H, data: url.slice(url.indexOf(',') + 1) };
+  } catch {
+    // A tainted canvas cannot be read back. The cloud is still fine.
+    preview = undefined;
+  }
+
   return {
-    version: '1.0.0',
+    version: '1.1.0',
     meta: {
       source_image: source instanceof File ? source.name : null,
       source_size: [W, H],
       extractor: 'browser:sobel-importance',
       point_count: data.length / 7,
-      generator: 'coronring-site/1.1.0',
+      generator: 'coronring-site/1.2.0',
     },
     encoding: 'flat',
     stride: 7,
     fields: ['x', 'y', 'w', 'g', 'r', 'g_col', 'b'],
     data,
+    ...(preview ? { preview } : {}),
   };
 }

@@ -23,12 +23,13 @@ import json
 import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from functools import lru_cache
 from pathlib import Path
 from typing import Annotated
 
 from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, UploadFile, status
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import ValidationError
 
@@ -121,6 +122,41 @@ async def security_headers(request: Request, call_next):  # type: ignore[no-unty
     response.headers.setdefault("Referrer-Policy", "no-referrer")
     response.headers.setdefault("Cross-Origin-Opener-Policy", "same-origin")
     response.headers.setdefault("Permissions-Policy", "geolocation=(), microphone=(), camera=()")
+
+    # Six months, and deliberately neither `includeSubDomains` nor `preload`.
+    # The host is addressed as `<ip-with-dashes>.sslip.io`, so subdomains are
+    # other people's addresses and preloading would outlive the IP lease.
+    # Browsers ignore this over plain http, so it costs nothing there.
+    response.headers.setdefault(
+        "Strict-Transport-Security", "max-age=15768000"
+    )
+    return response
+
+
+@app.middleware("http")
+async def cache_control(request: Request, call_next):  # type: ignore[no-untyped-def]
+    """
+    Say something explicit about freshness, because the default is a guess.
+
+    Starlette's `StaticFiles` sends `ETag` and `Last-Modified` but no
+    `Cache-Control`. With no directive a browser applies *heuristic* freshness —
+    roughly a tenth of the document's age — and serves from cache without
+    revalidating. So after a redeploy a returning visitor could hold a stale
+    `app.js` while fetching the new `index.html`, and the page then crashed on
+    the mismatch. That is exactly what happened at 1.4.0.
+
+    `no-cache` does not mean "do not store"; it means "revalidate before use".
+    Paired with the ETag that already exists, an unchanged asset costs a 304 with
+    no body, so correctness here is close to free.
+
+    API responses are `no-store`: `/api/status` carries live counters, and a
+    cached copy of those is worse than no copy.
+    """
+    response = await call_next(request)
+    if request.url.path.startswith("/api/"):
+        response.headers.setdefault("Cache-Control", "no-store")
+    else:
+        response.headers.setdefault("Cache-Control", "no-cache")
     return response
 
 
@@ -134,9 +170,25 @@ app.mount("/engine", StaticFiles(directory=converter.engine_dir()), name="engine
 app.mount("/assets", StaticFiles(directory=STATIC_DIR / "assets"), name="assets")
 
 
+# Asset URLs carry the package version as a query string. `Cache-Control` above
+# stops a *future* redeploy from serving a stale script, but it cannot help a
+# browser that already holds one under the old no-directive heuristic: that copy
+# is reused until its guessed lifetime runs out. Changing the URL is what
+# evicts it now. The token is substituted at request time because the version
+# comes from the installed wheel and is not known when this file is written.
+ASSET_VERSION_PLACEHOLDER = "__ASSET_V__"
+
+
+@lru_cache(maxsize=8)
+def _page(name: str) -> str:
+    """A static page with its asset URLs stamped with the package version."""
+    html = (STATIC_DIR / name).read_text(encoding="utf-8")
+    return html.replace(ASSET_VERSION_PLACEHOLDER, converter.package_version())
+
+
 @app.get("/", include_in_schema=False)
-async def index() -> FileResponse:
-    return FileResponse(STATIC_DIR / "index.html")
+async def index() -> HTMLResponse:
+    return HTMLResponse(_page("index.html"))
 
 
 @app.get("/favicon.ico", include_in_schema=False)
@@ -145,9 +197,9 @@ async def favicon() -> FileResponse:
 
 
 @app.get("/status", include_in_schema=False)
-async def status_page() -> FileResponse:
+async def status_page() -> HTMLResponse:
     """Human-readable service status. `/api/status` is the same data as JSON."""
-    return FileResponse(STATIC_DIR / "status.html")
+    return HTMLResponse(_page("status.html"))
 
 
 # ──────────────────────────────────────────────────────────────────────────
@@ -160,7 +212,7 @@ async def health() -> dict:
     """Liveness plus the limits in force, so a client can adapt to them."""
     return {
         "status": "ok",
-        "package": "particle-wave-tool",
+        "package": converter.package_name(),
         "version": converter.package_version(),
         "extractors": converter.available_extractors(),
         "auth_required": settings.auth_required,

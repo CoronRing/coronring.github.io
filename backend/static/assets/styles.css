@@ -160,14 +160,154 @@ code {
   grid-template-columns: var(--rail-width) 1fr;
 }
 
+/*
+ * The rail is a fixed-height dock, not a scroll of everything at once. Only
+ * the panel body inside it scrolls, and the tabs are cut so that in practice
+ * it does not need to: the whole point is to be able to reach any parameter
+ * without losing sight of the render.
+ */
 .rail {
   border-right: 1px solid var(--line);
-  overflow-y: auto;
-  padding: 14px;
+  padding: 12px;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
+  min-height: 0;
   background: var(--bg);
+}
+
+.rail-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-right: 2px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--line) transparent;
+}
+
+.rail-body::-webkit-scrollbar {
+  width: 8px;
+}
+
+.rail-body::-webkit-scrollbar-thumb {
+  background: var(--line);
+  border-radius: 8px;
+}
+
+/* ── Source panel ────────────────────────────────────────────────── */
+
+.panel-source {
+  flex: none;
+  padding: 10px;
+}
+
+/* ── Python / Browser split ──────────────────────────────────────── */
+
+.modes {
+  flex: none;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  padding: 3px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--bg-inset);
+}
+
+.mode {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: 7px;
+  background: none;
+  color: var(--text-faint);
+  font: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+  transition:
+    background 0.15s,
+    color 0.15s;
+}
+
+.mode:hover {
+  color: var(--text);
+}
+
+.mode[aria-selected="true"] {
+  background: var(--bg-panel);
+  color: var(--text);
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.35);
+}
+
+.mode-note {
+  flex: none;
+  margin: -4px 2px 0;
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--text-faint);
+}
+
+/* ── Group tabs ──────────────────────────────────────────────────── */
+
+.tabs {
+  flex: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.tab {
+  padding: 4px 9px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: none;
+  color: var(--text-faint);
+  font: inherit;
+  font-size: 11.5px;
+  cursor: pointer;
+  transition:
+    background 0.15s,
+    color 0.15s,
+    border-color 0.15s;
+}
+
+.tab:hover {
+  color: var(--text);
+}
+
+.tab[aria-selected="true"] {
+  background: var(--accent-soft);
+  border-color: rgba(91, 140, 255, 0.32);
+  color: var(--accent);
+}
+
+/*
+ * One explanation line, fed by whatever control is under the pointer. Help
+ * text under every control is what made the rail a scroll in the first place.
+ */
+.hint-strip {
+  flex: none;
+  margin: 0;
+  padding: 9px 10px;
+  min-height: 52px;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius);
+  background: var(--bg-panel);
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--text-dim);
+}
+
+.hint-strip.is-idle {
+  color: var(--text-faint);
+  font-style: italic;
 }
 
 .panel {
@@ -222,7 +362,7 @@ code {
   border: 1.5px dashed var(--line);
   border-radius: var(--radius);
   background: var(--bg-inset);
-  min-height: 116px;
+  min-height: 88px;
   display: grid;
   place-items: center;
   cursor: pointer;
@@ -240,9 +380,9 @@ code {
 
 .dropzone-hint {
   display: grid;
-  gap: 4px;
+  gap: 3px;
   text-align: center;
-  padding: 16px;
+  padding: 12px;
   pointer-events: none;
 }
 
@@ -266,6 +406,26 @@ code {
   background: var(--bg-inset);
 }
 
+/*
+ * Once an image is chosen the dropzone collapses to a strip.
+ *
+ * A generous drop target is right while it is the thing being asked for, and
+ * wrong afterwards: every pixel it keeps comes off the controls below it, and
+ * the panel budget is what stops those from needing a scrollbar. The thumbnail
+ * stays big enough to confirm which image is loaded, which is all it is for
+ * once the stage is showing the render.
+ */
+.panel-source.has-file .dropzone {
+  min-height: 0;
+  place-items: stretch;
+}
+
+.panel-source.has-file .preview {
+  height: 54px;
+  max-height: 54px;
+  object-fit: cover;
+}
+
 .file-meta {
   margin: 8px 0 0;
   font-size: 11px;
@@ -284,8 +444,8 @@ code {
 
 .group {
   border-top: 1px solid var(--line-soft);
-  padding-top: 10px;
-  margin-top: 6px;
+  padding-top: 8px;
+  margin-top: 4px;
 }
 
 .group:first-child {
@@ -308,10 +468,37 @@ code {
   line-height: 1.4;
 }
 
+/*
+ * Tight on purpose. A tab has to fit without scrolling, and the difference
+ * between 5px and 3px of padding here is a whole extra control on the tabs
+ * that expand as options are switched on.
+ */
 .field {
   display: grid;
-  gap: 3px;
-  padding: 5px 0;
+  gap: 2px;
+  padding: 3px 0;
+}
+
+/*
+ * The always-visible half of a description. Clamped to one line: a short form
+ * that wrapped would cost the height the tab layout is budgeted against, and
+ * anything that does not fit belongs in the long tier anyway.
+ */
+.field-short {
+  margin: 0;
+  font-size: 10.5px;
+  line-height: 1.35;
+  color: var(--text-faint);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.group-short {
+  margin-left: 6px;
+  font-weight: 400;
+  font-size: 10.5px;
+  color: var(--text-faint);
 }
 
 .field-head {
@@ -343,7 +530,7 @@ code {
 input[type="range"] {
   width: 100%;
   accent-color: var(--accent);
-  height: 18px;
+  height: 16px;
   cursor: pointer;
 }
 
@@ -622,4 +809,267 @@ input[type="color"] {
   .stage-canvas-wrap {
     min-height: 58vh;
   }
+}
+
+/* ── Presets ─────────────────────────────────────────────────────── */
+
+/*
+ * A preset sets both halves at once — extraction *and* render — because the
+ * two are not independent: tracing a photograph and tracing a line drawing
+ * want different importance maps as much as they want different particles.
+ */
+.presets {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 7px;
+}
+
+.preset {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 9px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--bg-panel);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color 0.15s,
+    background 0.15s;
+}
+
+.preset:hover {
+  border-color: var(--accent);
+}
+
+.preset[aria-pressed="true"] {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.preset b {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.preset span {
+  font-size: 10.5px;
+  line-height: 1.4;
+  color: var(--text-faint);
+}
+
+/* ── Corner gradient editor ──────────────────────────────────────── */
+
+/*
+ * Five wells sitting on a live preview of the blend they produce, painted
+ * with the same maths the renderer uses. A row of swatches would not show
+ * what the corners do to each other, which is the only interesting part.
+ */
+.grad {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.grad-stage {
+  position: relative;
+  /* A fixed height, not an aspect ratio: the preview is a legend for the five
+     wells, and letting it grow with the rail width spends height that the
+     controls under it are budgeted against. */
+  height: 68px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.grad-stage canvas {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.grad-stage input[type="color"] {
+  position: absolute;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 1.5px solid rgba(255, 255, 255, 0.85);
+  border-radius: 999px;
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.6);
+  cursor: pointer;
+}
+
+.grad-stage input[type="color"]::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+
+.grad-stage input[type="color"]::-webkit-color-swatch {
+  border: 0;
+  border-radius: 999px;
+}
+
+.grad-stage input[type="color"]::-moz-color-swatch {
+  border: 0;
+  border-radius: 999px;
+}
+
+.grad-tl {
+  top: 7px;
+  left: 7px;
+}
+
+.grad-tr {
+  top: 7px;
+  right: 7px;
+}
+
+.grad-bl {
+  bottom: 7px;
+  left: 7px;
+}
+
+.grad-br {
+  bottom: 7px;
+  right: 7px;
+}
+
+.grad-c {
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+
+/* ── Stale-extraction marker ─────────────────────────────────────── */
+
+.tag-quiet {
+  color: var(--text-faint);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.tag-live {
+  color: var(--py);
+  background: rgba(111, 208, 140, 0.12);
+}
+
+.cloud-tags {
+  display: inline-flex;
+  gap: 5px;
+  align-items: center;
+}
+
+/* ── Compare wipe ────────────────────────────────────────────────── */
+
+.compare-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  pointer-events: none;
+}
+
+.compare-layer img {
+  position: absolute;
+  display: block;
+  object-fit: fill;
+}
+
+.compare-handle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 0;
+  z-index: 5;
+  border-left: 1px solid rgba(255, 255, 255, 0.75);
+  box-shadow: 0 0 12px rgba(0, 0, 0, 0.6);
+  pointer-events: none;
+}
+
+.grip {
+  position: absolute;
+  bottom: 14px;
+  left: 0;
+  width: 34px;
+  height: 34px;
+  margin-left: -17px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  border-radius: 999px;
+  background: rgba(11, 13, 18, 0.85);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+  color: var(--text);
+  font-size: 11px;
+  letter-spacing: -1px;
+  cursor: ew-resize;
+  pointer-events: auto;
+  touch-action: none;
+}
+
+/* Along the bottom: the top corners of the stage are busy already. */
+.compare-tag {
+  position: absolute;
+  bottom: 20px;
+  z-index: 5;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.55);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 9.5px;
+  letter-spacing: 0.1em;
+  color: rgba(255, 255, 255, 0.72);
+  pointer-events: none;
+}
+
+.compare-tag-left {
+  left: 12px;
+}
+
+.compare-tag-right {
+  right: 12px;
+}
+
+.wipe-bar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 16px;
+  border-top: 1px solid var(--line);
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+.wipe-bar[data-on="false"] #compare-range,
+.wipe-bar[data-on="false"] .wipe-readout {
+  opacity: 0.35;
+}
+
+.wipe-bar input[type="range"] {
+  flex: 1;
+  max-width: 320px;
+}
+
+.wipe-readout {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--accent);
+}
+
+.check {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.check:has(input:disabled) {
+  cursor: not-allowed;
+  color: var(--text-faint);
 }

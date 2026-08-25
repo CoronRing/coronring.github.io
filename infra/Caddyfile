@@ -41,6 +41,12 @@
 		max_size 10MB
 	}
 
+	# uvicorn names itself and its version in every response. That tells a
+	# scanner which CVE list to try and tells a visitor nothing, so it goes.
+	header {
+		-Server
+	}
+
 	log {
 		output stdout
 		format console
