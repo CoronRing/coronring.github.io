@@ -200,15 +200,15 @@ export default function ChunkVisualizer(): React.ReactElement {
             ))}
           </div>
 
-          <div className="flex flex-wrap items-center gap-1 font-mono text-[10.5px] text-[var(--c-text-faint)]">
+          <div className="flex flex-wrap items-center gap-1.5 font-mono text-[10.5px] text-[var(--c-text-faint)]">
             <span>Legend:</span>
-            <span className="inline-flex items-center gap-1 rounded bg-[color-mix(in_srgb,var(--c-accent)_25%,transparent)] px-1.5 py-0.2 text-[var(--c-text)]">
+            <span className="inline-flex items-center gap-1 rounded bg-[color-mix(in_srgb,var(--c-accent)_25%,transparent)] px-1.5 py-0.5 text-[var(--c-text)]">
               ■ Chunk
             </span>
-            <span className="inline-flex items-center gap-1 rounded bg-[color-mix(in_srgb,var(--c-accent)_65%,transparent)] px-1.5 py-0.2 text-[var(--c-text)]">
+            <span className="inline-flex items-center gap-1 rounded bg-[color-mix(in_srgb,var(--c-accent)_65%,transparent)] px-1.5 py-0.5 text-[var(--c-text)]">
               ■ Overlap
             </span>
-            <span className="inline-flex items-center gap-1 rounded bg-yellow-500/20 px-1.5 py-0.2 text-yellow-400">
+            <span className="inline-flex items-center gap-1 rounded border border-[var(--c-warn)] bg-[color-mix(in_srgb,var(--c-warn)_15%,transparent)] px-1.5 py-0.5 font-semibold text-[var(--c-warn)]">
               ⚠️ Cut
             </span>
           </div>
@@ -227,9 +227,9 @@ export default function ChunkVisualizer(): React.ReactElement {
                 onClick={() => setFocus(focus === c.index ? null : c.index)}
                 className={`rounded px-1.5 py-0.5 font-mono text-[10.5px] transition-colors ${
                   focus === c.index
-                    ? 'bg-[var(--c-accent)] font-bold text-black'
+                    ? 'bg-[var(--c-accent-fill)] font-bold text-[var(--c-accent-on-fill)] shadow-xs ring-1 ring-[var(--c-accent)]'
                     : c.cutsSentence
-                      ? 'border border-yellow-500/40 bg-yellow-500/10 text-yellow-400 hover:bg-yellow-500/20'
+                      ? 'border border-[var(--c-warn)] bg-[color-mix(in_srgb,var(--c-warn)_15%,transparent)] font-bold text-[var(--c-warn)] hover:bg-[color-mix(in_srgb,var(--c-warn)_25%,transparent)]'
                       : 'border border-[var(--c-line)] bg-[var(--c-card)] text-[var(--c-text-muted)] hover:border-[var(--c-accent)] hover:text-[var(--c-text)]'
                 }`}
                 title={`Chunk #${c.index + 1} (${c.end - c.start}c, ${c.tokens} tok)`}
@@ -307,14 +307,14 @@ export default function ChunkVisualizer(): React.ReactElement {
           <div className="border-t border-[var(--c-line)] bg-[var(--c-sunken)] p-3.5">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="flex flex-wrap items-center gap-2.5 font-mono text-[11.5px]">
-                <span className="rounded bg-[var(--c-accent)] px-1.5 py-0.5 font-bold text-black">
+                <span className="rounded bg-[var(--c-accent-fill)] px-2 py-0.5 font-bold text-[var(--c-accent-on-fill)] shadow-xs">
                   CHUNK #{focusedChunk.index + 1}
                 </span>
                 <span className="text-[var(--c-text)] font-semibold">
                   {focusedChunk.end - focusedChunk.start} chars
                 </span>
                 <span className="text-[var(--c-text-faint)]">·</span>
-                <span className="text-[var(--c-accent)]">{focusedChunk.tokens} tokens</span>
+                <span className="font-semibold text-[var(--c-accent)]">{focusedChunk.tokens} tokens</span>
                 <span className="text-[var(--c-text-faint)]">·</span>
                 <span className="text-[var(--c-text-muted)]">
                   range [{focusedChunk.start}..{focusedChunk.end}]
@@ -322,11 +322,11 @@ export default function ChunkVisualizer(): React.ReactElement {
                 {focusedChunk.overlapBefore > 0 && (
                   <>
                     <span className="text-[var(--c-text-faint)]">·</span>
-                    <span className="text-emerald-400">+{focusedChunk.overlapBefore}c overlap</span>
+                    <span className="font-semibold text-[var(--c-ok)]">+{focusedChunk.overlapBefore}c overlap</span>
                   </>
                 )}
                 {focusedChunk.cutsSentence && (
-                  <span className="rounded border border-yellow-500/50 bg-yellow-500/10 px-1.5 py-0.5 text-[10.5px] text-yellow-400">
+                  <span className="rounded border border-[var(--c-warn)] bg-[color-mix(in_srgb,var(--c-warn)_15%,transparent)] px-1.5 py-0.5 font-semibold text-[10.5px] text-[var(--c-warn)]">
                     Severed mid-sentence
                   </span>
                 )}
@@ -480,7 +480,7 @@ export default function ChunkVisualizer(): React.ReactElement {
                 key={st.label}
                 className={`rounded border p-2.5 ${
                   st.tone === 'warn'
-                    ? 'border-yellow-500/40 bg-yellow-500/5'
+                    ? 'border-[var(--c-warn)] bg-[color-mix(in_srgb,var(--c-warn)_8%,transparent)]'
                     : 'border-[var(--c-line)] bg-[var(--c-card)]'
                 }`}
               >
@@ -492,7 +492,7 @@ export default function ChunkVisualizer(): React.ReactElement {
                     st.tone === 'accent'
                       ? 'text-[var(--c-accent)]'
                       : st.tone === 'warn'
-                        ? 'text-yellow-400'
+                        ? 'text-[var(--c-warn)]'
                         : 'text-[var(--c-text)]'
                   }`}
                 >
@@ -646,7 +646,7 @@ function InteractiveInspectorDisplay({
                 }}
                 className={`inline-flex items-center rounded px-1 py-0.2 mr-1 align-baseline font-mono text-[9px] font-bold tracking-tight cursor-pointer transition-transform hover:scale-105 select-none ${
                   focus === primaryChunkIdx
-                    ? 'bg-[var(--c-accent)] text-black ring-1 ring-white'
+                    ? 'bg-[var(--c-accent-fill)] text-[var(--c-accent-on-fill)] ring-1 ring-[var(--c-line)] shadow-xs'
                     : 'bg-[var(--c-line)] text-[var(--c-text-muted)] hover:bg-[var(--c-accent-soft)] hover:text-[var(--c-accent)]'
                 }`}
                 title={`Click to focus Chunk #${primaryChunkIdx + 1}`}
