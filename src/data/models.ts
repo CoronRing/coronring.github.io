@@ -36,7 +36,7 @@ export const MODELS: readonly ModelInfo[] = [
     name: 'Claude Fable 5',
     context: 1_000_000,
     price: { input: 10, output: 50 },
-    note: 'Most capable — demanding reasoning and long-horizon agentic work.',
+    note: 'Most capable. Built for demanding reasoning and long-horizon agentic work.',
   },
   {
     id: 'claude-opus-5',

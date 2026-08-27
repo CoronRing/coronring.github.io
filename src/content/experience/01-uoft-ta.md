@@ -1,6 +1,6 @@
 ---
 organization: University of Toronto
-role: Teaching Assistant — CSC301
+role: Teaching Assistant, CSC301
 start: 2026-01-01
 kind: work
 location: Toronto, CA

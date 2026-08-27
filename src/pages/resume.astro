@@ -39,7 +39,7 @@ const grouped = SECTIONS.map((section) => ({
 
 function period(entry: Entry): string {
   const start = monthYear(entry.data.start);
-  return `${start} — ${entry.data.end ? monthYear(entry.data.end) : 'Present'}`;
+  return `${start} – ${entry.data.end ? monthYear(entry.data.end) : 'Present'}`;
 }
 ---
 

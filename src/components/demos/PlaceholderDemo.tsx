@@ -17,7 +17,7 @@ export default function PlaceholderDemo({ title }: DemoProps): React.ReactElemen
 
       <p className="max-w-md text-sm leading-relaxed text-[var(--c-text-muted)]">
         This is the mount point for <span className="text-[var(--c-text)]">{title}</span>. The
-        island is hydrated and interactive — the real demo drops in here.
+        island is hydrated and interactive; the real demo drops in here.
       </p>
 
       <button

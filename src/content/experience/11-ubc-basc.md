@@ -1,6 +1,6 @@
 ---
 organization: University of British Columbia
-role: BASc Computer Engineering — top 1%
+role: BASc Computer Engineering, top 1% of the class
 start: 2019-09-01
 end: 2025-04-01
 kind: education

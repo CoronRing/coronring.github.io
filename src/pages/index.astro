@@ -54,14 +54,14 @@ const PILLARS: CarouselItem[] = [
     id: 'agents',
     index: '01',
     title: 'Agent systems',
-    body: 'Multi-step agents that plan, call tools and recover from their own failures — with the orchestration and evaluation scaffolding that makes them survive production. Shipped a DevOps agent preferred over GitHub Copilot 90% of the time.',
+    body: 'Multi-step agents that plan, call tools, and recover from their own failures, with the orchestration and evaluation scaffolding it takes to keep them running in production. Shipped a DevOps agent that users preferred to GitHub Copilot 90% of the time.',
     tags: ['Tool use', 'Orchestration', 'Evals'],
   },
   {
     id: 'evaluation',
     index: '02',
     title: 'Evaluation',
-    body: 'If it cannot be measured it cannot be shipped. Built AEval — accuracy, hallucination, security and fairness metrics for AI expert systems — now embedded in hundreds of deployed products.',
+    body: 'If it cannot be measured, it should not ship. I built AEval, which scores AI expert systems on accuracy, hallucination, security and fairness. It now runs inside hundreds of deployed products.',
     tags: ['Benchmarks', 'Hallucination', 'Safety'],
   },
   {
@@ -103,8 +103,8 @@ const PILLARS: CarouselItem[] = [
 
         <Reveal delay={340}>
           <p class="text-muted prose-measure mt-7 text-lg leading-relaxed">
-            I build the layer where language models stop being a demo and start being infrastructure
-            — agents, the evaluation that keeps them honest, and the tooling around both.
+            I build agent systems that hold up outside a demo, plus the evaluation and tooling it
+            takes to get them there.
           </p>
         </Reveal>
 
@@ -168,7 +168,7 @@ const PILLARS: CarouselItem[] = [
           eyebrow="Selected work"
           title="Things you can look at"
           headingId="work-h"
-          lede="Systems built end to end — research through deployment."
+          lede="Systems built end to end, from research through deployment."
           moreHref="/projects"
           moreLabel="All projects"
         />
@@ -216,7 +216,7 @@ const PILLARS: CarouselItem[] = [
               work.map((entry) => (
                 <li class="py-4">
                   <p class="text-faint tabular font-mono text-[11px]">
-                    {monthYear(entry.data.start)} —{' '}
+                    {monthYear(entry.data.start)} –{' '}
                     {entry.data.end ? monthYear(entry.data.end) : 'Present'}
                   </p>
                   <p class="mt-1.5 text-sm">{entry.data.role}</p>
@@ -245,7 +245,7 @@ const PILLARS: CarouselItem[] = [
               eyebrow="Resources"
               title="Notes and references"
               headingId="resources-h"
-              lede="A working bibliography, plus notes written because the reference I wanted did not exist."
+              lede="Things I keep coming back to, plus notes I wrote because the reference I wanted did not exist."
               moreHref="/resources"
               moreLabel="All resources"
             />
@@ -296,7 +296,7 @@ const PILLARS: CarouselItem[] = [
           eyebrow="Tools"
           title="Runs in your browser"
           headingId="tools-h"
-          lede="Nothing you paste leaves the page — no server, no logging, no network call."
+          lede="Nine instruments for language-model work. The work happens in the tab, and the few tools that have to reach the network say on their own page exactly what they touch."
           moreHref="/tools"
           moreLabel="All tools"
         />

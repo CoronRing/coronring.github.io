@@ -36,7 +36,7 @@ const onHome = path === '/' || path === '';
 <div
   class="bg-ground/85 border-line fixed inset-x-0 top-0 z-50 flex h-14 items-center justify-between border-b px-4 backdrop-blur-xl lg:hidden"
 >
-  <a href={href('/')} class="flex items-center gap-2.5" aria-label={`${SITE.name} — home`}>
+  <a href={href('/')} class="flex items-center gap-2.5" aria-label={`${SITE.name}, home`}>
     <Mark size={24} class="text-accent" />
     <span class="text-[13px] font-semibold tracking-tight">{SITE.handle}</span>
   </a>
@@ -71,7 +71,7 @@ const onHome = path === '/' || path === '';
   <a
     href={href('/')}
     class="group border-line flex h-16 shrink-0 items-center gap-3 border-b px-[1.0625rem]"
-    aria-label={`${SITE.name} — home`}
+    aria-label={`${SITE.name}, home`}
   >
     <Mark
       size={30}

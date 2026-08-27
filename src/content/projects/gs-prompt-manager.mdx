@@ -1,17 +1,17 @@
 ---
 title: gs_prompt_manager
-summary: A Python package for managing prompt templates — auto-discovery, variable and macro substitution, and validation. Published on PyPI.
+summary: A Python package for managing prompt templates, with auto-discovery, variable and macro substitution, and validation. Published on PyPI.
 order: 20
 status: live
 interactive: false
 featured: true
 role: Author and maintainer
-period: 2025 — present
+period: 2025 – present
 tech: ['Python', 'PyPI', 'Apache-2.0']
 highlights:
   - 'Auto-discovers and loads prompt classes from a directory, grouping related variants (system / chat / pre / post) under one named group.'
   - 'Template substitution for both `{variable}` and `<<MACRO>>` forms, with built-in validation of variables, metadata and required fields.'
-  - 'Attribute access — `manager.Assistant` returns the group directly, with no lookup boilerplate.'
+  - 'Attribute access means `manager.Assistant` returns the group directly, with no lookup boilerplate.'
 links:
   - label: PyPI
     href: https://pypi.org/project/gs-prompt-manager/
@@ -20,7 +20,7 @@ links:
   - label: Documentation
     href: https://gs-prompt-manager.readthedocs.io/en/latest/
 hero:
-  label: gs_prompt_manager — usage
+  label: gs_prompt_manager in use
   alt: Terminal showing gs_prompt_manager discovering and rendering prompts
   ratio: '16/9'
   caption: Auto-discovery loading a prompt directory.
@@ -42,8 +42,8 @@ nobody wants to touch it. Neither survives a team.
 ## The approach
 
 Prompts are classes. Subclass `PromptBase`, return the template from
-`set_prompt`, and the manager discovers it — no registry to maintain and no
-import list to keep in sync. Related variants group automatically, and
+`set_prompt`, and the manager discovers it. There is no registry to maintain and
+no import list to keep in sync. Related variants group automatically, and
 validation runs at load rather than at call time, so a missing variable is a
 startup error rather than a production one.
 
