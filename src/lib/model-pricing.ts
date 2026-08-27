@@ -294,9 +294,9 @@ export function filterModels(
   });
 }
 
-/** Compact context-window label: `200K`, `1M`, `—` when unpublished. */
+/** Compact context-window label: `200K`, `1M`, `–` when unpublished. */
 export function formatContext(tokens: number | undefined): string {
-  if (!tokens) return '—';
+  if (!tokens) return '–';
   if (tokens >= 1_000_000) {
     // 1,048,576 is 1M as far as anyone budgeting is concerned — round, then
     // drop a trailing ".0" so it does not read as suspicious precision.
@@ -308,7 +308,7 @@ export function formatContext(tokens: number | undefined): string {
 
 /** Price per million, at a precision that keeps sub-cent rates visible. */
 export function formatRate(usdPerMillion: number): string {
-  if (usdPerMillion === 0) return '—';
+  if (usdPerMillion === 0) return '–';
   if (usdPerMillion < 0.01) return `$${usdPerMillion.toFixed(4)}`;
   if (usdPerMillion < 1) return `$${usdPerMillion.toFixed(3)}`;
   return `$${usdPerMillion.toFixed(2)}`;

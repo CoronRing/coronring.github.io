@@ -35,9 +35,9 @@ import {
   OutputBox,
   Panel,
   PasteButton,
-  Segmented,
   Select,
   StatRow,
+  Tabs,
   TextArea,
   Toggle,
   Toolbar,
@@ -117,25 +117,28 @@ export default function StringKit(): React.ReactElement {
   const stats = useMemo(() => textStats(deferred), [deferred]);
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
+      <Tabs
+        active={mode}
+        onChange={setMode}
+        tabs={[
+          { id: 'markdown', label: 'HTML to Markdown' },
+          { id: 'transform', label: 'Transforms' },
+        ]}
+      />
+
       <Panel
         title="Input"
+        cornerTicks
         aside={
-          <div className="flex flex-wrap items-center gap-2">
-            <Segmented
-              label="Mode"
-              value={mode}
-              onChange={setMode}
-              options={[
-                { value: 'markdown', label: 'HTML to Markdown' },
-                { value: 'transform', label: 'Transforms' },
-              ]}
-            />
+          <div className="flex flex-wrap items-center gap-1.5">
             <PasteButton onPaste={setInput} />
             {mode === 'markdown' && (
-              <Button onClick={() => setInput(SAMPLE_HTML)}>Load example</Button>
+              <Button variant="quiet" onClick={() => setInput(SAMPLE_HTML)}>
+                Load example
+              </Button>
             )}
-            <Button onClick={() => setInput('')} disabled={input === ''}>
+            <Button variant="quiet" onClick={() => setInput('')} disabled={input === ''}>
               Clear
             </Button>
           </div>
@@ -145,10 +148,10 @@ export default function StringKit(): React.ReactElement {
           id="string-kit-input"
           value={input}
           onChange={setInput}
-          rows={mode === 'markdown' ? 12 : 8}
+          rows={mode === 'markdown' ? 10 : 7}
           placeholder={
             mode === 'markdown'
-              ? 'Paste raw HTML, or drop an .html file. View source on the page you want and paste the whole thing: the chrome gets stripped.'
+              ? 'Paste raw HTML, or drop an .html file. The page chrome and noise are stripped automatically.'
               : 'Paste or drop any text.'
           }
         />

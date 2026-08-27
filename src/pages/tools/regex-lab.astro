@@ -10,73 +10,74 @@ import RegexLab from '../../components/tools/RegexLab';
   <RegexLab client:load />
 
   <Fragment slot="about">
-    <h2>The problem</h2>
-    <p>
-      A regex tester answers &ldquo;does this pattern match&rdquo;. That is usually not the
-      question. The question is more often &ldquo;show me the lines with X but not Y&rdquo;, which
-      is expressible as one regex only through a negative lookahead, and the result is write-only:
-      nobody reads <code>^(?!.*health).*GET.*$</code> back a week later and knows what it was for.
-    </p>
-    <p>
-      There is a second problem that most testers ignore. JavaScript&rsquo;s regex engine
-      backtracks, so a pattern like <code>(a+)+b</code> against a long run of <code>a</code> takes exponential
-      time, and there is no timeout to set. A locked-up tab is the worst failure this kind of page can
-      have, because the pasted input goes with it.
-    </p>
+    <div class="grid gap-6 md:grid-cols-3">
+      <div class="hud-card p-5">
+        <h3 class="eyebrow text-accent mb-2">01 · Four Analysis Modes</h3>
+        <p class="text-muted text-sm leading-relaxed">
+          Unified workbench covering in-place syntax matches with capture groups, live replacement
+          counters, dual-list line filtering (<code>grep -v</code>), and tokenized explanation
+          trees.
+        </p>
+        <div class="text-faint mt-3 font-mono text-[11px]">
+          Precision: Uses ECMAScript <code>d</code> flag indices.
+        </div>
+      </div>
 
-    <h2>The approach</h2>
-    <p>
-      Four modes over one input. Match highlights hits in place with a capture table. Replace
-      previews the substitution <em>and counts it</em>, which the native
-      <code>String.replace</code> will not tell you, so the count is done through the callback form. Filter
-      is <code>grep</code> with two lists, one that every line must match and one that no line may. Explain
-      annotates the pattern piece by piece, which is what you want when you have inherited one.
-    </p>
-    <p>
-      The hang is handled honestly. Three defences, in order of how much they buy: a match count and
-      an input cap, which bound the linear cost; a deadline checked between matches, which catches a
-      pattern that is slow across many matches; and a static warning on nested unbounded
-      quantifiers, which is the only one that helps in the case that actually matters. The first two
-      cannot save a tab from a single catastrophic match, because once the engine is inside one,
-      nothing in the page runs. So a pattern shaped that way is held, the reason is stated, and
-      running it is a deliberate click.
-    </p>
-    <p>
-      Two smaller things that go wrong in every hand-written match loop are handled here. A
-      zero-length match leaves <code>lastIndex</code> where it was, so a pattern as innocent as
-      <code>\b</code> loops forever without an explicit step forward, and the step is by code point so
-      it cannot split a surrogate pair. And the <code>d</code> flag is always set, which is what makes
-      per-group highlighting exact rather than approximate.
-    </p>
+      <div class="hud-card p-5">
+        <h3 class="eyebrow text-accent mb-2">02 · Catastrophic Backtracking Guard</h3>
+        <p class="text-muted text-sm leading-relaxed">
+          Detects dangerous nested unbounded quantifiers (e.g. <code>(a+)+b</code>) statically
+          before execution, holding dangerous patterns behind an explicit run confirmation.
+        </p>
+        <div class="text-faint mt-3 font-mono text-[11px]">
+          Protection: Prevents tab lockup and lost drafts.
+        </div>
+      </div>
 
-    <h2>Where it stops being trustworthy</h2>
-    <ul>
-      <li>
-        <strong>This is JavaScript&rsquo;s engine, not Python&rsquo;s or PCRE.</strong> Atomic groups,
-        possessive quantifiers, recursion and <code>\K</code> do not exist here. A pattern that works
-        here works in a browser and in Node, and may need translating for
-        <code>re</code> or <code>grep -P</code>.
-      </li>
-      <li>
-        <strong>The risk check is a heuristic, kept deliberately narrow.</strong> It looks for a quantified
-        group whose body ends in a quantifier, and for a repeated alternation with overlapping branches.
-        A pattern that hangs some other way will not be flagged, and a warning that fired on ordinary
-        regexes would be ignored, which protects nobody.
-      </li>
-      <li>
-        <strong>Input and match counts are capped</strong> at 400,000 characters and 5,000 matches, with
-        a 1.5 second budget. Past any of them the result is truncated and labelled, and the statistics
-        describe what was collected rather than the whole input.
-      </li>
-      <li>
-        <strong>The starting patterns are pragmatic, not canonical.</strong> Each says where it is wrong.
-        The email pattern rejects quoted local parts, which are legal. The timestamp pattern matches 2026-02-31,
-        because calendar validity is not something a regex should be asked to know.
-      </li>
-      <li>
-        <strong>Explain is a scanner, not a parser.</strong> It labels each piece and cannot report nesting
-        depth or tell you which group number a bracket opened.
-      </li>
-    </ul>
+      <div class="hud-card p-5">
+        <h3 class="eyebrow text-accent mb-2">03 · Zero-Length Edge Cases</h3>
+        <p class="text-muted text-sm leading-relaxed">
+          Correctly steps forward on zero-length matches (like <code>\b</code>) using Unicode
+          code-point increments to prevent infinite loops and surrogate pair splits.
+        </p>
+        <div class="text-faint mt-3 font-mono text-[11px]">
+          Robustness: Automatic 1.5-second execution deadline.
+        </div>
+      </div>
+    </div>
+
+    <div class="hud-card border-warn mt-6 border-l-2 p-5">
+      <h3 class="eyebrow text-warn mb-3">Operational Limits & Assumptions</h3>
+      <ul class="text-muted grid gap-3 text-xs leading-relaxed sm:grid-cols-2">
+        <li class="flex gap-2">
+          <span class="text-accent font-mono font-bold">·</span>
+          <span
+            ><strong>JavaScript Regex Dialect:</strong> Uses browser V8 RegExp semantics; PCRE features
+            like possessive quantifiers or <code>\K</code> are not supported.</span
+          >
+        </li>
+        <li class="flex gap-2">
+          <span class="text-accent font-mono font-bold">·</span>
+          <span
+            ><strong>Safety Budgets:</strong> Processing is bounded at 400,000 characters and 5,000 matches
+            with execution timeout enforcement.</span
+          >
+        </li>
+        <li class="flex gap-2">
+          <span class="text-accent font-mono font-bold">·</span>
+          <span
+            ><strong>Heuristic Warnings:</strong> ReDoD static checks target the most common polynomial/exponential
+            structures; subtle backtracking patterns may bypass detection.</span
+          >
+        </li>
+        <li class="flex gap-2">
+          <span class="text-accent font-mono font-bold">·</span>
+          <span
+            ><strong>Explain Limitations:</strong> Explanation view is a linear token scanner rather than
+            a full AST compiler.</span
+          >
+        </li>
+      </ul>
+    </div>
   </Fragment>
 </ToolLayout>

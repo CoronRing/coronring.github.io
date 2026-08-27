@@ -10,73 +10,73 @@ import StringKit from '../../components/tools/StringKit';
   <StringKit client:load />
 
   <Fragment slot="about">
-    <h2>The problem</h2>
-    <p>
-      Converting a web page to Markdown sounds like a formatting job and is really a judgement call.
-      Raw HTML off a real site is mostly not the article: it is navigation, a cookie banner, a share
-      bar, a newsletter box, a related-posts grid, and four scripts. A faithful converter renders
-      all of it faithfully, and the result is unusable.
-    </p>
-    <p>
-      The transforms below have a different problem. Each is a few lines and each has a version that
-      looks right and is quietly wrong. <code>btoa(text)</code> throws on the first accented character.
-      A camelCase splitter turns <code>parseHTTPResponse</code> into six words. A base64 decoder that
-      does not accept the URL-safe alphabet fails on every JWT. These are the bugs that reach production,
-      because the happy path is the one anybody tests.
-    </p>
+    <div class="grid gap-6 md:grid-cols-3">
+      <div class="hud-card p-5">
+        <h3 class="eyebrow text-accent mb-2">01 · DOM-Based HTML Extraction</h3>
+        <p class="text-muted text-sm leading-relaxed">
+          Uses native browser <code>DOMParser</code> to build inert trees safely without executing scripts.
+          Accurately converts malformed markup, entities, and complex tables.
+        </p>
+        <div class="text-faint mt-3 font-mono text-[11px]">
+          Filtering: Strips navbars, cookie banners, and script tags automatically.
+        </div>
+      </div>
 
-    <h2>The approach</h2>
-    <p>
-      The converter works against the DOM rather than against a regular expression. The browser
-      already has a spec-compliant HTML parser, and it is the same one that decides what the markup
-      means: malformed tables, unclosed paragraphs, implied <code>tbody</code> and the full entity table
-      all come out right for free. <code>DOMParser</code> builds an inert tree where scripts do not run,
-      which is what makes it safe to point at a stranger&rsquo;s HTML.
-    </p>
-    <p>
-      Most of the work is deciding what to keep. Semantic tags are trusted first, because a page
-      that says <code>&lt;article&gt;</code> has already answered the question. Failing that, a density
-      score in the spirit of Readability: text outside links counts, link text does not, and a container
-      that is more than half links is a menu no matter how much text it holds. Commas are the cheap prose
-      signal, and they hold up, because a card grid has almost none and a written paragraph has many.
-    </p>
-    <p>
-      Everything discarded is listed under the output. A converter that silently drops half a page
-      is worse than one that keeps too much, because you cannot tell which happened.
-    </p>
-    <p>
-      For the transforms, each entry says where it breaks in the panel above the result. The
-      round-trip check is the other half of that: where a transform has an exact inverse, the tool
-      runs it and reports whether the result comes back byte-identical, on your input rather than on
-      a test vector.
-    </p>
+      <div class="hud-card p-5">
+        <h3 class="eyebrow text-accent mb-2">02 · Edge-Case Resilient Transforms</h3>
+        <p class="text-muted text-sm leading-relaxed">
+          Transforms handle unicode Base64 (UTF-8 safe), URL-safe Base64 without padding, camelCase
+          acronym boundaries (<code>parseHTTPResponse</code>), and JSON escaping.
+        </p>
+        <div class="text-faint mt-3 font-mono text-[11px]">
+          Integrity: Automated round-trip reversibility check on all invertible transforms.
+        </div>
+      </div>
 
-    <h2>Where it stops being trustworthy</h2>
-    <ul>
-      <li>
-        <strong>Content extraction is a heuristic.</strong> It gets a normal article right and can pick
-        the wrong container on a page that is genuinely a link list, or on a layout that wraps the article
-        in something the class-name check reads as chrome. Turn it off to convert everything and compare.
-      </li>
-      <li>
-        <strong>Some HTML has no Markdown.</strong> A table with merged cells cannot be a pipe table,
-        so it degrades to a labelled list with a comment saying why. Superscripts, subscripts and collapsible
-        sections are left as HTML, because flattening them changes what they mean.
-      </li>
-      <li>
-        <strong>JavaScript-rendered pages give you the shell.</strong> This parses the HTML you paste.
-        If the article is assembled by a framework after load, view-source has none of it, and you want
-        the rendered DOM from your browser&rsquo;s inspector instead.
-      </li>
-      <li>
-        <strong>Sentence splitting cannot see abbreviations.</strong> &ldquo;Dr.&rdquo; and &ldquo;e.g.&rdquo;
-        start a new sentence as far as a regex is concerned. Noted on the transform rather than worked
-        around, because the fix is a model and this is a text box.
-      </li>
-      <li>
-        <strong>Slugs drop what has no ASCII form.</strong> Decomposition turns café into cafe; Chinese,
-        Arabic and Cyrillic have no such fallback and disappear. The character count shows it happening.
-      </li>
-    </ul>
+      <div class="hud-card p-5">
+        <h3 class="eyebrow text-accent mb-2">03 · Transparent Output Logs</h3>
+        <p class="text-muted text-sm leading-relaxed">
+          Reports every discarded tag, stripped container, and table degradation so you know exactly
+          what was modified or retained.
+        </p>
+        <div class="text-faint mt-3 font-mono text-[11px]">
+          Granularity: Character, byte, word, and distinct count stats.
+        </div>
+      </div>
+    </div>
+
+    <div class="hud-card border-warn mt-6 border-l-2 p-5">
+      <h3 class="eyebrow text-warn mb-3">Operational Limits & Assumptions</h3>
+      <ul class="text-muted grid gap-3 text-xs leading-relaxed sm:grid-cols-2">
+        <li class="flex gap-2">
+          <span class="text-accent font-mono font-bold">·</span>
+          <span
+            ><strong>Client-Rendered SPAs:</strong> Parses static source HTML; for JavaScript-rendered
+            SPAs, paste the outer HTML directly from DevTools inspector.</span
+          >
+        </li>
+        <li class="flex gap-2">
+          <span class="text-accent font-mono font-bold">·</span>
+          <span
+            ><strong>Merged Table Cells:</strong> Tables with colspans/rowspans convert into annotated
+            description lists to avoid broken Markdown pipe formatting.</span
+          >
+        </li>
+        <li class="flex gap-2">
+          <span class="text-accent font-mono font-bold">·</span>
+          <span
+            ><strong>ASCII Slug Decomposition:</strong> Unicode diacritics are normalized; non-Latin alphabets
+            without ASCII equivalents are stripped.</span
+          >
+        </li>
+        <li class="flex gap-2">
+          <span class="text-accent font-mono font-bold">·</span>
+          <span
+            ><strong>Abbreviation Sentence Splits:</strong> Regex-based sentence splitters may divide
+            text on periods in uncommon abbreviations.</span
+          >
+        </li>
+      </ul>
+    </div>
   </Fragment>
 </ToolLayout>

@@ -36,7 +36,7 @@ const hasAbout = Astro.slots.has('about');
 
 /** Shared prose treatment, kept identical to the project detail page. */
 const PROSE =
-  '[&_a]:text-accent [&_code]:bg-sunken [&_h2]:display [&_pre]:border-line max-w-[var(--prose-max)] text-[15px] leading-[1.75] [&_a]:underline [&_a]:underline-offset-4 [&_code]:rounded-sm [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:font-mono [&_code]:text-[0.85em] [&_h2]:mt-11 [&_h2]:mb-3 [&_h2]:text-xl [&_h3]:mt-8 [&_h3]:mb-2 [&_h3]:text-base [&_li]:my-1.5 [&_ol]:my-4 [&_ol]:list-decimal [&_ol]:pl-5 [&_p]:my-4 [&_pre]:my-5 [&_pre]:overflow-x-auto [&_pre]:border [&_pre]:p-4 [&_ul]:my-4 [&_ul]:list-disc [&_ul]:pl-5';
+  '[&_a]:text-accent [&_code]:bg-sunken [&_h2]:display [&_pre]:border-line w-full text-[15px] leading-[1.75] [&_a]:underline [&_a]:underline-offset-4 [&_code]:rounded-sm [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:font-mono [&_code]:text-[0.85em] [&_h2]:mt-11 [&_h2]:mb-3 [&_h2]:text-xl [&_h3]:mt-0 [&_h3]:mb-2 [&_li]:my-1.5 [&_ol]:my-4 [&_ol]:list-decimal [&_ol]:pl-5 [&_p]:my-2 [&_pre]:my-5 [&_pre]:overflow-x-auto [&_pre]:border [&_pre]:p-4 [&_ul]:my-4';
 ---
 
 <BaseLayout title={tool.name} description={tool.summary}>

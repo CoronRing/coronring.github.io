@@ -74,14 +74,17 @@ export default function ReadTime(): React.ReactElement {
   const isEnglish = language.toLowerCase().startsWith('en');
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
       <Panel
         title="Text"
+        cornerTicks
         aside={
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center gap-1.5">
             <PasteButton onPaste={setText} />
-            <Button onClick={() => setText(SAMPLE)}>Load example</Button>
-            <Button onClick={() => setText('')} disabled={text === ''}>
+            <Button variant="quiet" onClick={() => setText(SAMPLE)}>
+              Load example
+            </Button>
+            <Button variant="quiet" onClick={() => setText('')} disabled={text === ''}>
               Clear
             </Button>
           </div>
@@ -91,7 +94,7 @@ export default function ReadTime(): React.ReactElement {
           id="read-time-text"
           value={text}
           onChange={setText}
-          rows={10}
+          rows={9}
           placeholder="Paste a script, an article, or a set of slide notes. Or drop a text file."
         />
         <StatRow
@@ -112,7 +115,7 @@ export default function ReadTime(): React.ReactElement {
             { label: 'Syllables', value: num(counted.syllables), hint: 'English heuristic' },
             {
               label: 'Reading ease',
-              value: isEnglish && counted.words > 20 ? grade.flesch.toFixed(0) : '—',
+              value: isEnglish && counted.words > 20 ? grade.flesch.toFixed(0) : '–',
               hint:
                 isEnglish && counted.words > 20
                   ? `grade ${grade.grade.toFixed(1)}`
@@ -125,8 +128,9 @@ export default function ReadTime(): React.ReactElement {
       {/* ── Estimate ──────────────────────────────────────────────── */}
       <Panel
         title="Estimate from word count"
+        cornerTicks
         aside={
-          <span className="tabular font-mono text-[13px] text-[var(--c-accent)]">
+          <span className="tabular font-mono text-[13px] font-semibold text-[var(--c-accent)]">
             {formatDuration(projection.seconds)}
           </span>
         }

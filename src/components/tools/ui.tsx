@@ -1,13 +1,9 @@
 /**
  * Shared controls for the tool islands.
  *
- * Four tools built independently drift into four different button styles. These
- * primitives exist so they do not: every island composes the same segmented
- * control, the same stat tile, the same panel. Nothing here holds state beyond
- * what a single control needs.
- *
+ * Designed with a tactical HUD sci-fi aesthetic inspired by Endfield.
  * All colour comes from `src/styles/tokens.css` via `var(--c-*)`, so both
- * themes are handled without a single conditional.
+ * themes are handled seamlessly without conditionals.
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -21,16 +17,31 @@ interface PanelProps {
   aside?: React.ReactNode;
   children: React.ReactNode;
   className?: string;
+  /** Show technical corner bracket accents on the panel. */
+  cornerTicks?: boolean;
 }
 
 /** A titled section. The header rail is what makes a dense page scannable. */
-export function Panel({ title, aside, children, className = '' }: PanelProps): React.ReactElement {
+export function Panel({
+  title,
+  aside,
+  children,
+  className = '',
+  cornerTicks = false,
+}: PanelProps): React.ReactElement {
   return (
     <section
-      className={`overflow-hidden rounded-lg border border-[var(--c-line)] bg-[var(--c-surface)] ${className}`}
+      className={`relative overflow-hidden rounded-md border border-[var(--c-line)] bg-[var(--c-surface)] shadow-[var(--shadow-panel)] ${
+        cornerTicks ? 'corner-ticks' : ''
+      } ${className}`}
     >
       <header className="flex min-h-[2.75rem] flex-wrap items-center justify-between gap-3 border-b border-[var(--c-line)] bg-[var(--c-raised)] px-4 py-2">
-        <span className="eyebrow">{title}</span>
+        <div className="flex items-center gap-2">
+          <span aria-hidden="true" className="size-1.5 bg-[var(--c-accent-fill)]" />
+          <span className="eyebrow font-mono text-[11px] tracking-widest text-[var(--c-text)]">
+            {title}
+          </span>
+        </div>
         {aside}
       </header>
       {children}
@@ -60,12 +71,6 @@ const TONE_COLOR: Record<NonNullable<Stat['tone']>, string> = {
 /**
  * A row of figures. Hairline-separated rather than boxed, so a four-up and a
  * six-up read as the same component at different widths.
- *
- * `columns` sets the count at full width, not a fixed grid: it is converted to
- * a minimum tile width and handed to `auto-fit`, so the row reflows to fewer
- * columns on a narrow screen instead of squeezing six figures into a phone. The
- * `min(100%, …)` guard keeps a single tile from overflowing a container
- * narrower than the minimum.
  */
 export function StatRow({
   stats,
@@ -77,24 +82,102 @@ export function StatRow({
   const minTile = `${(44 / columns).toFixed(2)}rem`;
   return (
     <dl
-      className="grid gap-px bg-[var(--c-line)]"
+      className="grid gap-px border-y border-[var(--c-line)] bg-[var(--c-line)]"
       style={{ gridTemplateColumns: `repeat(auto-fit, minmax(min(100%, ${minTile}), 1fr))` }}
     >
       {stats.map((stat) => (
-        <div key={stat.label} className="bg-[var(--c-surface)] px-4 py-3">
-          <dt className="eyebrow">{stat.label}</dt>
+        <div
+          key={stat.label}
+          className="group relative bg-[var(--c-surface)] px-4 py-3 transition-colors hover:bg-[var(--c-raised)]"
+        >
+          <dt className="eyebrow text-[10px] text-[var(--c-text-faint)]">{stat.label}</dt>
           <dd
-            className="tabular mt-1.5 font-mono text-lg leading-none"
+            className="tabular mt-1.5 font-mono text-lg leading-none font-semibold tracking-tight"
             style={{ color: TONE_COLOR[stat.tone ?? 'default'] }}
           >
             {stat.value}
           </dd>
           {stat.hint && (
-            <dd className="mt-1 text-[11px] text-[var(--c-text-faint)]">{stat.hint}</dd>
+            <dd className="mt-1 font-mono text-[10.5px] text-[var(--c-text-faint)]">{stat.hint}</dd>
           )}
         </div>
       ))}
     </dl>
+  );
+}
+
+/* ── Top-level Workspace Tabs ─────────────────────────────────────────── */
+
+export interface TabItem<T extends string> {
+  readonly id: T;
+  readonly label: string;
+  readonly icon?: React.ReactNode;
+  readonly badge?: string | number;
+  readonly badgeTone?: Tone;
+  readonly disabled?: boolean;
+}
+
+/**
+ * Primary workspace tab bar for switching major modes (e.g. Diff vs Semantic).
+ */
+export function Tabs<T extends string>({
+  active,
+  tabs,
+  onChange,
+  className = '',
+}: {
+  active: T;
+  tabs: ReadonlyArray<TabItem<T>>;
+  onChange: (tab: T) => void;
+  className?: string;
+}): React.ReactElement {
+  return (
+    <div
+      role="tablist"
+      className={`flex items-center gap-1 overflow-x-auto border-b border-[var(--c-line)] pb-px ${className}`}
+    >
+      {tabs.map((tab) => {
+        const isSelected = tab.id === active;
+        return (
+          <button
+            key={tab.id}
+            role="tab"
+            type="button"
+            aria-selected={isSelected}
+            disabled={tab.disabled}
+            onClick={() => onChange(tab.id)}
+            className={`group relative flex items-center gap-2 px-4 py-2.5 font-mono text-xs tracking-wider transition-all select-none disabled:cursor-not-allowed disabled:opacity-40 ${
+              isSelected
+                ? 'font-bold text-[var(--c-text)]'
+                : 'text-[var(--c-text-muted)] hover:bg-[var(--c-raised)] hover:text-[var(--c-text)]'
+            }`}
+          >
+            {tab.icon && (
+              <span
+                className={`transition-colors ${
+                  isSelected
+                    ? 'text-[var(--c-accent)]'
+                    : 'text-[var(--c-text-faint)] group-hover:text-[var(--c-text)]'
+                }`}
+              >
+                {tab.icon}
+              </span>
+            )}
+            <span>{tab.label}</span>
+            {tab.badge !== undefined && (
+              <Badge tone={tab.badgeTone ?? (isSelected ? 'busy' : 'idle')}>{tab.badge}</Badge>
+            )}
+            {/* Active glowing indicator line */}
+            {isSelected && (
+              <span
+                aria-hidden="true"
+                className="absolute inset-x-0 -bottom-px h-[2px] bg-[var(--c-accent-fill)] shadow-[0_0_8px_var(--c-accent)]"
+              />
+            )}
+          </button>
+        );
+      })}
+    </div>
   );
 }
 
@@ -104,24 +187,11 @@ export interface Segment<T extends string> {
   readonly value: T;
   readonly label: string;
   readonly title?: string;
-  /**
-   * Offered but not selectable, with `title` carrying the reason.
-   *
-   * Preferred over dropping the option: an option that vanishes looks like a
-   * feature that does not exist, where a dimmed one with a tooltip says the
-   * feature is real and currently unavailable. A segmented control whose
-   * options are always clickable is also a way to route around whatever gate
-   * the surrounding UI thinks it is applying, which is exactly how the
-   * embedding engine got called on a deployment that has no endpoint for it.
-   */
   readonly disabled?: boolean;
 }
 
 /**
  * Mutually exclusive choice, rendered as a hairline-joined button strip.
- *
- * Preferred over a `<select>` wherever the option count is small: the choices
- * stay visible, which matters when the option *is* the explanation.
  */
 export function Segmented<T extends string>({
   value,
@@ -138,9 +208,9 @@ export function Segmented<T extends string>({
     <div
       role="group"
       aria-label={label}
-      className="inline-flex flex-wrap overflow-hidden rounded-sm border border-[var(--c-line)]"
+      className="inline-flex flex-wrap overflow-hidden rounded-sm border border-[var(--c-line)] bg-[var(--c-sunken)] p-0.5"
     >
-      {options.map((option, i) => {
+      {options.map((option) => {
         const active = option.value === value;
         return (
           <button
@@ -150,14 +220,12 @@ export function Segmented<T extends string>({
             aria-pressed={active}
             disabled={option.disabled}
             onClick={() => onChange(option.value)}
-            className={`px-2.5 py-1 font-mono text-[11px] whitespace-nowrap transition-colors ${
-              i > 0 ? 'border-l border-[var(--c-line)]' : ''
-            } ${
+            className={`rounded-[2px] px-2.5 py-1 font-mono text-[11px] font-medium whitespace-nowrap transition-all ${
               option.disabled
-                ? 'cursor-not-allowed text-[var(--c-text-faint)] line-through decoration-1'
+                ? 'cursor-not-allowed text-[var(--c-text-faint)] line-through opacity-50'
                 : active
-                  ? 'bg-[var(--c-accent-soft)] text-[var(--c-accent)]'
-                  : 'text-[var(--c-text-muted)] hover:bg-[var(--c-raised)] hover:text-[var(--c-text)]'
+                  ? 'bg-[var(--c-surface)] font-semibold text-[var(--c-text)] shadow-xs'
+                  : 'text-[var(--c-text-muted)] hover:text-[var(--c-text)]'
             }`}
           >
             {option.label}
@@ -170,7 +238,7 @@ export function Segmented<T extends string>({
 
 /* ── Slider ───────────────────────────────────────────────────────────── */
 
-/** Labelled range input with the live value in the label, where it is read. */
+/** Labelled range input with live value. */
 export function Slider({
   id,
   label,
@@ -195,8 +263,8 @@ export function Slider({
   return (
     <div className={disabled ? 'opacity-40' : undefined}>
       <label htmlFor={id} className="eyebrow flex items-baseline justify-between gap-3">
-        <span>{label}</span>
-        <span className="tabular text-[var(--c-text)]">
+        <span className="text-[var(--c-text-muted)]">{label}</span>
+        <span className="tabular font-mono text-[11.5px] font-semibold text-[var(--c-text)]">
           {value.toLocaleString('en-US')}
           {suffix}
         </span>
@@ -210,7 +278,7 @@ export function Slider({
         value={value}
         disabled={disabled}
         onChange={(e) => onChange(Number(e.target.value))}
-        className="mt-2 w-full accent-[var(--c-accent)]"
+        className="mt-2 w-full accent-[var(--c-accent-fill)]"
       />
     </div>
   );
@@ -225,20 +293,25 @@ export function Button({
   disabled = false,
   type = 'button',
   title,
+  icon,
 }: {
   children: React.ReactNode;
   onClick?: () => void;
-  variant?: 'ghost' | 'primary' | 'quiet';
+  variant?: 'ghost' | 'primary' | 'quiet' | 'danger';
   disabled?: boolean;
   type?: 'button' | 'submit';
   title?: string;
+  icon?: React.ReactNode;
 }): React.ReactElement {
   const styles: Record<string, string> = {
     primary:
-      'border-transparent bg-[var(--c-accent-fill)] text-[var(--c-accent-on-fill)] hover:brightness-95',
+      'border-transparent bg-[var(--c-accent-fill)] text-[var(--c-accent-on-fill)] font-bold shadow-xs hover:brightness-95 active:scale-[0.98]',
     ghost:
-      'border-[var(--c-line)] text-[var(--c-text-muted)] hover:border-[var(--c-accent)] hover:text-[var(--c-accent)]',
-    quiet: 'border-transparent text-[var(--c-text-faint)] hover:text-[var(--c-text)]',
+      'border-[var(--c-line)] bg-[var(--c-surface)] text-[var(--c-text)] hover:border-[var(--c-accent)] hover:text-[var(--c-accent)] hover:bg-[var(--c-accent-soft)] active:scale-[0.98]',
+    quiet:
+      'border-transparent text-[var(--c-text-muted)] hover:bg-[var(--c-raised)] hover:text-[var(--c-text)] active:scale-[0.98]',
+    danger:
+      'border-[var(--c-alert)] text-[var(--c-alert)] hover:bg-[var(--c-alert-soft)] active:scale-[0.98]',
   };
   return (
     <button
@@ -246,14 +319,15 @@ export function Button({
       title={title}
       onClick={onClick}
       disabled={disabled}
-      className={`rounded-sm border px-2.5 py-1 font-mono text-[11px] transition-colors disabled:pointer-events-none disabled:opacity-40 ${styles[variant]}`}
+      className={`inline-flex items-center justify-center gap-1.5 rounded-sm border px-2.5 py-1 font-mono text-[11px] tracking-wide transition-all select-none disabled:pointer-events-none disabled:opacity-40 ${styles[variant]}`}
     >
+      {icon && <span className="shrink-0">{icon}</span>}
       {children}
     </button>
   );
 }
 
-/** Copy-to-clipboard button that confirms in place, then reverts. */
+/** Copy-to-clipboard button with confirmation. */
 export function CopyButton({
   text,
   label = 'Copy',
@@ -275,8 +349,8 @@ export function CopyButton({
   }, [text]);
 
   return (
-    <Button onClick={copy} disabled={text.length === 0}>
-      {done ? 'Copied' : label}
+    <Button onClick={copy} disabled={text.length === 0} variant={done ? 'primary' : 'ghost'}>
+      {done ? '✓ Copied' : label}
     </Button>
   );
 }
@@ -284,10 +358,7 @@ export function CopyButton({
 /* ── Text input ───────────────────────────────────────────────────────── */
 
 /**
- * The standard paste target.
- *
- * Accepts a dropped text file, because "paste two files" is what these tools
- * are actually asked to do and reaching for the clipboard twice is friction.
+ * Standard paste target with file drag & drop support.
  */
 export function TextArea({
   id,
@@ -303,7 +374,6 @@ export function TextArea({
   onChange: (value: string) => void;
   rows?: number;
   placeholder?: string;
-  /** Accept dropped files. */
   accept?: boolean;
   className?: string;
 }): React.ReactElement {
@@ -322,40 +392,51 @@ export function TextArea({
   );
 
   return (
-    <textarea
-      id={id}
-      value={value}
-      spellCheck={false}
-      rows={rows}
-      placeholder={placeholder}
-      onChange={(e) => onChange(e.target.value)}
-      onDragOver={
-        accept
-          ? (e) => {
-              e.preventDefault();
-              setOver(true);
-            }
-          : undefined
-      }
-      onDragLeave={accept ? () => setOver(false) : undefined}
-      onDrop={onDrop}
-      className={`w-full resize-y border-0 bg-[var(--c-sunken)] p-3.5 font-mono text-[12.5px] leading-relaxed text-[var(--c-text)] placeholder:text-[var(--c-text-faint)] focus:outline-none ${
-        over ? 'ring-2 ring-[var(--c-accent)] ring-inset' : ''
-      } ${className}`}
-    />
+    <div className="relative">
+      <textarea
+        id={id}
+        value={value}
+        spellCheck={false}
+        rows={rows}
+        placeholder={placeholder}
+        onChange={(e) => onChange(e.target.value)}
+        onDragOver={
+          accept
+            ? (e) => {
+                e.preventDefault();
+                setOver(true);
+              }
+            : undefined
+        }
+        onDragLeave={accept ? () => setOver(false) : undefined}
+        onDrop={onDrop}
+        className={`w-full resize-y border-0 bg-[var(--c-sunken)] p-3.5 font-mono text-[12.5px] leading-relaxed text-[var(--c-text)] placeholder:text-[var(--c-text-faint)] focus:ring-1 focus:ring-[var(--c-accent)] focus:outline-none focus:ring-inset ${
+          over ? 'ring-2 ring-[var(--c-accent)] ring-inset' : ''
+        } ${className}`}
+      />
+      {over && (
+        <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-[var(--c-surface)]/80 backdrop-blur-xs">
+          <span className="font-mono text-xs font-bold text-[var(--c-accent)]">
+            Drop text file to load
+          </span>
+        </div>
+      )}
+    </div>
   );
 }
 
 /* ── Status ───────────────────────────────────────────────────────────── */
 
-export type Tone = 'ok' | 'warn' | 'alert' | 'idle' | 'busy';
+export type Tone = 'ok' | 'warn' | 'alert' | 'idle' | 'busy' | 'accent';
 
 const BADGE_TONE: Record<Tone, string> = {
-  ok: 'text-[var(--c-ok)] border-[var(--c-ok)]',
-  warn: 'text-[var(--c-warn)] border-[var(--c-warn)]',
-  alert: 'text-[var(--c-alert)] border-[var(--c-alert)]',
-  idle: 'text-[var(--c-text-faint)] border-[var(--c-line)]',
-  busy: 'text-[var(--c-accent)] border-[var(--c-accent)]',
+  ok: 'text-[var(--c-ok)] border-[var(--c-ok)] bg-[var(--c-ok)]/10',
+  warn: 'text-[var(--c-warn)] border-[var(--c-warn)] bg-[var(--c-warn)]/10',
+  alert: 'text-[var(--c-alert)] border-[var(--c-alert)] bg-[var(--c-alert)]/10',
+  idle: 'text-[var(--c-text-faint)] border-[var(--c-line)] bg-[var(--c-surface)]',
+  busy: 'text-[var(--c-accent)] border-[var(--c-accent)] bg-[var(--c-accent-soft)]',
+  accent:
+    'text-[var(--c-accent-on-fill)] border-transparent bg-[var(--c-accent-fill)] font-semibold',
 };
 
 /** Small outlined status pill. */
@@ -368,7 +449,7 @@ export function Badge({
 }): React.ReactElement {
   return (
     <span
-      className={`inline-flex items-center gap-1.5 rounded-sm border px-1.5 py-0.5 font-mono text-[10px] tracking-wide uppercase ${BADGE_TONE[tone]}`}
+      className={`inline-flex items-center gap-1.5 rounded-sm border px-1.5 py-0.5 font-mono text-[10px] tracking-wider uppercase select-none ${BADGE_TONE[tone]}`}
     >
       {tone === 'busy' && (
         <span aria-hidden="true" className="size-1.5 animate-pulse rounded-full bg-current" />
@@ -378,24 +459,24 @@ export function Badge({
   );
 }
 
-/** Inline error strip. Used wherever a failure needs to be readable, not thrown. */
+/** Inline error / caution strip with left accent bar. */
 export function ErrorNote({ children }: { children: React.ReactNode }): React.ReactElement {
   return (
-    <p className="rounded-sm border border-[var(--c-alert)] bg-[var(--c-alert-soft)] px-3 py-2 font-mono text-[11.5px] leading-relaxed text-[var(--c-alert)]">
+    <div className="rounded-sm border-y border-r border-l-2 border-[var(--c-alert)] border-[var(--c-line)] bg-[var(--c-alert-soft)] px-3 py-2.5 font-mono text-[11.5px] leading-relaxed text-[var(--c-alert)]">
       {children}
-    </p>
+    </div>
   );
 }
 
 /* ── Misc ─────────────────────────────────────────────────────────────── */
 
-/** Stable id suffix for a component instance, for label/control pairing. */
+/** Stable id suffix for a component instance. */
 export function useInstanceId(prefix: string): string {
   const id = useMemo(() => `${prefix}-${Math.random().toString(36).slice(2, 8)}`, [prefix]);
   return id;
 }
 
-/** `1,234` — the only number formatting rule this codebase has. */
+/** Number with locale commas. */
 export function num(value: number): string {
   return value.toLocaleString('en-US');
 }
@@ -404,11 +485,6 @@ export function num(value: number): string {
 
 /**
  * Download a string as a file.
- *
- * Sibling to `CopyButton` and present for the same reason: a converter that
- * produces 4,000 lines of Markdown is not usefully delivered through the
- * clipboard, and asking someone to select-all inside a scrolling `<pre>` is
- * the kind of friction these tools exist to remove.
  */
 export function DownloadButton({
   text,
@@ -427,8 +503,6 @@ export function DownloadButton({
     anchor.href = url;
     anchor.download = filename;
     anchor.click();
-    // Revoked on the next frame rather than immediately: revoking too early
-    // has been observed to cancel the download in Safari.
     requestAnimationFrame(() => URL.revokeObjectURL(url));
   }, [text, filename, mime]);
 
@@ -441,10 +515,6 @@ export function DownloadButton({
 
 /**
  * Read the clipboard into an input.
- *
- * Renders nothing where `navigator.clipboard.readText` does not exist, because
- * a button that cannot work is worse than no button. Firefox withholds it
- * outside an extension, so this is a real branch rather than a defensive one.
  */
 export function PasteButton({
   onPaste,
@@ -464,7 +534,7 @@ export function PasteButton({
       onClick={() => {
         navigator.clipboard.readText().then(onPaste, () => setFailed(true));
       }}
-      title="Read the clipboard"
+      title="Read from clipboard"
     >
       {label}
     </Button>
@@ -473,9 +543,6 @@ export function PasteButton({
 
 /**
  * A read-only result surface with copy and download in its header.
- *
- * Every converter on this site ends in one of these, so "can I get this out of
- * the page" has the same answer everywhere.
  */
 export function OutputBox({
   title,
@@ -491,7 +558,6 @@ export function OutputBox({
   filename: string;
   mime?: string;
   rows?: number;
-  /** Extra header content, placed left of the copy controls. */
   aside?: React.ReactNode;
   empty?: string;
 }): React.ReactElement {
@@ -525,9 +591,9 @@ export function OutputBox({
 /* ── Form fields ──────────────────────────────────────────────────────── */
 
 const FIELD_CLASS =
-  'w-full rounded-sm border border-[var(--c-line)] bg-[var(--c-sunken)] px-2.5 py-1.5 font-mono text-[12px] text-[var(--c-text)] placeholder:text-[var(--c-text-faint)] focus:border-[var(--c-accent)] focus:outline-none';
+  'w-full rounded-sm border border-[var(--c-line)] bg-[var(--c-sunken)] px-2.5 py-1.5 font-mono text-[12px] text-[var(--c-text)] placeholder:text-[var(--c-text-faint)] focus:border-[var(--c-accent)] focus:outline-none focus:ring-1 focus:ring-[var(--c-accent)]';
 
-/** Labelled wrapper, so every control on a page shares one baseline. */
+/** Labelled wrapper for controls. */
 export function Field({
   label,
   htmlFor,
@@ -541,11 +607,11 @@ export function Field({
 }): React.ReactElement {
   return (
     <div>
-      <label htmlFor={htmlFor} className="eyebrow block">
+      <label htmlFor={htmlFor} className="eyebrow block text-[10px] text-[var(--c-text-muted)]">
         {label}
       </label>
       <div className="mt-1.5">{children}</div>
-      {hint && <p className="mt-1 text-[11px] text-[var(--c-text-faint)]">{hint}</p>}
+      {hint && <p className="mt-1 font-mono text-[10.5px] text-[var(--c-text-faint)]">{hint}</p>}
     </div>
   );
 }
@@ -581,15 +647,7 @@ export function TextField({
   );
 }
 
-/**
- * Numeric input that keeps its own text while being edited.
- *
- * A controlled `<input type="number">` bound straight to a number cannot be
- * typed into: clearing it to type a new value round-trips through `NaN`, and an
- * intermediate `-` or `1.` is not a number either. So the raw string is the
- * state and the number is derived, which is the only version that lets someone
- * type `-0.5` one character at a time.
- */
+/** Numeric input that maintains string draft while typing. */
 export function NumberField({
   id,
   value,
@@ -632,7 +690,7 @@ export function NumberField({
   );
 }
 
-/** Native select, styled to match. Used past the point a segmented strip fits. */
+/** Native select styled to match HUD. */
 export function Select<T extends string>({
   id,
   value,
@@ -660,7 +718,7 @@ export function Select<T extends string>({
   );
 }
 
-/** Checkbox with its label as the hit target. */
+/** Checkbox with label. */
 export function Toggle({
   id,
   label,
@@ -685,22 +743,22 @@ export function Toggle({
         type="checkbox"
         checked={checked}
         onChange={(e) => onChange(e.target.checked)}
-        className="size-3.5 accent-[var(--c-accent)]"
+        className="size-3.5 accent-[var(--c-accent-fill)]"
       />
       {label}
     </label>
   );
 }
 
-/** Horizontal control rail. The row above every instrument on this site. */
+/** Horizontal control rail. */
 export function Toolbar({ children }: { children: React.ReactNode }): React.ReactElement {
   return <div className="flex flex-wrap items-center gap-2">{children}</div>;
 }
 
-/** A keyboard shortcut, rendered as a key. */
+/** A keyboard shortcut keycap. */
 export function Kbd({ children }: { children: React.ReactNode }): React.ReactElement {
   return (
-    <kbd className="rounded-sm border border-[var(--c-line)] bg-[var(--c-raised)] px-1 py-0.5 font-mono text-[10px] text-[var(--c-text-muted)]">
+    <kbd className="rounded-xs border border-[var(--c-line)] bg-[var(--c-raised)] px-1 py-0.5 font-mono text-[10px] text-[var(--c-text-muted)]">
       {children}
     </kbd>
   );
@@ -708,28 +766,17 @@ export function Kbd({ children }: { children: React.ReactNode }): React.ReactEle
 
 /* ── Persistence ──────────────────────────────────────────────────────── */
 
-/**
- * State that survives a reload, scoped per tool.
- *
- * Losing a pasted document to an accidental refresh is the most annoying thing
- * a tool like this can do. Every read and write is guarded: `localStorage`
- * throws outright in a browser configured to block site data, and a tool that
- * fails to boot because of a privacy setting is worse than one that forgets.
- */
 export function usePersisted<T>(key: string, initial: T): [T, (value: T) => void] {
   const storageKey = `coronring.tools.${key}`;
   const [value, setValue] = useState<T>(initial);
   const loaded = useRef(false);
 
-  // Read after mount, never during render. Astro ships markup rendered from
-  // `initial`, so reading storage in the initial state would make the first
-  // client render disagree with the HTML and get thrown away.
   useEffect(() => {
     try {
       const raw = window.localStorage.getItem(storageKey);
       if (raw !== null) setValue(JSON.parse(raw) as T);
     } catch {
-      /* unavailable or corrupt: the default stands */
+      /* storage disabled */
     }
     loaded.current = true;
   }, [storageKey]);
@@ -741,7 +788,7 @@ export function usePersisted<T>(key: string, initial: T): [T, (value: T) => void
       try {
         window.localStorage.setItem(storageKey, JSON.stringify(next));
       } catch {
-        /* quota or blocked: in-memory state still works */
+        /* storage full or blocked */
       }
     },
     [storageKey],

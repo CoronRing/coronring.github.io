@@ -10,93 +10,73 @@ import McpTester from '../../components/tools/McpTester';
   <McpTester client:load />
 
   <Fragment slot="about">
-    <h2>The problem</h2>
-    <p>
-      An HTTP client will tell you an MCP endpoint returned 200. It will not tell you whether the
-      handshake negotiated the version you thought, whether the tool schemas are shaped so a model
-      can actually call them, whether an unknown method is rejected properly, or what the round trip
-      costs from where you are sitting. Those are the things that break, and they break quietly.
-    </p>
-    <p>
-      The protocol also moved underneath everyone. Revision <code>2026-07-28</code> removed the
-      <code>initialize</code> handshake, protocol-level sessions and the <code>Mcp-Session-Id</code>
-      header, replaced the standalone GET stream with <code>subscriptions/listen</code>, and made
-      every request carry its own protocol version and client capabilities in <code>_meta</code>.
-      Plenty of deployed servers still speak the older shape. A tester that only knows one era is
-      wrong about half the servers it meets.
-    </p>
+    <div class="grid gap-6 md:grid-cols-3">
+      <div class="hud-card p-5">
+        <h3 class="eyebrow text-accent mb-2">01 · Protocol Ladder</h3>
+        <p class="text-muted text-sm leading-relaxed">
+          Negotiates modern <code>2026-07-28</code> protocol (<code>server/discover</code>) and
+          falls back dynamically to legacy <code>initialize</code> handshakes.
+        </p>
+        <div class="text-faint mt-3 font-mono text-[11px]">
+          Compatibility: Adapts to older and modern deployed MCP agents.
+        </div>
+      </div>
 
-    <h2>The approach</h2>
-    <p>
-      The probe follows the specification's own compatibility ladder. It opens with a modern
-      <code>server/discover</code>, carrying the mirrored <code>MCP-Protocol-Version</code> and
-      <code>Mcp-Method</code> headers. On a 400 it reads the body before concluding anything: a recognised
-      modern error means the server is modern and something else is wrong. An <code
-        >UnsupportedProtocolVersionError</code
-      > also names the versions it does support, so the probe retries at one of those instead of falling
-      back. Only a body that is not a modern error sends it down to the pre-2026 <code
-        >initialize</code
-      > path, session header and all.
-    </p>
-    <p>Then it checks the things a status code hides:</p>
-    <ul>
-      <li>
-        <strong>Tool definitions.</strong> Missing <code>inputSchema</code>, a schema that is not an
-        object, absent descriptions, duplicate names, and <code>x-mcp-header</code> annotations outside
-        the permitted shape. That last one matters because a conforming client must
-        <em>drop</em> a tool whose annotation is invalid.
-      </li>
-      <li>
-        <strong>Error handling.</strong> An unknown method must come back as <code>-32601</code>. A
-        server that answers 200 to a method it has never heard of will swallow a typo'd tool call
-        and surface the failure somewhere else entirely.
-      </li>
-      <li>
-        <strong>Cacheability.</strong> From 2026-07-28 list results must carry <code>ttlMs</code> and
-        <code>cacheScope</code>. Without them every client re-fetches the tool list on every run.
-      </li>
-      <li>
-        <strong>Latency.</strong> Repeated <code>tools/list</code> calls, reported as a median rather
-        than a single sample, so a cold start does not masquerade as steady-state performance.
-      </li>
-    </ul>
-    <p>
-      Every check keeps the exact HTTP exchange behind it, viewable and copyable as
-      <code>curl</code>. "tools/list failed" is not a bug report; the request that produced it is.
-    </p>
+      <div class="hud-card p-5">
+        <h3 class="eyebrow text-accent mb-2">02 · Schema & Latency Checks</h3>
+        <p class="text-muted text-sm leading-relaxed">
+          Validates tool JSON schemas, header annotations, method error codes (<code>-32601</code>),
+          cacheability (<code>ttlMs</code>), and multi-sample median latency.
+        </p>
+        <div class="text-faint mt-3 font-mono text-[11px]">
+          Diagnostic: Generates reproducible <code>curl</code> commands for every step.
+        </div>
+      </div>
 
-    <h2>Why it runs in your browser</h2>
-    <p>
-      Requests go straight from this tab to the endpoint you name. There is no proxy, which is a
-      deliberate choice rather than a missing feature: a hosted proxy that forwards requests to any
-      URL a stranger types is an open server-side request forwarder pointed at internal ranges and
-      cloud metadata endpoints, and that is not worth shipping to dodge CORS.
-    </p>
-    <p>
-      The cost is that a server without CORS headers cannot be reached from a browser at all. When
-      that happens the tool says so precisely and hands over a <code>curl</code> command that will work
-      from a terminal. It also means you can probe <code>localhost</code> during development, which a
-      hosted proxy could never do.
-    </p>
+      <div class="hud-card p-5">
+        <h3 class="eyebrow text-accent mb-2">03 · Browser-Direct Execution</h3>
+        <p class="text-muted text-sm leading-relaxed">
+          Requests dispatch directly from your browser. Allows probing <code>localhost</code> services
+          without intermediary proxy server risks.
+        </p>
+        <div class="text-faint mt-3 font-mono text-[11px]">
+          Privacy: Tokens and endpoints never pass through third-party relays.
+        </div>
+      </div>
+    </div>
 
-    <h2>Where it stops being trustworthy</h2>
-    <ul>
-      <li>
-        A blocked request is opaque by design. CORS rejection, a dead port, a wrong hostname and a
-        self-signed certificate all reach script as the same failure. The browser does not say
-        which, and neither can this.
-      </li>
-      <li>
-        Latency is measured from your machine over your network. It is the number your browser would
-        see, not the server's own processing time.
-      </li>
-      <li>
-        Elicitation, sampling and the multi round-trip pattern are not exercised. A tool call that
-        returns <code>input_required</code> is reported as such and not carried further.
-      </li>
-      <li>
-        Tool calls are real calls against a live server. If a tool writes something, it writes it.
-      </li>
-    </ul>
+    <div class="hud-card border-warn mt-6 border-l-2 p-5">
+      <h3 class="eyebrow text-warn mb-3">Operational Limits & Assumptions</h3>
+      <ul class="text-muted grid gap-3 text-xs leading-relaxed sm:grid-cols-2">
+        <li class="flex gap-2">
+          <span class="text-accent font-mono font-bold">·</span>
+          <span
+            ><strong>CORS Requirements:</strong> Remote endpoints must permit browser cross-origin requests.
+            For blocked endpoints, copy the generated terminal curl.</span
+          >
+        </li>
+        <li class="flex gap-2">
+          <span class="text-accent font-mono font-bold">·</span>
+          <span
+            ><strong>Live Execution:</strong> Tool invocations are actual live API calls. Destructive
+            mutations on production endpoints will execute.</span
+          >
+        </li>
+        <li class="flex gap-2">
+          <span class="text-accent font-mono font-bold">·</span>
+          <span
+            ><strong>Local Latency:</strong> Timing reflects full browser-to-server network round trips
+            rather than isolated backend compute time.</span
+          >
+        </li>
+        <li class="flex gap-2">
+          <span class="text-accent font-mono font-bold">·</span>
+          <span
+            ><strong>Complex Elicitation:</strong> Multi-turn human-in-the-loop elicitation pauses are
+            surfaced as <code>input_required</code>.</span
+          >
+        </li>
+      </ul>
+    </div>
   </Fragment>
 </ToolLayout>

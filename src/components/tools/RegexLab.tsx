@@ -41,8 +41,8 @@ import {
   OutputBox,
   Panel,
   PasteButton,
-  Segmented,
   StatRow,
+  Tabs,
   TextArea,
   TextField,
   Toggle,
@@ -99,9 +99,21 @@ export default function RegexLab(): React.ReactElement {
   );
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
+      <Tabs
+        active={mode}
+        onChange={setMode}
+        tabs={[
+          { id: 'match', label: 'Match' },
+          { id: 'replace', label: 'Replace' },
+          { id: 'filter', label: 'Filter Lines' },
+          { id: 'explain', label: 'Explain Pattern' },
+        ]}
+      />
+
       <Panel
         title="Pattern"
+        cornerTicks
         aside={
           <div className="flex items-center gap-2">
             {stale && <Badge tone="busy">Matching</Badge>}
@@ -110,7 +122,7 @@ export default function RegexLab(): React.ReactElement {
         }
       >
         <div className="p-4">
-          <div className="flex items-stretch rounded-sm border border-[var(--c-line)] bg-[var(--c-sunken)] font-mono">
+          <div className="flex items-stretch rounded-sm border border-[var(--c-line)] bg-[var(--c-sunken)] font-mono focus-within:ring-1 focus-within:ring-[var(--c-accent)]">
             <span className="flex items-center border-r border-[var(--c-line)] px-2 text-[13px] text-[var(--c-text-faint)]">
               /
             </span>
@@ -127,7 +139,7 @@ export default function RegexLab(): React.ReactElement {
               placeholder="\b\w+@\w+\.\w+\b"
               className="min-w-0 flex-1 bg-transparent px-2.5 py-2 text-[13px] text-[var(--c-text)] placeholder:text-[var(--c-text-faint)] focus:outline-none"
             />
-            <span className="flex items-center border-l border-[var(--c-line)] px-2 text-[13px] text-[var(--c-accent)]">
+            <span className="flex items-center border-l border-[var(--c-line)] px-2 text-[13px] font-semibold text-[var(--c-accent)]">
               /{flags}
             </span>
           </div>
@@ -149,7 +161,7 @@ export default function RegexLab(): React.ReactElement {
         {risk.level === 'caution' && (
           <div className="border-t border-[var(--c-warn)] bg-[var(--c-raised)] px-4 py-3">
             <p className="text-[12px] leading-relaxed text-[var(--c-text)]">
-              <span className="font-mono text-[11px] tracking-wide text-[var(--c-warn)] uppercase">
+              <span className="font-mono text-[11px] font-bold tracking-wide text-[var(--c-warn)] uppercase">
                 Held before running
               </span>
               <br />
@@ -157,8 +169,10 @@ export default function RegexLab(): React.ReactElement {
             </p>
             {!acknowledged && (
               <div className="mt-2.5">
-                <Button onClick={() => setAcknowledged(true)}>Run it anyway</Button>
-                <span className="ml-2 text-[11px] text-[var(--c-text-faint)]">
+                <Button onClick={() => setAcknowledged(true)} variant="primary">
+                  Run it anyway
+                </Button>
+                <span className="ml-2 font-mono text-[11px] text-[var(--c-text-faint)]">
                   If the tab freezes, closing it is the only way out.
                 </span>
               </div>
@@ -170,22 +184,12 @@ export default function RegexLab(): React.ReactElement {
       </Panel>
 
       <Panel
-        title="Text"
+        title="Test String"
+        cornerTicks
         aside={
-          <div className="flex flex-wrap items-center gap-2">
-            <Segmented
-              label="Mode"
-              value={mode}
-              onChange={setMode}
-              options={[
-                { value: 'match', label: 'Match' },
-                { value: 'replace', label: 'Replace' },
-                { value: 'filter', label: 'Filter lines' },
-                { value: 'explain', label: 'Explain' },
-              ]}
-            />
+          <div className="flex flex-wrap items-center gap-1.5">
             <PasteButton onPaste={setText} />
-            <Button onClick={() => setText('')} disabled={text === ''}>
+            <Button variant="quiet" onClick={() => setText('')} disabled={text === ''}>
               Clear
             </Button>
           </div>
@@ -195,7 +199,7 @@ export default function RegexLab(): React.ReactElement {
           id="regex-text"
           value={text}
           onChange={setText}
-          rows={9}
+          rows={8}
           placeholder="Paste text, or drop a file. Logs, config, CSV: whatever you are trying to pick apart."
         />
       </Panel>

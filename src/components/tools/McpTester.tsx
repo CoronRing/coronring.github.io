@@ -21,6 +21,7 @@ import {
   ErrorNote,
   num,
   Panel,
+  PasteButton,
   Segmented,
   StatRow,
   type Tone,
@@ -128,13 +129,17 @@ export default function McpTester(): React.ReactElement {
       {/* ── Connection ────────────────────────────────────────────────── */}
       <Panel
         title="Endpoint"
+        cornerTicks
         aside={
-          <div className="flex items-center gap-1.5">
-            {EXAMPLES.map((example) => (
-              <Button key={example.label} onClick={() => setUrl(example.url)}>
-                {example.label}
-              </Button>
-            ))}
+          <div className="flex flex-wrap items-center gap-1.5">
+            <PasteButton onPaste={setUrl} label="Paste URL" />
+            <div className="flex items-center gap-1 border-l border-[var(--c-line)] pl-2">
+              {EXAMPLES.map((example) => (
+                <Button key={example.label} variant="quiet" onClick={() => setUrl(example.url)}>
+                  {example.label}
+                </Button>
+              ))}
+            </div>
             <Button variant="quiet" onClick={() => setAdvanced((a) => !a)}>
               {advanced ? 'Hide options' : 'Options'}
             </Button>
@@ -158,13 +163,9 @@ export default function McpTester(): React.ReactElement {
               aria-label="MCP endpoint URL"
               className="min-w-[18rem] flex-1 rounded-sm border border-[var(--c-line)] bg-[var(--c-sunken)] px-3 py-2 font-mono text-[13px] text-[var(--c-text)] placeholder:text-[var(--c-text-faint)] focus:border-[var(--c-accent)] focus:outline-none"
             />
-            <button
-              type="submit"
-              disabled={running || url.trim() === ''}
-              className="rounded-sm border border-transparent bg-[var(--c-accent-fill)] px-5 py-2 font-mono text-xs tracking-wide text-[var(--c-accent-on-fill)] uppercase transition-[filter] hover:brightness-95 disabled:pointer-events-none disabled:opacity-40"
-            >
+            <Button type="submit" variant="primary" disabled={running || url.trim() === ''}>
               {running ? 'Probing…' : 'Run probe'}
-            </button>
+            </Button>
           </div>
 
           <input

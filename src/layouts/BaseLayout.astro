@@ -111,11 +111,13 @@ const ogImage = absolute(image, SITE.url);
       <Footer />
     </div>
 
-    {/*
+    {
+      /*
       `client:idle` — the dock is never the reason someone opened the page, so
       it hydrates once the main thread is free rather than competing with the
       content for it. Collapsed, it makes no network requests at all.
-    */}
+    */
+    }
     {!hideChatDock && <ChatDock client:idle />}
   </body>
 </html>

@@ -31,6 +31,7 @@ import {
   DownloadButton,
   Kbd,
   Panel,
+  PasteButton,
   Segmented,
   Toggle,
   Toolbar,
@@ -284,8 +285,9 @@ export default function PyRunner({
       {/* ── Editor ──────────────────────────────────────────────── */}
       <Panel
         title="Source"
+        cornerTicks
         aside={
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center gap-1.5">
             {preset.samples.length > 1 && (
               <Segmented
                 label="Sample"
@@ -298,7 +300,8 @@ export default function PyRunner({
                 }))}
               />
             )}
-            <CopyButton text={code} label="Copy code" />
+            <PasteButton onPaste={setCode} label="Paste code" />
+            <CopyButton text={code} label="Copy" />
             <DownloadButton text={code} filename={`${preset.id}-${sampleId || 'snippet'}.py`} />
           </div>
         }

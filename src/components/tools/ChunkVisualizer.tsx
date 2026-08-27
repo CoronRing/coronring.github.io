@@ -8,7 +8,18 @@ import {
   type ChunkConfig,
   type StrategyId,
 } from '../../lib/chunking';
-import { Badge, Button, CopyButton, num, Panel, Segmented, Slider, StatRow, TextArea } from './ui';
+import {
+  Badge,
+  Button,
+  CopyButton,
+  num,
+  Panel,
+  PasteButton,
+  Segmented,
+  Slider,
+  StatRow,
+  TextArea,
+} from './ui';
 
 /**
  * ChunkVisualizer — see where a splitter actually cuts, and what it costs.
@@ -164,14 +175,18 @@ export default function ChunkVisualizer(): React.ReactElement {
       {/* ── Input ─────────────────────────────────────────────────────── */}
       <Panel
         title="Document"
+        cornerTicks
         aside={
-          <div className="flex items-center gap-1.5">
+          <div className="flex flex-wrap items-center gap-1.5">
             {stale && <Badge tone="busy">chunking</Badge>}
-            {SAMPLES.map((sample) => (
-              <Button key={sample.label} onClick={() => setText(sample.text)}>
-                {sample.label}
-              </Button>
-            ))}
+            <PasteButton onPaste={setText} />
+            <div className="flex items-center gap-1 border-l border-[var(--c-line)] pl-2">
+              {SAMPLES.map((sample) => (
+                <Button key={sample.label} variant="quiet" onClick={() => setText(sample.text)}>
+                  {sample.label}
+                </Button>
+              ))}
+            </div>
             <Button variant="quiet" onClick={() => setText('')} disabled={text.length === 0}>
               Clear
             </Button>

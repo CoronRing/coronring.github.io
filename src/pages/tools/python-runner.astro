@@ -1,9 +1,6 @@
 ---
 /**
  * Python Runner tool page.
- *
- * `client:load` like the other tool pages: the island is the page. The
- * interpreter itself is still lazy, so this only hydrates the editor.
  */
 import ToolLayout from '../../layouts/ToolLayout.astro';
 import PyRunner from '../../components/tools/PyRunner';
@@ -13,74 +10,75 @@ import PyRunner from '../../components/tools/PyRunner';
   <PyRunner client:load />
 
   <Fragment slot="about">
-    <h2>The problem</h2>
-    <p>
-      Most of the work on this site is a Python package with no interface. A README can describe
-      what one does and a code block can show how it is called, but neither answers the question
-      someone actually has, which is what happens when you run it.
-    </p>
-    <p>
-      The usual answer is a notebook service or a hosted sandbox. Both mean an account, a cold start
-      measured in tens of seconds, and a container somewhere executing a stranger&rsquo;s code at
-      somebody&rsquo;s expense. For showing what a small package does, that is a great deal of
-      machinery.
-    </p>
+    <div class="grid gap-6 md:grid-cols-3">
+      <div class="hud-card p-5">
+        <h3 class="eyebrow text-accent mb-2">01 · Pyodide WebAssembly</h3>
+        <p class="text-muted text-sm leading-relaxed">
+          Full CPython runtime compiled to WebAssembly running directly in your browser tab.
+          Standard library and <code>micropip</code> wheel installation supported.
+        </p>
+        <div class="text-faint mt-3 font-mono text-[11px]">
+          Zero Backend: No external compute servers, accounts, or queues.
+        </div>
+      </div>
 
-    <h2>The approach</h2>
-    <p>
-      There is already a computer in front of the reader. <a
-        href="https://pyodide.org"
-        target="_blank"
-        rel="noopener noreferrer">Pyodide</a
-      > is CPython compiled to WebAssembly, and it runs in the tab: the interpreter is real, the standard
-      library is complete, and <code>micropip</code> installs wheels from PyPI at runtime. Nothing is
-      executed on a server, so there is no account, no queue, and no way for one visitor&rsquo;s code
-      to affect another&rsquo;s.
-    </p>
-    <p>
-      It runs in a Web Worker, which is the part that matters for a page anyone can type into. A
-      runaway loop is not interruptible: Pyodide is synchronous WebAssembly, so
-      <code>while True: pass</code> on the main thread would freeze the whole page including the stop
-      button. In a worker it can be terminated, which is what the Stop button and the sixty second ceiling
-      both do. The tab stays responsive either way.
-    </p>
-    <p>
-      The environment picker is a registry rather than a hardcoded list, so the same component
-      mounts on a project page with just that project&rsquo;s package selected. The
-      <code>particle-wave</code> environment installs the published wheel from PyPI and runs the real
-      four-stage extraction pipeline, which takes about two and a half seconds on a synthetic image.
-    </p>
+      <div class="hud-card p-5">
+        <h3 class="eyebrow text-accent mb-2">02 · Web Worker Isolation</h3>
+        <p class="text-muted text-sm leading-relaxed">
+          Code executes inside an isolated background Web Worker thread. Infinite loops (<code
+            >while True: pass</code
+          >) can be safely terminated without locking the UI.
+        </p>
+        <div class="text-faint mt-3 font-mono text-[11px]">
+          Safety: Automatic 60-second timeout ceiling + instant Stop interrupt.
+        </div>
+      </div>
 
-    <h2>Where it stops being trustworthy</h2>
-    <ul>
-      <li>
-        <strong>No network from inside Python.</strong> A browser tab cannot open a socket, so
-        <code>requests</code>, <code>urllib</code> and anything built on them fail. Cross-origin rules
-        apply to whatever is left.
-      </li>
-      <li>
-        <strong>A compiled extension needs a WebAssembly wheel that somebody published.</strong>
-        Nothing can be compiled in a tab. Pyodide prebuilds around 340 packages including NumPy, SciPy
-        and pandas; outside that set, a package with a C or Rust extension only installs if its maintainer
-        ships a wasm wheel, and most do not.
-      </li>
-      <li>
-        <strong>The <code>railtracks</code> environment does not install, and says why.</strong> It needs
-        pydantic 2.11 or newer, this interpreter has 2.10.6, and the newer
-        <code>pydantic-core</code> publishes WebAssembly wheels only for CPython 3.14 where Pyodide is
-        on 3.13. Past that, LiteLLM pulls in <code>tokenizers</code> and <code>fastuuid</code>, both
-        Rust extensions with no wasm build at any version. All three were reproduced rather than
-        assumed, and all three resolve themselves the day those wheels appear.
-      </li>
-      <li>
-        <strong>Roughly two to five times slower than native.</strong> Fine for a demonstration and useless
-        for a benchmark. The <code>timeit</code> sample makes the gap visible rather than hiding it.
-      </li>
-      <li>
-        <strong>Stop loses everything.</strong> Terminating the worker discards the interpreter and every
-        installed package with it, because that is the only way to interrupt running Python. The next
-        run starts cold.
-      </li>
-    </ul>
+      <div class="hud-card p-5">
+        <h3 class="eyebrow text-accent mb-2">03 · Package Registry</h3>
+        <p class="text-muted text-sm leading-relaxed">
+          Preconfigured environments load standard packages (NumPy, SciPy, pandas) and custom
+          project wheels dynamically from PyPI.
+        </p>
+        <div class="text-faint mt-3 font-mono text-[11px]">
+          Live Artifacts: Real execution pipelines in a single click.
+        </div>
+      </div>
+    </div>
+
+    <div class="hud-card border-warn mt-6 border-l-2 p-5">
+      <h3 class="eyebrow text-warn mb-3">Operational Limits & Assumptions</h3>
+      <ul class="text-muted grid gap-3 text-xs leading-relaxed sm:grid-cols-2">
+        <li class="flex gap-2">
+          <span class="text-accent font-mono font-bold">·</span>
+          <span
+            ><strong>No Raw TCP Sockets:</strong> In-browser Python cannot open raw OS sockets; <code
+              >requests</code
+            > and raw HTTP libraries fail without wasm shims.</span
+          >
+        </li>
+        <li class="flex gap-2">
+          <span class="text-accent font-mono font-bold">·</span>
+          <span
+            ><strong>C/Rust Extensions:</strong> Native binary modules require precompiled WebAssembly
+            wheels published by maintainers.</span
+          >
+        </li>
+        <li class="flex gap-2">
+          <span class="text-accent font-mono font-bold">·</span>
+          <span
+            ><strong>Execution Overhead:</strong> Wasm execution is ~2x to 5x slower than native host
+            Python. Useful for verification, not micro-benchmarks.</span
+          >
+        </li>
+        <li class="flex gap-2">
+          <span class="text-accent font-mono font-bold">·</span>
+          <span
+            ><strong>Worker Reset:</strong> Pressing Stop terminates the worker instance, clearing in-memory
+            variables for a fresh restart.</span
+          >
+        </li>
+      </ul>
+    </div>
   </Fragment>
 </ToolLayout>

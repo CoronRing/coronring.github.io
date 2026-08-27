@@ -10,88 +10,74 @@ import ReadTime from '../../components/tools/ReadTime';
   <ReadTime client:load />
 
   <Fragment slot="about">
-    <h2>The problem</h2>
-    <p>
-      &ldquo;Five minute read&rdquo; is a word count divided by 200. The 200 has no source. It
-      circulates because it is round, and it is wrong in both directions depending on what is being
-      read and by whom.
-    </p>
-    <p>
-      Spoken duration is worse, because it is not a property of the text at all. It depends on the
-      voice, and speaking rate varies by more than a factor of two across the voices installed on
-      one machine. No word-count model can know which voice you are about to use, so for a script
-      headed for narration the estimate is a guess dressed as a number.
-    </p>
-    <p>
-      The obvious fix is to speak the text and time it. For 500 words that is three and a half
-      minutes of waiting, which is not a tool.
-    </p>
+    <div class="grid gap-6 md:grid-cols-3">
+      <div class="hud-card p-5">
+        <h3 class="eyebrow text-accent mb-2">01 · Empirical Reading Rates</h3>
+        <p class="text-muted text-sm leading-relaxed">
+          Replaces folk &ldquo;200 wpm&rdquo; rules with Brysbaert (2019) meta-analysis baselines
+          (238 wpm silent, 183 wpm aloud, 130 wpm presentation).
+        </p>
+        <div class="text-faint mt-3 font-mono text-[11px]">
+          Precision: Independent per-sentence pause modeling.
+        </div>
+      </div>
 
-    <h2>The approach</h2>
-    <p>Two answers, side by side, from two different methods.</p>
-    <p>
-      The estimate uses rates with a source. <a
-        href="https://doi.org/10.1016/j.jml.2019.104047"
-        target="_blank"
-        rel="noopener noreferrer">Brysbaert (2019)</a
-      > meta-analysed 190 studies and 18,573 participants and found English non-fiction reads at a mean
-      of 238 words per minute silently and 183 aloud. Those are the numbers here. The delivery rates below
-      them are conventions from their own fields: publishers ask narrators for 150 to 160, and speech
-      coaches target around 130 for a talk. Per-sentence pause time is added separately rather than folded
-      into the rate, because forty short sentences take longer to read aloud than eight long ones with
-      the same word count, and a pure words-per-minute model cannot express that.
-    </p>
-    <p>
-      The measurement is the interesting half.
-      <code>SpeechSynthesisUtterance</code> fires a <code>boundary</code> event as it crosses each word,
-      carrying a character index and an elapsed time. So the tool starts speaking at an elevated rate
-      with the volume at zero, watches the boundaries, and cancels as soon as enough have arrived to fit
-      a line through. That yields characters per second <em>for that exact voice</em> in about two seconds,
-      and the full duration follows by multiplication, regardless of whether the text is fifty words or
-      five thousand. Press Play afterwards to hear it at any rate.
-    </p>
-    <p>
-      One detail worth naming, because it silently breaks every implementation that does not handle
-      it: <code>elapsedTime</code> is specified in seconds and Chrome has shipped it in milliseconds for
-      years. Wall-clock time is the arbiter here, since a figure more than a hundred times the time actually
-      spent cannot be seconds.
-    </p>
+      <div class="hud-card p-5">
+        <h3 class="eyebrow text-accent mb-2">02 · Zero-Audio Voice Probe</h3>
+        <p class="text-muted text-sm leading-relaxed">
+          Measures your exact local SpeechSynthesis voice engine. Probes word boundary timestamps at
+          2.5x speed muted, extrapolating the entire script in 2 seconds.
+        </p>
+        <div class="text-faint mt-3 font-mono text-[11px]">
+          Timing: Wall-clock normalized to fix browser timestamp quirks.
+        </div>
+      </div>
 
-    <h2>Where it stops being trustworthy</h2>
-    <ul>
-      <li>
-        <strong>Extrapolation assumes the rest reads like the opening.</strong> True for uniform prose,
-        wrong wherever the register changes, and wrong across a document that starts in paragraphs and
-        ends in a table. Measuring the whole text is exact and slow; this is fast and fitted, and the
-        panel says which one you are looking at.
-      </li>
-      <li>
-        <strong>Rate scaling is treated as linear.</strong> Speaking at 2.5x and multiplying back held
-        to within a few percent on the voices this was checked against. It is an approximation, and a
-        lower probe rate trades speed for a little accuracy.
-      </li>
-      <li>
-        <strong>Not every browser reports progress events.</strong> Safari and several mobile engines
-        have historically not fired <code>boundary</code> at all. Where they do not, the measurement refuses
-        rather than inventing a figure, and the estimate is all the page can offer.
-      </li>
-      <li>
-        <strong>A cloud voice measures the network too.</strong> Voices marked as running on the device
-        are the ones to trust here. A server-side voice includes its round trip in the timing.
-      </li>
-      <li>
-        <strong>The per-language factors are approximate.</strong> Words per minute is a poor cross-language
-        unit: German compounds several English words into one, and Chinese and Japanese have no spaces
-        to count by at all. For those scripts the word figure is derived from the character count and
-        the measured duration is far more reliable than any word model, which is the main argument for
-        measuring.
-      </li>
-      <li>
-        <strong>Reading ease is English only.</strong> Flesch and Flesch-Kincaid are calibrated on English
-        prose, and the syllable count behind them is a vowel-group heuristic that gets
-        <code>queue</code> and <code>poem</code> wrong. Hidden for other languages rather than shown as
-        noise.
-      </li>
-    </ul>
+      <div class="hud-card p-5">
+        <h3 class="eyebrow text-accent mb-2">03 · Multilingual & Readability</h3>
+        <p class="text-muted text-sm leading-relaxed">
+          Applies language-specific pacing factors (German compounding, CJK character ratios) and
+          computes Flesch-Kincaid grade scores on English prose.
+        </p>
+        <div class="text-faint mt-3 font-mono text-[11px]">
+          Output: Dual estimate & measurement readouts.
+        </div>
+      </div>
+    </div>
+
+    <div class="hud-card border-warn mt-6 border-l-2 p-5">
+      <h3 class="eyebrow text-warn mb-3">Operational Limits & Assumptions</h3>
+      <ul class="text-muted grid gap-3 text-xs leading-relaxed sm:grid-cols-2">
+        <li class="flex gap-2">
+          <span class="text-accent font-mono font-bold">·</span>
+          <span
+            ><strong>Boundary Sampling:</strong> Extrapolation assumes uniform register; full linear pass
+            is available for mixed text.</span
+          >
+        </li>
+        <li class="flex gap-2">
+          <span class="text-accent font-mono font-bold">·</span>
+          <span
+            ><strong>Browser Speech API:</strong> Mobile WebKit or restricted engines without <code
+              >boundary</code
+            > events fall back to empirical models.</span
+          >
+        </li>
+        <li class="flex gap-2">
+          <span class="text-accent font-mono font-bold">·</span>
+          <span
+            ><strong>Local vs Cloud Voices:</strong> Device-local synthetic voices provide zero-latency
+            measurement; cloud voices incorporate network round trips.</span
+          >
+        </li>
+        <li class="flex gap-2">
+          <span class="text-accent font-mono font-bold">·</span>
+          <span
+            ><strong>Readability Constraints:</strong> Flesch formulas are English-only and intentionally
+            disabled on non-Latin scripts.</span
+          >
+        </li>
+      </ul>
+    </div>
   </Fragment>
 </ToolLayout>

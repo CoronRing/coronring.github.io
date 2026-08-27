@@ -46,6 +46,7 @@ import {
   Segmented,
   Select,
   StatRow,
+  Tabs,
   TextArea,
   TextField,
   Toggle,
@@ -100,51 +101,52 @@ export default function RandomKit(): React.ReactElement {
 
           {sourceKind === 'seeded' ? (
             <>
-              <p className="text-[12.5px] leading-relaxed text-[var(--c-text-muted)]">
-                A deterministic generator, xoshiro128**, driven by a hash of the seed. The same seed
-                and settings give the same output on any machine, which is what makes generated data
-                usable as a test fixture. Not suitable for anything secret: with the seed, every
-                value is predictable.
+              <p className="text-[12px] leading-relaxed text-[var(--c-text-muted)]">
+                A deterministic generator (xoshiro128**) driven by a hash of the seed. The same seed
+                and draw count reproduce the exact same sequence on any machine.
               </p>
-              <div className="flex flex-wrap items-end gap-2">
-                <div className="min-w-52 flex-1">
-                  <Field label="Seed" htmlFor="rng-seed">
+              <div className="flex flex-wrap items-center gap-3">
+                <Field label="Seed" htmlFor="rng-seed">
+                  <div className="flex items-center gap-2">
                     <TextField
                       id="rng-seed"
                       value={seed}
                       onChange={setSeed}
-                      placeholder="any string"
+                      placeholder="my-seed"
                     />
-                  </Field>
+                    <Button
+                      onClick={() => setSeed(String(Math.floor(Math.random() * 1_000_000_000)))}
+                    >
+                      New seed
+                    </Button>
+                    <Button onClick={() => setNonce(0)} disabled={nonce === 0}>
+                      Reset
+                    </Button>
+                  </div>
+                </Field>
+                <div className="pt-4 font-mono text-[11px] text-[var(--c-text-faint)]">
+                  Draw count: {nonce}
                 </div>
-                <Button onClick={() => setSeed(Math.random().toString(36).slice(2, 10))}>
-                  Random seed
-                </Button>
               </div>
-              <p className="font-mono text-[11px] text-[var(--c-text-faint)]">
-                Each draw advances an internal counter, so pressing Generate gives the next batch.
-                Reset the seed to start the sequence over.
-              </p>
             </>
           ) : (
             <p className="text-[12.5px] leading-relaxed text-[var(--c-text-muted)]">
-              The platform CSPRNG, <code className="font-mono">crypto.getRandomValues</code>, seeded
-              by the operating system. Suitable for a token or a password. Not reproducible, so
-              nothing generated here can be regenerated later.
+              The platform CSPRNG,{' '}
+              <code className="font-mono text-[var(--c-accent)]">crypto.getRandomValues</code>,
+              seeded by the operating system. Suitable for secure tokens and cryptographic IDs.
             </p>
           )}
         </div>
       </Panel>
 
-      <Segmented
-        label="What to generate"
-        value={kind}
+      <Tabs
+        active={kind}
         onChange={setKind}
-        options={[
-          { value: 'numbers', label: 'Numbers' },
-          { value: 'list', label: 'Lists' },
-          { value: 'strings', label: 'Strings and IDs' },
-          { value: 'dice', label: 'Dice' },
+        tabs={[
+          { id: 'numbers', label: 'Numbers' },
+          { id: 'list', label: 'Lists & Sampling' },
+          { id: 'strings', label: 'Strings & UUIDs' },
+          { id: 'dice', label: 'Dice Roll' },
         ]}
       />
 

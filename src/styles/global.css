@@ -221,6 +221,18 @@
     border-right: 1px solid;
   }
 
+  /* HUD spec cards and callouts */
+  .hud-card {
+    position: relative;
+    background-color: var(--c-surface);
+    border: 1px solid var(--c-line);
+    border-radius: var(--r-sm);
+    transition: border-color var(--dur-fast) var(--ease-out);
+  }
+  .hud-card:hover {
+    border-color: var(--c-line-strong);
+  }
+
   /* Full-bleed hairline, as seen crossing the reference's hero. */
   .rule-x {
     height: 1px;
@@ -238,6 +250,22 @@
       linear-gradient(to bottom, var(--c-line-faint) 1px, transparent 1px);
     background-size: 5rem 5rem;
     opacity: var(--grid-alpha);
+  }
+
+  /* Custom subtle scrollbars for code/diff boxes */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: var(--c-sunken);
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--c-line);
+    border-radius: 3px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--c-line-strong);
   }
 
   /* ── Scroll reveal ──────────────────────────────────────────────── */

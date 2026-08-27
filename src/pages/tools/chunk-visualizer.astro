@@ -10,82 +10,73 @@ import ChunkVisualizer from '../../components/tools/ChunkVisualizer';
   <ChunkVisualizer client:load />
 
   <Fragment slot="about">
-    <h2>The problem</h2>
-    <p>
-      Chunk size is the most consequential knob in most retrieval systems and the one most often set
-      by copying a tutorial. The reason is that its effects are invisible. You pick 1000 and 200,
-      the pipeline runs, embeddings come back, and nothing tells you that a third of your chunks
-      begin halfway through a sentence, or that the overlap you configured collapsed to zero because
-      your paragraphs are longer than the step.
-    </p>
-    <p>
-      By the time it shows up, it shows up as a recall number, and a recall number does not say
-      which boundary was wrong.
-    </p>
+    <div class="grid gap-6 md:grid-cols-3">
+      <div class="hud-card p-5">
+        <h3 class="eyebrow text-accent mb-2">01 · In-Place Boundary Map</h3>
+        <p class="text-muted text-sm leading-relaxed">
+          Tracks exact source offsets to paint cuts directly over document text, distinguishing
+          overlapping regions from single-coverage zones.
+        </p>
+        <div class="text-faint mt-3 font-mono text-[11px]">
+          Visual: Highlights mid-sentence breaks and fragment tails.
+        </div>
+      </div>
 
-    <h2>The approach</h2>
-    <p>
-      Seven strategies, implemented over source offsets rather than detached strings. That is the
-      whole trick: because every chunk knows where it came from, the cuts can be painted <em
-        >in place</em
-      > on your own document, and the regions two chunks both claim can be shaded differently from the
-      regions only one does.
-    </p>
-    <p>
-      The implementations follow the shape of the ones people actually use: LangChain's character,
-      recursive-character and Markdown-header splitters, plus the sentence-window pattern from
-      LlamaIndex. The recursive splitter in particular descends the separator ladder and then <em
-        >merges the pieces back up</em
-      > to the size budget, which is the step naive re-implementations skip and the step that decides
-      what the chunks look like. Without it a document of short lines becomes a document of short chunks.
-    </p>
-    <p>The measurements are chosen to catch the failures that hide:</p>
-    <ul>
-      <li>
-        <strong>Overlap achieved versus requested.</strong> Requested overlap is a ceiling, not a promise.
-        A boundary-respecting splitter can only step back to a boundary that exists, so a large overlap
-        against large natural units silently becomes none.
-      </li>
-      <li>
-        <strong>Sentence cuts.</strong> How many chunks begin or end mid-sentence. It is the single most
-        common reason a retrieved chunk is unusable.
-      </li>
-      <li>
-        <strong>Index expansion.</strong> Characters stored divided by characters of source. Overlap is
-        not free: every duplicated token is embedded once and paid for again on every retrieval that returns
-        both neighbours.
-      </li>
-      <li>
-        <strong>Size distribution.</strong> A tight cluster under the budget means the strategy is working.
-        A bimodal one means your document has two kinds of section in it and one strategy will not serve
-        both.
-      </li>
-    </ul>
+      <div class="hud-card p-5">
+        <h3 class="eyebrow text-accent mb-2">02 · Strategy Support</h3>
+        <p class="text-muted text-sm leading-relaxed">
+          Seven standard splitter implementations: LangChain recursive-character, character,
+          Markdown header, semantic topic boundary, code AST, sliding window, and sentences.
+        </p>
+        <div class="text-faint mt-3 font-mono text-[11px]">
+          Real behavior: Descends separator tiers and merges up to target budget.
+        </div>
+      </div>
 
-    <h2>Where it stops being trustworthy</h2>
-    <ul>
-      <li>
-        The semantic strategy is not embedding-based. It measures topic shift with cosine similarity
-        over sentence term vectors, which needs no network call and finds coarse boundaries well,
-        but misses paraphrase: two sentences saying the same thing in different words score as
-        unrelated. It is labelled "lexical" for that reason.
-      </li>
-      <li>
-        Token counts come from the same estimator as the token counter, and carry the same 10 to 15%
-        error. Token budgets are converted to character budgets using the ratio measured on <em
-          >your</em
-        >
-        text, which is more honest than assuming four, and still an approximation.
-      </li>
-      <li>
-        Sentence detection is rule-based. It knows about common abbreviations and single initials,
-        and it will still be wrong on text with unreliable punctuation: transcripts, OCR output,
-        anything without terminal periods.
-      </li>
-      <li>
-        This shows you where a splitter cuts. It does not tell you whether retrieval improves. Only
-        an evaluation over your own queries does that, and no visualiser substitutes for it.
-      </li>
-    </ul>
+      <div class="hud-card p-5">
+        <h3 class="eyebrow text-accent mb-2">03 · Diagnostic Metrics</h3>
+        <p class="text-muted text-sm leading-relaxed">
+          Measures achieved vs requested overlap, mid-sentence severed boundaries, index expansion
+          factor, and size distribution clustering.
+        </p>
+        <div class="text-faint mt-3 font-mono text-[11px]">
+          Sizing: Dynamic token-to-character ratio calibration.
+        </div>
+      </div>
+    </div>
+
+    <div class="hud-card border-warn mt-6 border-l-2 p-5">
+      <h3 class="eyebrow text-warn mb-3">Operational Limits & Assumptions</h3>
+      <ul class="text-muted grid gap-3 text-xs leading-relaxed sm:grid-cols-2">
+        <li class="flex gap-2">
+          <span class="text-accent font-mono font-bold">·</span>
+          <span
+            ><strong>Lexical Semantic Split:</strong> The semantic strategy uses term-vector shift client-side
+            without remote model calls; treats synonym rephrasing as topic movement.</span
+          >
+        </li>
+        <li class="flex gap-2">
+          <span class="text-accent font-mono font-bold">·</span>
+          <span
+            ><strong>Sentence Heuristics:</strong> Rule-based sentence segmentation may miss boundaries
+            in OCR dumps, unpunctuated voice transcripts, or rare abbreviations.</span
+          >
+        </li>
+        <li class="flex gap-2">
+          <span class="text-accent font-mono font-bold">·</span>
+          <span
+            ><strong>Index Overhead:</strong> Higher overlap increases total vector store storage and
+            retrieval re-ranking costs.</span
+          >
+        </li>
+        <li class="flex gap-2">
+          <span class="text-accent font-mono font-bold">·</span>
+          <span
+            ><strong>Eval Boundary:</strong> Visual inspection verifies splitter mechanics; end-to-end
+            recall requires validation against your evaluation query set.</span
+          >
+        </li>
+      </ul>
+    </div>
   </Fragment>
 </ToolLayout>

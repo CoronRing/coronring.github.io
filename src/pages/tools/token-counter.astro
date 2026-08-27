@@ -1,9 +1,6 @@
 ---
 /**
  * Token Counter tool page.
- *
- * `client:load` rather than `client:visible`: the island *is* the page, and it
- * sits above the fold, so deferring hydration would only add a visible delay.
  */
 import ToolLayout from '../../layouts/ToolLayout.astro';
 import TokenCounter from '../../components/tools/TokenCounter';
@@ -13,60 +10,61 @@ import TokenCounter from '../../components/tools/TokenCounter';
   <TokenCounter client:load />
 
   <Fragment slot="about">
-    <h2>The problem</h2>
-    <p>
-      Two questions come up constantly and neither has a good answer to hand. How big is this
-      prompt, really? And what will it cost on the model I am actually going to use, rather than the
-      one in the tutorial?
-    </p>
-    <p>
-      The second question is the harder one. Published price lists live on a dozen vendor pages in a
-      dozen units: per thousand tokens, per million, per character. The same model also costs
-      different amounts through a first-party API, through Bedrock, and through a gateway. Comparing
-      them by hand is tedious enough that most people do not, and pick a model on reputation.
-    </p>
+    <div class="grid gap-6 md:grid-cols-2">
+      <div class="hud-card p-5">
+        <h3 class="eyebrow text-accent mb-2">01 · Pricing Catalogue</h3>
+        <p class="text-muted text-sm leading-relaxed">
+          Aggregates over 2,400 models across 80+ providers from LiteLLM's unified index. Statically
+          compiled to eliminate external network requests.
+        </p>
+        <div class="text-faint mt-3 font-mono text-[11px]">
+          Units: Standardized USD / 1M input, output, and cached tokens.
+        </div>
+      </div>
 
-    <h2>The approach</h2>
-    <p>
-      The catalogue comes from <a
-        href="https://github.com/BerriAI/litellm/blob/main/model_prices_and_context_window.json"
-        target="_blank"
-        rel="noopener noreferrer">LiteLLM's price list</a
-      >, which covers around 2,400 token-priced models across 80-odd providers and is the most
-      complete public source there is. It is trimmed at author time to the fields a cost calculator
-      reads, converted to one unit, and committed as a static asset, so the page loads it from this
-      origin rather than pulling 1.8 MB from a third party every time someone opens it.
-    </p>
-    <p>
-      Counting is the part that cannot be exact. No production tokenizer ships as a client-side
-      library, and the authoritative counters are API endpoints that need a key and a round trip,
-      which would mean sending your prompt to someone. So the estimate uses a segment-weighted
-      character model instead: text is split into runs of similar character class and each run is
-      charged its own characters-per-token rate, which handles the cases a flat <code
-        >chars / 4</code
-      >
-      rule gets badly wrong: code, CJK, long digit strings, runs of whitespace.
-    </p>
+      <div class="hud-card p-5">
+        <h3 class="eyebrow text-accent mb-2">02 · Segment-Weighted Estimator</h3>
+        <p class="text-muted text-sm leading-relaxed">
+          Runs entirely in-tab with zero prompt leakage. Uses character-class weighting (code, CJK,
+          digits, whitespace) to outperform naive <code>chars/4</code> heuristics.
+        </p>
+        <div class="text-faint mt-3 font-mono text-[11px]">
+          Precision: ±10% on prose, ±15% on code structures.
+        </div>
+      </div>
+    </div>
 
-    <h2>Where it stops being trustworthy</h2>
-    <ul>
-      <li>
-        Expect ±10% against a real tokenizer on prose and ±15% on code. That is fine for budgeting
-        and wrong for billing reconciliation.
-      </li>
-      <li>
-        Prices are list prices. Batch discounts, committed-use rates, priority tiers and per-request
-        surcharges such as web search are all excluded.
-      </li>
-      <li>
-        The cache slider prices cached input at the model's published cache-read rate. It does not
-        model cache <em>writes</em>, which bill above the input rate, so a cold first pass costs
-        more than the figure shown.
-      </li>
-      <li>
-        A snapshot goes stale. The date under the table is the date the price list was taken, not
-        today.
-      </li>
-    </ul>
+    <div class="hud-card border-warn mt-6 border-l-2 p-5">
+      <h3 class="eyebrow text-warn mb-3">Operational Limits & Assumptions</h3>
+      <ul class="text-muted grid gap-3 text-xs leading-relaxed sm:grid-cols-2">
+        <li class="flex gap-2">
+          <span class="text-accent font-mono font-bold">·</span>
+          <span
+            ><strong>Budgeting vs Billing:</strong> Ideal for architectural sizing and price projection;
+            not for final invoice reconciliation.</span
+          >
+        </li>
+        <li class="flex gap-2">
+          <span class="text-accent font-mono font-bold">·</span>
+          <span
+            ><strong>List Pricing:</strong> Excludes volume tier discounts, enterprise commitments, and
+            tool call add-on fees.</span
+          >
+        </li>
+        <li class="flex gap-2">
+          <span class="text-accent font-mono font-bold">·</span>
+          <span
+            ><strong>Cache Reads:</strong> The cache slider applies published cache-read rates and excludes
+            one-time cache-write costs.</span
+          >
+        </li>
+        <li class="flex gap-2">
+          <span class="text-accent font-mono font-bold">·</span>
+          <span
+            ><strong>Snapshot Date:</strong> Reflected date indicates the price list sync timestamp.</span
+          >
+        </li>
+      </ul>
+    </div>
   </Fragment>
 </ToolLayout>

@@ -14,7 +14,7 @@ import {
   type PricedModel,
 } from '../../lib/model-pricing';
 import { costOf, estimateTokens, formatUsd } from '../../lib/tokens';
-import { Badge, Button, num, Panel, Segmented, Slider, StatRow, TextArea } from './ui';
+import { Badge, Button, num, Panel, PasteButton, Segmented, Slider, StatRow, TextArea } from './ui';
 
 /**
  * TokenCounter — paste text, size it, and price it against any hosted model.
@@ -166,13 +166,17 @@ export default function TokenCounter(): React.ReactElement {
       {/* ── Input ─────────────────────────────────────────────────────── */}
       <Panel
         title="Input text"
+        cornerTicks
         aside={
-          <div className="flex items-center gap-1.5">
-            {SAMPLES.map((s) => (
-              <Button key={s.label} onClick={() => setText(s.text)}>
-                {s.label}
-              </Button>
-            ))}
+          <div className="flex flex-wrap items-center gap-1.5">
+            <PasteButton onPaste={setText} />
+            <div className="flex items-center gap-1 border-l border-[var(--c-line)] pl-2">
+              {SAMPLES.map((s) => (
+                <Button key={s.label} variant="quiet" onClick={() => setText(s.text)}>
+                  {s.label}
+                </Button>
+              ))}
+            </div>
             <Button variant="quiet" onClick={() => setText('')} disabled={text.length === 0}>
               Clear
             </Button>

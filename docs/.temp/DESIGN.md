@@ -1,13 +1,21 @@
 # coronring.github.io — Design Document
 
-**Version:** 0.6.0
-**Status:** Draft — structure, visual system, first live demo and nine live tools built, content pending
-**Last updated:** 2026-08-26
+**Version:** 0.7.0
+**Status:** Complete — UI/UX tactical HUD redesign, workspace tab modes, organized toolbars, and scannable technical specification cards
+**Last updated:** 2026-08-27
 **Owner:** Guan Zheng Huang (`CoronRing`)
 
 > This document covers the Astro site only. The site is now one of three
 > deployables in this repository, and anything crossing the boundary between
 > them belongs in [`../SYSTEM.md`](../SYSTEM.md).
+>
+> **v0.7.0** — UI/UX overhaul across all nine tools and page layouts. Solves
+> button sprawl and dense prose fatigue. Text Diff introduces primary workspace
+> modes (`[ ≡ Word & Line Diff ]` vs `[ ✦ Semantic Analysis ]`) with synchronized
+> split views and immediate diff inspection. Shared `ui.tsx` primitives gain tactical
+> HUD aesthetics (hazard yellow primary fills, sleek secondary ghost buttons, corner
+> tick accents, and first-class `Tabs`). Dense markdown prose across all tool
+> pages converted into scannable HUD technical specification cards.
 >
 > **v0.6.0** — five more tools (Python Runner, String Kit, Regex Lab, Random
 > Kit, Read Time) and a semantic axis added to Text Diff. Three consequences
