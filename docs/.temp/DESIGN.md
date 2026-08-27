@@ -1,10 +1,35 @@
 # coronring.github.io — Design Document
 
-**Version:** 0.3.0
-**Status:** Draft — structure, visual system and first live demo built, content pending
-**Last updated:** 2026-08-16
+**Version:** 0.6.0
+**Status:** Draft — structure, visual system, first live demo and nine live tools built, content pending
+**Last updated:** 2026-08-26
 **Owner:** Guan Zheng Huang (`CoronRing`)
 
+> This document covers the Astro site only. The site is now one of three
+> deployables in this repository, and anything crossing the boundary between
+> them belongs in [`../SYSTEM.md`](../SYSTEM.md).
+>
+> **v0.6.0** — five more tools (Python Runner, String Kit, Regex Lab, Random
+> Kit, Read Time) and a semantic axis added to Text Diff. Three consequences
+> worth recording. The site now executes visitor-supplied code, in a worker,
+> under §12.4. The chat service gains a second endpoint, `/api/embed`, which is
+> the first backend work driven by a tool rather than by the assistant. And the
+> runner is mountable on a project page through a new `pyPreset` frontmatter
+> field, which is how an interfaceless Python package gets a demo. §12.2 is
+> rewritten, §12.4 and §12.5 are new.
+>
+> **v0.5.0** — the tools section goes from one tool to four: Token Counter
+> (rebuilt on LiteLLM's price list), Text Diff, Chunk Visualizer and MCP
+> Tester. Two of them make network requests, which amends the browser-local
+> rule in §1; §12.2 is the new section covering the tools, and §12.3 records
+> the amended rule. Tool pages gain an `about` slot carrying the same prose
+> treatment as a project page.
+>
+> **v0.4.0** — the Particle Wave demo now posts uploads to the Python service
+> in `backend/` and falls back to the in-tab tracer only when that service is
+> unreachable. See §7.5 and §13. Visitor-facing copy was rewritten to drop the
+> em-dash-and-triad register; §12.1 records the rule.
+>
 > **v0.3.0** — the particle engine gains ambient motion (rotation and
 > per-particle drift) and per-group spin weights; the hero cloud becomes the
 > G mark; the Particle Wave project gets a real driveable demo with in-browser
@@ -71,9 +96,9 @@ _agentic developer_; the site should demonstrate it through the things on it.
 Three consequences:
 
 1. **The demos have to run.** A live artifact beats a description of one.
-2. **The tools have to be useful.** Browser-local execution is a hard
-   requirement — it is what makes pasting a real prompt into a stranger's site
-   reasonable.
+2. **The tools have to be useful.** Browser-local execution is the default,
+   and what makes pasting a real prompt into a stranger's site reasonable.
+   v0.5.0 amends it from an absolute to a two-tier rule; see §12.3.
 3. **The engineering has to survive inspection.** Recruiters skim; engineers
    open dev tools.
 
@@ -118,8 +143,8 @@ Five routes. Each nav entry carries a two-digit index as a HUD motif.
 /projects/[slug]         Detail: live demo above the write-up
 /resume              02  Resume     One timeline, four sections
 /resources           03  Resources  Categorised link list
-/tools               04  Tools      Browser-local utilities
-/tools/[slug]            Individual tool
+/tools               04  Tools      Instruments for language-model work
+/tools/[slug]            Individual tool: instrument above, write-up below
 /404                     Not found
 ```
 
@@ -366,12 +391,27 @@ construction because the SoA buffers are sized to it. Everything else is hot.
 The init effect reads parameters through a ref so a slider does not tear down
 the engine.
 
-**Image upload** (`src/lib/image-to-cloud.ts`) traces a dropped image to a point
-cloud in the tab: luminance → Sobel → importance sampling, emitted as a
-`.pwcloud` object, which `Loader.load` accepts as readily as a URL. Nothing is
-uploaded anywhere. It is a cut-down port of SenseRing's Python extractor — that
-one does multi-scale edges and Poisson-disc spacing; this one has to answer in
-under a second.
+**Image upload, server first (v0.4.0).** An uploaded image is posted to the
+Python service in `backend/` through `src/lib/particle-wave-api.ts`, which runs
+the real extractor and returns a `.pwcloud`. That is the half of the project
+worth showing: the page renders exactly what the CLI would produce.
+
+`src/lib/image-to-cloud.ts` remains as the fallback and traces in the tab:
+luminance → Sobel → importance sampling, emitted as a `.pwcloud` object, which
+`Loader.load` accepts as readily as a URL. It is a cut-down port of SenseRing's
+Python extractor. That one does multi-scale edges and Poisson-disc spacing;
+this one has to answer in under a second.
+
+The two are interchangeable because they emit the identical format, so the
+renderer cannot tell them apart. The readout names whichever ran, because the
+quality difference is the interesting part and a silent substitution would be a
+worse demo than a labelled one. The service is free-tier hardware, so a failure
+is expected often enough to be reported as provenance rather than as an error.
+
+The demo asks for 3,500 points at `min_radius` 1.8. That number is measured on
+the deployed host rather than guessed: the point cap, not the radius, is what a
+visitor waits on, and after the sampler was given a coarse acceleration grid
+3,500 points fell from 5.8 s to 1.2 s. See `backend/docs/design.md` §4.1.
 
 > **Background estimation is the whole trick.** The first version weighted
 > pixels by distance from the _mean_ luminance. On a dark logo over white the
@@ -453,13 +493,258 @@ runtime-resolved component fails the build with `NoMatchingImport`.
 
 ---
 
+## 12.1 Copy register
+
+The site is a hiring surface, so copy that reads as machine-generated is a
+material cost. Visitor-facing prose carries no em dashes at all. Sentences are
+restructured rather than repunctuated, an en dash is used only for date ranges,
+and `·` carries the separators the design already relies on.
+
+The constructions avoided by rule: the em-dashed appositive holding a
+three-item list, "not just X but Y", "worth noting", and the vocabulary
+cluster around "delve", "leverage", "seamless" and "robust". Existing lines
+that are already direct are left alone; the aim is to remove the machine
+register, not the voice.
+
+This applies to `src/content/`, `src/data/`, page `lede` and `description`
+props, demo captions, and `README.md`. Code comments and these design documents
+are held to a lower bar.
+
+---
+
+## 12.2 The tools
+
+Nine live, registered in `src/data/tools.ts`. The index and `ToolLayout` both
+render from that registry, so a tool cannot disagree with the index about its
+own name, summary or network behaviour.
+
+| Tool             | Island                             | Engine                                   | Network                  |
+| ---------------- | ---------------------------------- | ---------------------------------------- | ------------------------ |
+| Token Counter    | `components/tools/TokenCounter`    | `lib/tokens`, `lib/model-pricing`        | static price table       |
+| Text Diff        | `components/tools/TextDiff`        | `lib/diff`, `lib/semantic`               | opt-in embedding call    |
+| Chunk Visualizer | `components/tools/ChunkVisualizer` | `lib/chunking`                           | none                     |
+| MCP Tester       | `components/tools/McpTester`       | `lib/mcp`                                | the endpoint you name    |
+| Python Runner    | `components/tools/PyRunner`        | `lib/py-runtime`, `public/py-worker.js`  | Pyodide CDN, PyPI wheels |
+| String Kit       | `components/tools/StringKit`       | `lib/html-to-markdown`, `lib/string-kit` | none                     |
+| Regex Lab        | `components/tools/RegexLab`        | `lib/regex-lab`                          | none                     |
+| Random Kit       | `components/tools/RandomKit`       | `lib/rng`                                | none                     |
+| Read Time        | `components/tools/ReadTime`        | `lib/speech-time`                        | none                     |
+
+**The engine is never in the island.** Every tool is a thin React presentation
+layer over a dependency-free module in `src/lib/`. That split is what let each
+engine be tested in isolation with a throwaway node harness before any UI
+existed, and it is why the components are short enough to read. The v0.6.0
+harness carries 279 assertions across seven engines; the two that need a DOM
+(`html-to-markdown`) or a browser API (`speech-time` measurement) are covered
+as far as jsdom allows and no further.
+
+**Shared controls** live in `components/tools/ui.tsx`. v0.6.0 adds
+`DownloadButton`, `PasteButton`, `OutputBox`, `Field`, `TextField`,
+`NumberField`, `Select`, `Toggle`, `Toolbar`, `Kbd` and `usePersisted`. Two of
+those encode a rule rather than a widget:
+
+- **`OutputBox` is the standard result surface,** with copy and download in its
+  header. Every converter ends in one, so "can I get this out of the page" has
+  the same answer everywhere. A 4,000-line Markdown document is not usefully
+  delivered through a clipboard button alone.
+- **`usePersisted` keeps input across a reload,** guarded on every read and
+  write. `localStorage` throws outright in a browser configured to block site
+  data, and a tool that fails to boot because of a privacy setting is worse
+  than one that forgets.
+
+**The price table** (`public/data/model-pricing.json`, ~290 kB) is generated
+from LiteLLM's published price list by `scripts/fetch-model-pricing.mjs` and
+committed. Reasons, in order: builds stay hermetic, a price change is a
+reviewable diff, and the browser never talks to a third party. Refresh with
+`npm run pricing:refresh`. It is fetched at runtime rather than bundled, so the
+tools that quote no prices do not carry it. `src/data/models.ts` survives as the
+pinned shortlist and the offline fallback; the catalogue supplies the numbers
+where it has them.
+
+**The MCP client** speaks both protocol eras. Revision `2026-07-28` removed the
+`initialize` handshake, protocol-level sessions and the standalone GET stream,
+and moved protocol version and client capabilities into per-request `_meta`
+plus mirrored HTTP headers. Plenty of deployed servers still speak the older
+shape, so `lib/mcp.ts` follows the specification's own detection ladder: modern
+`server/discover` first, then a body check on a 400 before falling back. There
+is deliberately no proxy — see §12.3.
+
+**The chunkers work over source offsets**, never detached strings. It is what
+makes the painted view possible: chunk boundaries land on the visitor's own
+document, and a region two chunks both claim is shaded differently from one
+only a single chunk covers.
+
+**HTML to Markdown is a content extractor with a serialiser attached**, and the
+serialiser is the small half. Raw HTML off a real page is mostly navigation,
+banners and scripts, and a faithful converter renders all of it faithfully. So
+`lib/html-to-markdown.ts` prunes, then scores candidate containers in the
+spirit of Readability (text outside links counts, link text does not, a
+container over 50% links is a menu), then walks the surviving tree. It works
+against `DOMParser` rather than a regex on purpose: the browser's parser is the
+thing that decides what the markup means, it handles malformed tables and the
+full entity table for free, and its tree is inert so scripts never run. What is
+discarded is listed under the output, because a converter that silently drops
+half a page is worse than one that keeps too much.
+
+**Regex Lab cannot prevent a hang, and says so.** JavaScript's engine
+backtracks and offers no timeout, so once it is inside a catastrophic match
+nothing in the page runs. Three defences in descending order of value: input
+and match caps, which bound the linear cost; a deadline checked between
+matches; and a static check for nested unbounded quantifiers, which is the only
+one that helps in the case that matters. A pattern shaped that way is held and
+running it is a deliberate click. Two smaller correctness details are worth
+recording because every hand-written match loop gets them wrong: a zero-length
+match leaves `lastIndex` alone, so `\b` loops forever without an explicit step,
+and that step must be by code point or it splits a surrogate pair.
+
+**Random Kit puts the source first.** Reproducible (xoshiro128\*\* over a hashed
+seed) or unpredictable (`crypto.getRandomValues`), stated in the UI, because
+those are the only two questions anyone has and `Math.random()` answers
+neither. Unique integer draws switch from rejection sampling to a partial
+Fisher-Yates once the request wants more than a third of the range, since
+rejection sampling on a nearly-full range spends almost all its time rejecting.
+
+**Read Time measures rather than estimating, in about two seconds.** Speaking
+rate varies by more than 2x across the voices on one machine, so a word count
+cannot answer the spoken-duration question. `SpeechSynthesisUtterance` fires
+`boundary` events carrying a character index and an elapsed time, so the tool
+speaks the opening at an elevated rate with volume at zero, fits a
+characters-per-second rate from the events, and cancels. Cost is independent of
+document length. One trap worth recording: `elapsedTime` is specified in
+seconds and Chrome has shipped it in milliseconds for years, so wall-clock time
+arbitrates. The word-count estimator alongside it uses Brysbaert (2019) rather
+than the sourceless 200 wpm everyone repeats.
+
+---
+
+## 12.3 The network rule, amended
+
+v0.1.0 through v0.4.0 held that every tool runs entirely in the browser. Two of
+the four now make requests, so the rule is restated rather than quietly broken:
+
+1. **What the visitor types never leaves the tab without an explicit act.** The
+   only exception is the diff tool's semantic panel, and it is opt-in per
+   click: the button says what leaves the page, and the local engine is the
+   default so the tool is fully useful without ever pressing it.
+2. **A tool may fetch its own static data from this origin.** The token
+   counter's price table. The request carries nothing but its own URL.
+3. **A tool whose whole purpose is a network call may make it, to an endpoint
+   the visitor named, direct from the tab.** The MCP tester.
+4. **A tool may download its own runtime from a public CDN.** The Python
+   Runner, which fetches Pyodide from jsDelivr and wheels from PyPI. The code
+   typed into it is executed locally and never transmitted. Self-hosting was
+   rejected: the distribution is hundreds of megabytes, and even the core would
+   be the largest thing in a repository that deploys through GitHub Pages.
+
+`ToolEntry.offline` carries this into the UI: the index badges each live tool,
+and `ToolLayout` prints either the blanket privacy line or the tool's own
+`network` sentence. A page that promised otherwise would be lying, and the
+registry makes the promise impossible to get out of step with the code.
+
+**No proxy, deliberately.** A hosted forwarder that would POST to any URL a
+stranger types is an SSRF pivot pointed at internal ranges and cloud metadata
+endpoints. The cost of refusing it is that a server without CORS headers is
+unreachable from a browser; the tool says so precisely and hands over a `curl`.
+The benefit, besides not running an open forwarder, is that `localhost`
+endpoints work during development, which a hosted proxy could never do.
+
+---
+
+## 12.4 Running visitor code
+
+The Python Runner executes code a visitor typed. That is a different class of
+feature from everything above it, and the design follows from one requirement:
+**`while True: pass` must not kill the tab.**
+
+Pyodide is synchronous WebAssembly. On the main thread a runaway loop blocks
+rendering, input, and the stop button itself, so there is no in-page recovery.
+The only mechanism the platform offers is `Worker.terminate()`. Everything else
+falls out of that:
+
+- **The interpreter lives in a worker** (`public/py-worker.js`, served static
+  because a worker needs a stable URL and Pyodide's loader calls
+  `importScripts`, which a module worker does not have).
+- **`stop()` terminates and `start()` rebuilds.** State in the worker is
+  expected to be lost, including installed packages, and the UI says so rather
+  than letting a cleared namespace look like a bug.
+- **A 60 second ceiling** terminates the same way, for the same reason.
+- **Nothing is hydrated until asked.** A 12 MB runtime download on page load,
+  for a demo most visitors scroll past, is not a trade worth making.
+
+**Environments are a registry** (`src/data/py-presets.ts`), not a hardcoded
+list, which is what makes the runner mountable per project — see §12.5.
+
+**The boundary is published wheels, and it is stated per preset.** Pure-Python
+wheels install from PyPI unchanged. A compiled extension needs a wheel built
+for WebAssembly, which exists only if Pyodide prebuilt it or the maintainer
+published one; nothing can be compiled in a tab. A preset that is known not to
+install carries `blockers`, shown before the attempt rather than after, because
+the attempt takes most of a minute and ends in a traceback that reads like a
+framework bug.
+
+`railtracks` is that case, and all three blockers were reproduced against
+Pyodide 0.28.3 rather than inferred. It requires `pydantic>=2.11`; Pyodide
+bundles 2.10.6, and newer `pydantic-core` publishes WebAssembly wheels only for
+CPython 3.14 where Pyodide is on 3.13. Past that, LiteLLM pulls `tokenizers` and
+`fastuuid`, both Rust extensions with no wasm wheel at any version. There is a
+second, independent obstacle past the install: a Railtracks agent calls a model,
+and no major provider sends CORS headers, so a browser cannot reach one whatever
+is installed. A working browser demo would need a proxy holding a key. The
+preset stays in the registry, attempts the install for real, reports what
+stopped it, and hands over the local command; it starts working with no code
+change the day those wheels appear.
+
+`particle-wave` is the case that works. The published wheel installs and the
+real four-stage pipeline runs in about 2.5 seconds on a synthetic image.
+It installs with dependency resolution off and its dependencies named
+explicitly, which is a workaround for a metadata detail rather than a
+shortcut: the wheel declares `typer[all]`, an extra Typer stopped publishing,
+and micropip treats an unknown extra as a hard error where pip only warns.
+**That is worth fixing upstream in `ParticleWave/pyproject.toml`.**
+
+**The editor is hand-written** (`components/tools/CodeEditor.tsx`): a
+transparent `textarea` over a highlighted `pre`, with the shared metrics
+declared once so the caret cannot drift from the text. CodeMirror 6 is the right
+answer for an IDE and ~250 kB to type Python into a box on a page whose design
+argument is that it loads fast. Edits go through `setRangeText` so the browser's
+own undo stack records them; the obvious alternative destroys undo on every Tab.
+
+---
+
+## 12.5 A runnable console per project
+
+Most of the work this site presents is a Python package with no interface. A
+README describes one and a code block shows the call; neither answers what
+happens when you run it.
+
+So `pyPreset` is an optional field on project frontmatter, validated at render
+time against the preset registry so a typo fails the build with a message that
+names the registry. Set it and the project page grows a "Run it here" section
+mounting the same `PyRunner` island with that package selected and plain Python
+as the fallback. It is `client:visible`, since it sits well below the fold and
+the interpreter should not start downloading on page load.
+
+This is deliberately not the `demo:` mechanism. A demo is one island per
+project chosen from `components/demos/registry.ts` and branched explicitly in
+`DemoFrame.astro`; the console is a second, independent slot, so a project can
+have both. `particle-wave` does.
+
+---
+
 ## 13. Deployment
 
 `main` → Actions → Pages. `npm run build` runs `astro check` first, so a type
 error fails the deploy. Concurrency group `pages`, `cancel-in-progress: false`.
 
 All internal links route through `href()`, which resolves against
-`import.meta.env.BASE_URL` — moving to a project page is one config line.
+`import.meta.env.BASE_URL`, so moving to a project page is one config line.
+
+**The workflow builds `src/` only.** `backend/` and `infra/` are in the same
+repository but are never built or published by CI, so a broken service cannot
+block a content change. The service is deployed by hand with
+`python infra/configure.py --deploy`, which means the site and the service can
+be out of step and nothing will say so. Verify the pair against the public URL
+after either one changes; `../SYSTEM.md` §4 has the check.
 
 ---
 
@@ -467,32 +752,49 @@ All internal links route through `href()`, which resolves against
 
 - **Phase 2 — Content.** Replace every placeholder. Real projects, resume, resources. Add `public/resume.pdf`.
 - **Phase 3 — Demos.** Replace `PlaceholderDemo` with real artifacts.
-- **Phase 4 — Tools.** Ship the four planned tools; consider a WASM tokenizer to replace the token counter's estimator with an exact count.
+- **Phase 4 — Tools.** Nine shipped as of v0.6.0 (§12.2); Context Budgeter and JSON Schema Forge remain. Still open: a WASM tokenizer to replace the token counter's estimator with an exact count; per-tool state in the URL so a configuration can be linked; `pyPreset` on the remaining project pages once those packages are published; and revisiting the `railtracks` preset when its transitive wheels reach WebAssembly (§12.4).
 - **Phase 5 — Polish.** Per-page OG images, Lighthouse pass, screen-reader testing, more `.pwcloud` shapes per section.
 
 ---
 
 ## 15. Decision log
 
-| Decision                                                          | Reasoning                                                                                  |
-| ----------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
-| Escalate to a headless browser before declaring a site unreadable | v0.1.0's central error; the CSS was one `curl` away                                        |
-| Vertical rail over horizontal header                              | Nav persists through a full-height hero; gives the asymmetric edge the reference relies on |
-| Contrast veil rather than a matching one                          | A same-tone loader is a blank screen; the opposite tone makes the reveal an event          |
-| Veil once per session                                             | An MPA that veils every navigation is unusable                                             |
-| Two accent tokens (text vs fill)                                  | `#fffa00` is illegible as text on white but correct as a fill with ink on top              |
-| Per-theme particle size and opacity                               | Equal alpha does not mean equal perceived weight across grounds                            |
-| No canvas fade-in                                                 | Bought nothing; froze at ~35% contrast wherever the animation clock stalls                 |
-| Parametric cloud with a fixed seed                                | No source bitmap, no Python in CI, byte-identical rebuilds                                 |
-| Vendor SenseRing rather than reimplement                          | The engine already exists, is better than a rewrite, and is the user's own work            |
-| Types declared beside vendored JS, not inside it                  | Upstream edits are lost on the next sync                                                   |
-| Carousel over three stacked cards                                 | Three prose blocks compete for one glance                                                  |
-| Generated cover art over grey boxes                               | Says something true while real screenshots are pending                                     |
-| Verify by sampling pixels                                         | Both particle bugs were invisible to inspection                                            |
-| Ambient motion on the rest frame, not as a force                  | As a force it fights the spring and washes out to a static offset                          |
-| Glyph at spin weight 0, corona at 1                               | A spinning letter is upside down half the time                                             |
-| Median, not mean, as the extractor's background level             | The mean leaves background pixels at a third weight; the trace fills the frame             |
-| Real driveable demo over a recording                              | Claims about a physics engine are cheap; a spring-constant slider is not                   |
+| Decision                                                              | Reasoning                                                                                                                                      |
+| --------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| Pyodide in a worker, and terminate as the only stop                   | Synchronous WebAssembly cannot be interrupted in-page; on the main thread a visitor's infinite loop takes the tab and the stop button with it  |
+| Keep the `railtracks` preset even though it cannot install            | The blockers are missing wheels, not broken code; a hardcoded refusal would outlive the reason for it, and the attempt reports the real cause  |
+| Hand-written editor rather than CodeMirror                            | ~250 kB to type Python into a box on a page whose argument is that it loads fast; a gutter, colour and indent-aware keys is the whole ask      |
+| `/api/embed` on the chat service, not a new service                   | It needs Gemini keys, even rotation, per-model cooldowns and a rate limiter, all of which already exist there; a second copy is a second bug   |
+| L2-normalise embeddings at the service boundary                       | `gemini-embedding-001` is unit length only at 3072 dimensions; below that cosine and dot product silently disagree by up to 20%                |
+| Semantic comparison opt-in per click, local engine as default         | The tool is fully useful without a request, so uploading pasted text on page load would buy nothing and cost the promise in §12.3              |
+| Warn on catastrophic regex shapes rather than trying to abort         | Nothing in the page runs once the engine is inside a backtrack; a static check before running is the only defence that exists                  |
+| Random Kit names its source in the UI                                 | Reproducible and unpredictable are opposite requirements and `Math.random()` satisfies neither; hiding the choice hides the only two questions |
+| Measure speech rate from `boundary` events, then extrapolate          | Speaking rate varies over 2x by voice, so estimating is wrong; speaking the whole text is right and takes minutes. Two seconds either way      |
+| `pyPreset` as a second project slot, not a new `demo:` key            | A demo is one island per project; a console is orthogonal, and `particle-wave` wants both                                                      |
+| Escalate to a headless browser before declaring a site unreadable     | v0.1.0's central error; the CSS was one `curl` away                                                                                            |
+| Generate and commit the price table rather than fetching LiteLLM live | Hermetic builds, a reviewable diff on every price change, and no third-party request from a visitor's browser                                  |
+| No server-side proxy for the MCP tester                               | An open request forwarder is an SSRF pivot; direct-from-tab also makes `localhost` endpoints testable                                          |
+| Tool engines in `src/lib/`, never in the island                       | Each was tested standalone before any UI existed; keeps the components short enough to read                                                    |
+| Vertical rail over horizontal header                                  | Nav persists through a full-height hero; gives the asymmetric edge the reference relies on                                                     |
+| Contrast veil rather than a matching one                              | A same-tone loader is a blank screen; the opposite tone makes the reveal an event                                                              |
+| Veil once per session                                                 | An MPA that veils every navigation is unusable                                                                                                 |
+| Two accent tokens (text vs fill)                                      | `#fffa00` is illegible as text on white but correct as a fill with ink on top                                                                  |
+| Per-theme particle size and opacity                                   | Equal alpha does not mean equal perceived weight across grounds                                                                                |
+| No canvas fade-in                                                     | Bought nothing; froze at ~35% contrast wherever the animation clock stalls                                                                     |
+| Parametric cloud with a fixed seed                                    | No source bitmap, no Python in CI, byte-identical rebuilds                                                                                     |
+| Vendor SenseRing rather than reimplement                              | The engine already exists, is better than a rewrite, and is the user's own work                                                                |
+| Types declared beside vendored JS, not inside it                      | Upstream edits are lost on the next sync                                                                                                       |
+| Carousel over three stacked cards                                     | Three prose blocks compete for one glance                                                                                                      |
+| Generated cover art over grey boxes                                   | Says something true while real screenshots are pending                                                                                         |
+| Verify by sampling pixels                                             | Both particle bugs were invisible to inspection                                                                                                |
+| Ambient motion on the rest frame, not as a force                      | As a force it fights the spring and washes out to a static offset                                                                              |
+| Glyph at spin weight 0, corona at 1                                   | A spinning letter is upside down half the time                                                                                                 |
+| Median, not mean, as the extractor's background level                 | The mean leaves background pixels at a third weight; the trace fills the frame                                                                 |
+| Real driveable demo over a recording                                  | Claims about a physics engine are cheap; a spring-constant slider is not                                                                       |
+| Upload goes to the Python service, browser tracer as fallback         | The server half is the project; the fallback keeps a free-tier outage from breaking the page                                                   |
+| Provenance labelled in the UI rather than hidden                      | The quality gap between the two tracers is the demonstration, not an implementation detail                                                     |
+| Backend and infra excluded from the Pages workflow                    | A service that cannot build must not be able to block a content deploy                                                                         |
+| No em dashes in visitor-facing copy                                   | The strongest single tell of machine-written prose on a page employers read                                                                    |
 
 ---
 
