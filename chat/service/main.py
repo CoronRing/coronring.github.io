@@ -31,13 +31,22 @@ from contextlib import asynccontextmanager
 from fastapi import Depends, FastAPI, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
+from starlette.concurrency import run_in_threadpool
 
+from . import embed as embedding
 from . import gemini, prompt, router, security
 from .answers import AnswerCache
 from .corpus import CorpusStore
 from .keyring import KeyRing
 from .metrics import metrics
-from .schemas import ChatRequest, ChatResponse, Citation
+from .schemas import (
+    ChatRequest,
+    ChatResponse,
+    Citation,
+    EmbedRequest,
+    EmbedResponse,
+    EmbedVector,
+)
 from .settings import settings
 
 logging.basicConfig(
@@ -173,6 +182,14 @@ async def health() -> dict:
         "models": list(settings.models),
         "fallback_models": list(settings.fallback_models),
         "corpus": _corpus_summary(),
+        "embed": {
+            "enabled": settings.embed_enabled and settings.configured,
+            "model": settings.embed_model,
+            "dimensions": settings.embed_dimensions,
+            "max_texts": settings.embed_max_texts,
+            "max_chars": settings.embed_max_chars,
+            "max_total_chars": settings.embed_max_total_chars,
+        },
         "limits": {
             "max_question_chars": settings.max_question_chars,
             "max_history_turns": settings.max_history_turns,
@@ -460,6 +477,107 @@ def _exhausted(last_error: gemini.GeminiError | None) -> HTTPException:
         detail = "The assistant could not reach a model. Try again shortly."
         code = status.HTTP_503_SERVICE_UNAVAILABLE
     return HTTPException(status_code=code, detail=detail)
+
+
+# ──────────────────────────────────────────────────────────────────────────
+# Embeddings
+# ──────────────────────────────────────────────────────────────────────────
+
+
+@app.post(
+    "/api/embed",
+    response_model=EmbedResponse,
+    dependencies=[Depends(security.enforce_embed_rate_limit)],
+)
+async def embed_texts(payload: EmbedRequest) -> EmbedResponse:
+    """
+    Embed a batch of texts for semantic comparison.
+
+    Backs the semantic panel in the site's text-diff tool. The vectors come back
+    unit length, so a client can use a dot product and a cosine interchangeably.
+
+    Nothing is stored. The texts are held for the duration of the upstream call
+    and are not logged, which is what lets the tool say so on the page.
+    """
+    if not settings.embed_enabled:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Embeddings are switched off on this deployment.",
+        )
+
+    # Request validation runs before the credential check, deliberately. A
+    # malformed request is malformed whatever this deployment is configured
+    # with, and answering 503 to it would blame the server for the client's
+    # bug. It also means the size caps are exercised by the test suite on a
+    # machine with no keys.
+    texts = [
+        security.clean_text(text, limit=settings.embed_max_chars) for text in payload.texts
+    ]
+    # An empty text embeds to a vector that is not meaningfully comparable to
+    # anything, so it is a client bug worth naming rather than absorbing.
+    if any(text == "" for text in texts):
+        raise HTTPException(
+            status_code=422,  # Starlette renamed its constant for this; the literal outlives both spellings
+            detail="One of the texts is empty after cleaning.",
+        )
+
+    total = sum(len(text) for text in texts)
+    if total > settings.embed_max_total_chars:
+        raise HTTPException(
+            status_code=413,  # likewise renamed; see the note above
+            detail=(
+                f"{total:,} characters across {len(texts)} texts exceeds the "
+                f"{settings.embed_max_total_chars:,} character budget for one request."
+            ),
+        )
+
+    if not settings.configured:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="This deployment has no credentials configured.",
+        )
+
+    started = time.monotonic()
+    ring.advance()
+    last_error: gemini.GeminiError | None = None
+
+    # One model, so the plan is a walk over the keys. Same ring and the same
+    # cooldown bookkeeping as the chat path, which is the point of sharing it.
+    for attempt in router.plan((settings.embed_model,), ring):
+        if not _slots.acquire(timeout=settings.request_timeout_s):
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="The service is at capacity. Try again in a moment.",
+            )
+        try:
+            result = await run_in_threadpool(
+                embedding.embed,
+                api_key=attempt.api_key,
+                model=attempt.model,
+                texts=texts,
+                dimensions=payload.dimensions,
+                timeout=settings.request_timeout_s,
+            )
+        except gemini.GeminiError as error:
+            last_error = error
+            router.note_failure(ring, attempt, error)
+            log.info("embed attempt failed on key[%d]: %s", attempt.key_index, error)
+            if not error.retryable:
+                break
+            continue
+        finally:
+            _slots.release()
+
+        ring.record_success(attempt.key_index, attempt.model)
+        return EmbedResponse(
+            embeddings=[EmbedVector(values=list(item.values)) for item in result.embeddings],
+            model=result.model,
+            dimensions=result.dimensions,
+            task_type=result.task_type,
+            elapsed_ms=int((time.monotonic() - started) * 1000),
+        )
+
+    raise _exhausted(last_error)
 
 
 def _event(kind: str, **fields) -> str:  # type: ignore[no-untyped-def]

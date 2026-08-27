@@ -69,3 +69,52 @@ class ChatResponse(BaseModel):
     )
     corpus_hash: str = Field(description="Identity of the site text the answer came from.")
     elapsed_ms: int = 0
+
+
+class EmbedRequest(BaseModel):
+    """
+    Texts to embed, in order.
+
+    No model field and no task-type field. Both are the server's business for
+    the same reason the chat request cannot name a model: a client that could
+    choose would be choosing how to spend a shared free-tier quota. The task
+    type is fixed at `SEMANTIC_SIMILARITY`, which is the only one this endpoint
+    exists to serve.
+    """
+
+    texts: list[str] = Field(
+        min_length=1,
+        max_length=settings.embed_max_texts,
+        description="Texts to embed. The response preserves this order.",
+    )
+    dimensions: int = Field(
+        default=settings.embed_dimensions,
+        description=(
+            "Requested output width. Snapped to the nearest width the model "
+            "supports; the response reports what was actually used."
+        ),
+    )
+
+
+class EmbedVector(BaseModel):
+    """One embedded text."""
+
+    values: list[float] = Field(description="Unit-length. The service normalises before returning.")
+
+
+class EmbedResponse(BaseModel):
+    """Vectors, plus enough provenance for a client to cache them safely."""
+
+    embeddings: list[EmbedVector]
+    model: str = Field(description="Model that produced the vectors.")
+    dimensions: int = Field(description="Actual width, which may differ from the request.")
+    task_type: str = Field(description="What the vector space was optimised for.")
+    normalised: bool = Field(
+        default=True,
+        description=(
+            "Vectors are unit length, so a dot product and a cosine agree. "
+            "Reported rather than assumed: the model only guarantees this at "
+            "its native 3072 dimensions."
+        ),
+    )
+    elapsed_ms: int = 0

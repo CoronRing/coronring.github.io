@@ -4,7 +4,7 @@ Answers questions about coronring.github.io from the site's own text.
 
 The whole site is about **four thousand tokens**. That single fact decides the
 architecture: there is no retrieval step, no chunking, and no vector database.
-Every question is answered against the *complete* text of every page.
+Every question is answered against the _complete_ text of every page.
 
 That is the highest-quality option available — the model can never miss a
 relevant passage because a retriever ranked it eighth — and, because the text is
@@ -37,14 +37,14 @@ assistant with no backend redeploy, and the two can never drift.
 
 Requests walk a chain, model-major and key-minor:
 
-| Rung | Model | Why |
-| --- | --- | --- |
-| 1 | `gemini-3.7-flash` | The quality target |
-| 2 | `gemini-3.6-flash` | |
-| 3 | `gemini-3.5-flash` | Measured fastest and most reliable |
-| 4 | `gemini-3-flash-preview` | Nearest full-size flash to the requested "3.1" |
-| 5 | `gemini-3.5-flash-lite` | Last resort — answering beats not answering |
-| 6 | `gemini-3.1-flash-lite` | Extra headroom |
+| Rung | Model                    | Why                                            |
+| ---- | ------------------------ | ---------------------------------------------- |
+| 1    | `gemini-3.7-flash`       | The quality target                             |
+| 2    | `gemini-3.6-flash`       |                                                |
+| 3    | `gemini-3.5-flash`       | Measured fastest and most reliable             |
+| 4    | `gemini-3-flash-preview` | Nearest full-size flash to the requested "3.1" |
+| 5    | `gemini-3.5-flash-lite`  | Last resort — answering beats not answering    |
+| 6    | `gemini-3.1-flash-lite`  | Extra headroom                                 |
 
 Every key is tried on a model before the next model is considered, so a busy
 model costs latency rather than an answer.
@@ -53,11 +53,11 @@ model costs latency rather than an answer.
 
 Taken 2026-08-18 against the deployed free-tier keys, five calls each:
 
-| Model | Latency | Success | Implicit cache |
-| --- | --- | --- | --- |
-| `gemini-3.5-flash` | 2.7–4.0 s | 5/5 | **41 % of prompt** |
-| `gemini-3.6-flash` | 4–40 s | 4/5 | 0 % |
-| `gemini-3.7-flash` | 0.8–77 s | 2/5 | 0 % |
+| Model              | Latency   | Success | Implicit cache     |
+| ------------------ | --------- | ------- | ------------------ |
+| `gemini-3.5-flash` | 2.7–4.0 s | 5/5     | **41 % of prompt** |
+| `gemini-3.6-flash` | 4–40 s    | 4/5     | 0 %                |
+| `gemini-3.7-flash` | 0.8–77 s  | 2/5     | 0 %                |
 
 ### The caching result is the important one
 
@@ -121,12 +121,13 @@ it.
 
 ## API
 
-| Route | Purpose |
-| --- | --- |
-| `GET /api/health` | Liveness, model chain, key count, corpus identity |
-| `GET /api/status` | Health plus counters and per-key health |
-| `GET /api/suggestions` | Opening prompts for an empty transcript |
-| `POST /api/chat` | A question → an answer (SSE by default) |
+| Route                  | Purpose                                             |
+| ---------------------- | --------------------------------------------------- |
+| `GET /api/health`      | Liveness, model chain, key count, corpus identity   |
+| `GET /api/status`      | Health plus counters and per-key health             |
+| `GET /api/suggestions` | Opening prompts for an empty transcript             |
+| `POST /api/chat`       | A question → an answer (SSE by default)             |
+| `POST /api/embed`      | Texts → embedding vectors, for the site's diff tool |
 
 Mounted at `/chat` by Caddy, so from a browser these are
 `https://<host>/chat/api/...`.
@@ -140,6 +141,47 @@ curl -N -X POST https://129-146-37-132.sslip.io/chat/api/chat \
 Streaming events are JSON objects with a `type`: `meta`, `delta`, `done`,
 `error`. Pass `"stream": false` for a single JSON body.
 
+### `/api/embed`
+
+Backs the semantic comparison in the site's text-diff tool. It lives here
+rather than in its own service because it needs exactly what this service
+already has and nothing it does not: Gemini credentials, even rotation across
+them, per-(key, model) cooldowns, and a rate limiter. A second service would
+mean a second copy of all four.
+
+```bash
+curl -s -X POST https://129-146-37-132.sslip.io/chat/api/embed \
+  -H 'Content-Type: application/json' \
+  -d '{"texts":["the cat sat on the mat","a feline rested upon the rug"]}' \
+  | python -c 'import json,sys; d=json.load(sys.stdin); print(d["model"], d["dimensions"], len(d["embeddings"]))'
+```
+
+The request names no model and no task type. Both are the server's business,
+for the same reason a chat request cannot name a model: a client that could
+choose would be choosing how to spend a shared free-tier quota. The task type is
+fixed at `SEMANTIC_SIMILARITY`, which is the only one this endpoint exists to
+serve — `RETRIEVAL_QUERY` and `RETRIEVAL_DOCUMENT` are an asymmetric pair meant
+for search and are actively wrong for comparing two documents to each other.
+
+**Vectors come back unit length, always.** This is the one non-obvious thing in
+`service/embed.py`. `gemini-embedding-001` returns normalised vectors _only at
+its native 3072 dimensions_; ask for 768 and you get a truncated slice that is
+no longer unit length. Cosine still works because it divides out the magnitude,
+a dot product does not, and the two silently disagree by up to 20% at the low
+dimensions. So the service normalises once at the boundary and reports
+`normalised: true`, and every consumer gets the property it already assumed.
+
+Its own rate-limit bucket, more generous than chat's. An embed call is a
+fraction of the cost of an answer and the tool naturally fires several as
+someone edits, so sharing the chat limiter would make the assistant unusable for
+anyone who had just used the diff tool.
+
+**A note on what these vectors cannot do.** Measured against this model:
+"the cat sat on the mat" scores 0.896 against "a feline was resting upon the
+rug", and 0.920 against "the cat did _not_ sit on the mat". The inverted claim
+scores higher than the paraphrase. Embedding similarity means "same subject
+matter", never "same assertion", and the tool page says so.
+
 ## Configuration
 
 Everything is an environment variable; deployed values live in
@@ -147,18 +189,25 @@ Everything is an environment variable; deployed values live in
 `infra/chat.env` on the host by `infra/configure.py`, mode 0600, and are never
 in the repo.
 
-| Variable | Default | Notes |
-| --- | --- | --- |
-| `CHAT_GEMINI_API_KEYS` | — | CSV, JSON array, or bracketed-unquoted |
-| `CHAT_MODELS` | see above | Primary chain, best first |
-| `CHAT_FALLBACK_MODELS` | `gemini-3.5-flash-lite,…` | Tried after the chain |
-| `CHAT_REQUEST_TIMEOUT_S` | `40` | Socket timeout, per read — see below |
-| `CHAT_MAX_OUTPUT_TOKENS` | `4096` | Bounds thinking **plus** answer, not the answer |
-| `CHAT_THINKING_BUDGET` | `512` | Grounded answers measurably improve |
-| `CHAT_CORPUS_URL` | published `corpus.json` | |
-| `CHAT_CORPUS_REFRESH_S` | `900` | |
-| `CHAT_RATE_LIMIT_PER_MIN` | `10` | Per visitor |
-| `CHAT_ANSWER_CACHE_TTL_S` | `3600` | `0` disables |
+| Variable                        | Default                   | Notes                                                          |
+| ------------------------------- | ------------------------- | -------------------------------------------------------------- |
+| `CHAT_GEMINI_API_KEYS`          | —                         | CSV, JSON array, or bracketed-unquoted                         |
+| `CHAT_MODELS`                   | see above                 | Primary chain, best first                                      |
+| `CHAT_FALLBACK_MODELS`          | `gemini-3.5-flash-lite,…` | Tried after the chain                                          |
+| `CHAT_REQUEST_TIMEOUT_S`        | `40`                      | Socket timeout, per read — see below                           |
+| `CHAT_MAX_OUTPUT_TOKENS`        | `4096`                    | Bounds thinking **plus** answer, not the answer                |
+| `CHAT_THINKING_BUDGET`          | `512`                     | Grounded answers measurably improve                            |
+| `CHAT_CORPUS_URL`               | published `corpus.json`   |                                                                |
+| `CHAT_CORPUS_REFRESH_S`         | `900`                     |                                                                |
+| `CHAT_RATE_LIMIT_PER_MIN`       | `10`                      | Per visitor                                                    |
+| `CHAT_ANSWER_CACHE_TTL_S`       | `3600`                    | `0` disables                                                   |
+| `CHAT_EMBED_ENABLED`            | `1`                       | `0` makes `/api/embed` answer 503 without a redeploy           |
+| `CHAT_EMBED_MODEL`              | `gemini-embedding-001`    | Deliberately outside the chat model chain                      |
+| `CHAT_EMBED_DIMENSIONS`         | `768`                     | Knee of the curve: near-3072 quality at a quarter of the bytes |
+| `CHAT_EMBED_MAX_TEXTS`          | `64`                      | Per request                                                    |
+| `CHAT_EMBED_MAX_CHARS`          | `8000`                    | Per text                                                       |
+| `CHAT_EMBED_MAX_TOTAL_CHARS`    | `120000`                  | Across the request, so the per-text cap is not a way around it |
+| `CHAT_EMBED_RATE_LIMIT_PER_MIN` | `20`                      | Its own bucket                                                 |
 
 With no keys the service still starts, reports `degraded`, and refuses to
 answer. That is deliberate: a backend that exits on a missing key takes the
@@ -194,7 +243,7 @@ during deploy verification, and a mock of a wire format mostly tests the mock.
 ## Why not Railtracks or LiteLLM
 
 Railtracks remains the intended path for the planned execution-visualizer work.
-It is the wrong tool for *this* layer today:
+It is the wrong tool for _this_ layer today:
 
 1. **Per-request key selection.** The rotation picks a key per attempt; a
    wrapper that binds its credential at construction turns that into building

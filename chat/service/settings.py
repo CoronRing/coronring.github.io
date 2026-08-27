@@ -231,6 +231,53 @@ class Settings:
     is the single largest quota saving available.
     """
 
+    # ── Embeddings ────────────────────────────────────────────────────
+    embed_model: str = "gemini-embedding-001"
+    """
+    Model behind `/api/embed`, used by the semantic comparison in the diff tool.
+
+    Deliberately not in `all_models`: the key ring tracks quota per (key,
+    model), the embedding quota is a separate pool from the generation quota,
+    and folding it into the chat chain would let a busy diff session demote the
+    keys the assistant answers on.
+    """
+
+    embed_enabled: bool = True
+    """Kill switch. Set CHAT_EMBED_ENABLED=0 to answer 503 without a redeploy."""
+
+    embed_dimensions: int = 768
+    """
+    Output width. 768 is the knee of the curve: it matches 3072 closely on
+    similarity tasks at a quarter of the bytes over the wire, and it is what a
+    browser can hold for a few hundred segments without stuttering.
+    """
+
+    embed_max_texts: int = 64
+    """
+    Texts per request. The tool sends two documents plus their segments, and
+    this is the ceiling on how finely a document can be split before the client
+    has to batch.
+    """
+
+    embed_max_chars: int = 8_000
+    """Per text. Above the model's own input limit there is no point paying for
+    tokens that get truncated anyway."""
+
+    embed_max_total_chars: int = 120_000
+    """Across the whole request, so 64 texts at the per-text cap is not a way
+    around the size limit."""
+
+    embed_rate_limit_per_min: int = 20
+    """
+    Its own bucket, more generous than the chat one.
+
+    An embed call is a fraction of the cost of an answer and the tool naturally
+    fires several as someone edits, so sharing the chat limiter would make the
+    assistant unusable for anyone who had just used the diff tool.
+    """
+
+    embed_rate_limit_burst: int = 8
+
     # ── Server ────────────────────────────────────────────────────────
     port: int = DEFAULT_PORT
     trust_forwarded_for: bool = True
@@ -289,6 +336,18 @@ def load() -> Settings:
         rate_limit_burst=_int("CHAT_RATE_LIMIT_BURST", d.rate_limit_burst),
         answer_cache_size=_int("CHAT_ANSWER_CACHE_SIZE", d.answer_cache_size, minimum=0),
         answer_cache_ttl_s=_float("CHAT_ANSWER_CACHE_TTL_S", d.answer_cache_ttl_s, minimum=0.0),
+        embed_model=os.environ.get("CHAT_EMBED_MODEL", d.embed_model).strip(),
+        embed_enabled=os.environ.get("CHAT_EMBED_ENABLED", "1") != "0",
+        embed_dimensions=_int("CHAT_EMBED_DIMENSIONS", d.embed_dimensions, minimum=128),
+        embed_max_texts=_int("CHAT_EMBED_MAX_TEXTS", d.embed_max_texts, minimum=2),
+        embed_max_chars=_int("CHAT_EMBED_MAX_CHARS", d.embed_max_chars, minimum=64),
+        embed_max_total_chars=_int(
+            "CHAT_EMBED_MAX_TOTAL_CHARS", d.embed_max_total_chars, minimum=128
+        ),
+        embed_rate_limit_per_min=_int(
+            "CHAT_EMBED_RATE_LIMIT_PER_MIN", d.embed_rate_limit_per_min
+        ),
+        embed_rate_limit_burst=_int("CHAT_EMBED_RATE_LIMIT_BURST", d.embed_rate_limit_burst),
         port=_int("PORT", d.port),
         trust_forwarded_for=os.environ.get("CHAT_TRUST_FORWARDED_FOR", "1") != "0",
         log_level=os.environ.get("CHAT_LOG_LEVEL", d.log_level),

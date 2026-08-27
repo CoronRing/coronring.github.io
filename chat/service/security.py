@@ -140,6 +140,28 @@ def enforce_rate_limit(request: Request) -> None:
             headers={"Retry-After": str(max(1, int(retry_after) + 1))},
         )
 
+# A separate bucket for `/api/embed`.
+#
+# Separate rather than shared because the two endpoints cost different amounts
+# and are used at different rhythms: an embed call is cheap and arrives in small
+# bursts as someone edits a document, an answer is expensive and arrives one at
+# a time. One shared bucket would either throttle the diff tool to uselessness
+# or hand the expensive endpoint the generous limit.
+embed_limiter = RateLimiter(settings.embed_rate_limit_per_min, settings.embed_rate_limit_burst)
+
+
+def enforce_embed_rate_limit(request: Request) -> None:
+    """Raise 429 with a `Retry-After` header when the caller is over budget."""
+    allowed, retry_after = embed_limiter.check(client_ip(request))
+    if not allowed:
+        metrics.rate_limited += 1
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Too many embedding requests. Give it a moment.",
+            headers={"Retry-After": str(max(1, int(retry_after) + 1))},
+        )
+
+
 
 # ──────────────────────────────────────────────────────────────────────────
 # Input sanitation

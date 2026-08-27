@@ -99,7 +99,7 @@ class Usage:
         return self.cached_tokens / self.prompt_tokens if self.prompt_tokens else 0.0
 
     @staticmethod
-    def from_metadata(meta: dict[str, Any]) -> "Usage":
+    def from_metadata(meta: dict[str, Any]) -> Usage:
         def count(name: str) -> int:
             value = meta.get(name)
             return int(value) if isinstance(value, (int, float)) else 0
@@ -221,6 +221,15 @@ def _classify(code: int, body: bytes, headers: Any) -> GeminiError:
             return Rejected(message)
         return BadRequest(message)
     return Unavailable(message)
+
+
+#: Public alias for the HTTP failure classifier.
+#:
+#: `embed.py` needs the same 429/503/400 distinctions the router is built
+#: around, and re-deriving them there would mean two places to update when a
+#: provider changes a status code. Exported rather than reached for as a private
+#: name, so the sharing is deliberate and visible.
+classify = _classify
 
 
 def _build_body(
