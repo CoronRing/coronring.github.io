@@ -1,0 +1,23 @@
+# None of this is COPYed by the Dockerfile. Without this file it is still
+# uploaded to the daemon as build context and then discarded — and .venv alone
+# is a few hundred MB of that. `infra/configure.py` and `infra/package_zip.py`
+# prune the same paths before the context ever leaves this machine; this covers
+# a plain `docker build .` in a working tree.
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.benchmarks/
+.git/
+
+# Real secrets never belong in an image layer.
+.env
+
+# Not COPYed, and not worth the context. vendor/ is deliberately absent from
+# this list: the Dockerfile copies it when it exists, which is how an
+# unreleased particle-wave wheel gets tested.
+tests/
+docs/
+scripts/
+*.md

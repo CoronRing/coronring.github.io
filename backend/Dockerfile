@@ -31,13 +31,20 @@ WORKDIR /home/app/service
 # Dependencies first: they change far less often than the application code, so
 # this layer stays cached across ordinary edits.
 #
-# vendor/ is copied only when it exists, which is how an unreleased wheel gets
-# tested: `scripts/sync_wheel.py` drops one there and repins requirements.txt
-# at it. On the released path the directory is absent and pip resolves the pin
-# from PyPI. The `[r]` glob matches nothing rather than failing when vendor/ is
-# missing, which a bare `COPY vendor` cannot do.
+# vendor/ holds an unreleased wheel when one is being tested:
+# `scripts/sync_wheel.py` drops it there and repins requirements.txt at it. On
+# the released path the directory holds only its README and pip resolves the
+# pin from PyPI.
+#
+# The directory is tracked (hence the README) rather than optional, because a
+# COPY whose every source matches nothing is not portable. This was
+# `COPY vendo[r] ./vendor`, and the `[r]` trick only tolerates a zero match on
+# BuildKit — the classic builder, which Azure ACR Tasks uses, fails the whole
+# build with "no source files were specified". The idiom needs a sibling source
+# that does match to be safe, and there is none here. Keeping the directory
+# present makes a plain COPY correct on every builder.
 COPY --chown=app:app requirements.txt ./
-COPY --chown=app:app vendo[r] ./vendor
+COPY --chown=app:app vendor ./vendor
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY --chown=app:app service ./service

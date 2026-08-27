@@ -1,0 +1,14 @@
+# As next door in backend/. None of this is COPYed by the Dockerfile; without
+# this file it is uploaded to the daemon as build context and then discarded.
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.git/
+
+# Real secrets never belong in an image layer.
+.env
+
+tests/
+*.md

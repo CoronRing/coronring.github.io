@@ -2,6 +2,14 @@
 dist/
 .output/
 
+# Upload-ready Docker build contexts, written by infra/package_zip.py. Derived
+# entirely from tracked source, so the zips themselves are not worth tracking.
+dist-docker/
+
+# Source archives for a build-from-source host, written by `git archive`.
+# Same reasoning: derived from a commit, so the commit is the real record.
+dist-source/
+
 # generated types
 .astro/
 

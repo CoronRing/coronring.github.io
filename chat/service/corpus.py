@@ -55,7 +55,7 @@ class Page:
     text: str
 
     @staticmethod
-    def from_json(raw: dict[str, Any]) -> "Page | None":
+    def from_json(raw: dict[str, Any]) -> Page | None:
         """Build a page from one `corpus.json` record, or None if unusable."""
         route = str(raw.get("route") or "").strip()
         text = str(raw.get("text") or "").strip()
