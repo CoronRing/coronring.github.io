@@ -104,6 +104,17 @@ export interface Segment<T extends string> {
   readonly value: T;
   readonly label: string;
   readonly title?: string;
+  /**
+   * Offered but not selectable, with `title` carrying the reason.
+   *
+   * Preferred over dropping the option: an option that vanishes looks like a
+   * feature that does not exist, where a dimmed one with a tooltip says the
+   * feature is real and currently unavailable. A segmented control whose
+   * options are always clickable is also a way to route around whatever gate
+   * the surrounding UI thinks it is applying, which is exactly how the
+   * embedding engine got called on a deployment that has no endpoint for it.
+   */
+  readonly disabled?: boolean;
 }
 
 /**
@@ -137,13 +148,16 @@ export function Segmented<T extends string>({
             type="button"
             title={option.title}
             aria-pressed={active}
+            disabled={option.disabled}
             onClick={() => onChange(option.value)}
             className={`px-2.5 py-1 font-mono text-[11px] whitespace-nowrap transition-colors ${
               i > 0 ? 'border-l border-[var(--c-line)]' : ''
             } ${
-              active
-                ? 'bg-[var(--c-accent-soft)] text-[var(--c-accent)]'
-                : 'text-[var(--c-text-muted)] hover:bg-[var(--c-raised)] hover:text-[var(--c-text)]'
+              option.disabled
+                ? 'cursor-not-allowed text-[var(--c-text-faint)] line-through decoration-1'
+                : active
+                  ? 'bg-[var(--c-accent-soft)] text-[var(--c-accent)]'
+                  : 'text-[var(--c-text-muted)] hover:bg-[var(--c-raised)] hover:text-[var(--c-text)]'
             }`}
           >
             {option.label}

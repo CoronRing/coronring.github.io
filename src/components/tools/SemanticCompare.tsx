@@ -228,6 +228,20 @@ export default function SemanticCompare({
 
   const active = engine === 'remote' && remoteScore ? remoteScore : local;
   const alignment = engine === 'remote' && remoteAlignment ? remoteAlignment : localAlignment;
+  /**
+   * Is the remote engine callable at all?
+   *
+   * One flag, read by the engine switch, the button and the notice, so the
+   * three cannot disagree about whether the feature is available. They did:
+   * the button was gated on this and the switch was not, so clicking the
+   * segment posted to an endpoint that does not exist on the deployed service
+   * and surfaced the framework's raw "Not Found".
+   *
+   * `undefined` means the probe has not answered yet, which is also not
+   * callable, so both non-true states collapse here.
+   */
+  const remoteUnavailable = capability?.enabled !== true && !remote;
+
   const metricInfo = METRICS.find((entry) => entry.value === metric) ?? METRICS[0]!;
   const unavailable = engine === 'remote' && metric === 'jaccard';
   const clash = active ? disagreement(lexical, active.cosine) : null;
@@ -247,6 +261,10 @@ export default function SemanticCompare({
             label="Engine"
             value={engine}
             onChange={(value) => {
+              // Guarded here as well as on the option, because a control that
+              // dispatches on click is the last place a gate should be
+              // implicit.
+              if (value === 'remote' && remoteUnavailable) return;
               if (value === 'remote' && !remote) void runRemote();
               else setEngine(value);
             }}
@@ -259,7 +277,12 @@ export default function SemanticCompare({
               {
                 value: 'remote',
                 label: 'Embedding model',
-                title: 'Sends both texts to this site’s backend to be embedded.',
+                disabled: remoteUnavailable,
+                title: remoteUnavailable
+                  ? capability === undefined
+                    ? 'Checking whether the embedding service is up.'
+                    : 'This deployment has no embedding endpoint, so there is nothing to call. The local engine is doing the work.'
+                  : 'Sends both texts to this site’s backend to be embedded. Nothing is stored there.',
               },
             ]}
           />
@@ -314,7 +337,7 @@ export default function SemanticCompare({
                 ) : (
                   <Button
                     onClick={runRemote}
-                    disabled={busy || capability?.enabled !== true}
+                    disabled={busy || remoteUnavailable}
                     title={
                       capability === undefined
                         ? 'Checking whether the service is up'

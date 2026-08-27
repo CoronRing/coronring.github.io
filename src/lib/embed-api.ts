@@ -183,6 +183,15 @@ async function describeFailure(response: Response): Promise<EmbedError> {
   if (response.status === 503) {
     return new EmbedError(detail || 'The embedding service is unavailable right now.', true);
   }
+  if (response.status === 404) {
+    // The framework's own body here is `{"detail":"Not Found"}`, which is worse
+    // than useless: it reads as though the *text* was not found. A 404 on this
+    // route means one specific thing, so say that rather than passing the
+    // framework's word through to a visitor.
+    return new EmbedError(
+      'This deployment of the service has no embedding endpoint yet. The site and the service deploy separately, so the service is running an older build. The local engine is unaffected.',
+    );
+  }
   if (response.status === 413) {
     return new EmbedError(detail || 'The texts are too large for one request.');
   }
