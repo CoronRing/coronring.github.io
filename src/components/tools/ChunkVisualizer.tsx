@@ -1,4 +1,4 @@
-import React, { useDeferredValue, useMemo, useState, useRef } from 'react';
+import React, { useDeferredValue, useMemo, useState, useRef, useEffect } from 'react';
 import {
   chunkText,
   DEFAULT_SEPARATORS,
@@ -19,12 +19,6 @@ import {
   Slider,
   TextArea,
 } from './ui';
-
-/**
- * ChunkVisualizer — see where a splitter actually cuts in place, and what it costs.
- *
- * Runs entirely in the tab. Nothing pasted here is transmitted.
- */
 
 /** Characters of source painted before the view truncates, for DOM sanity. */
 const PAINT_LIMIT = 50_000;
@@ -83,11 +77,11 @@ SPEAKER 1: 400 with 15 percent overlap, recall at 5 went from 0.61 to 0.78, and 
   },
 ];
 
-type ViewMode = 'inplace' | 'split' | 'edit';
+type CanvasMode = 'live_editor' | 'interactive_inspect' | 'split';
 
 export default function ChunkVisualizer(): React.ReactElement {
   const [text, setText] = useState<string>(SAMPLES[0]?.text ?? '');
-  const [viewMode, setViewMode] = useState<ViewMode>('inplace');
+  const [mode, setMode] = useState<CanvasMode>('live_editor');
   const [strategy, setStrategy] = useState<StrategyId>('recursive');
   const [size, setSize] = useState<number>(500);
   const [overlap, setOverlap] = useState<number>(80);
@@ -96,9 +90,6 @@ export default function ChunkVisualizer(): React.ReactElement {
   const [windowSize, setWindowSize] = useState<number>(1);
   const [separators, setSeparators] = useState<readonly string[]>(DEFAULT_SEPARATORS);
   const [focus, setFocus] = useState<number | null>(null);
-  const [showConfig, setShowConfig] = useState<boolean>(true);
-
-  const containerRef = useRef<HTMLDivElement>(null);
 
   const info = STRATEGIES.find((s) => s.id === strategy);
   const uses = (field: keyof ChunkConfig): boolean => info?.uses.includes(field) ?? false;
@@ -166,25 +157,32 @@ export default function ChunkVisualizer(): React.ReactElement {
   ];
 
   return (
-    <div className="space-y-5">
-      {/* ── Control HUD ───────────────────────────────────────────────── */}
-      <div className="hud-card space-y-4 p-4">
-        {/* Top bar: View Mode Switcher, Samples, Stale Indicator */}
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--c-line)] pb-3">
+    <div className="space-y-6">
+      {/* ── 01. TOP PRIMARY CANVAS: IN-PLACE HIGHLIGHTED DOCUMENT ───────── */}
+      <Panel
+        title="Document & In-Place Boundary Map"
+        cornerTicks
+        aside={
           <div className="flex flex-wrap items-center gap-2">
-            <span className="eyebrow text-accent">VIEW</span>
             <Segmented
-              value={viewMode}
+              value={mode}
               options={[
-                { value: 'inplace' as const, label: 'In-Place Cuts' },
+                { value: 'live_editor' as const, label: 'Type & Highlight' },
+                { value: 'interactive_inspect' as const, label: 'Click & Inspect' },
                 { value: 'split' as const, label: 'Split View' },
-                { value: 'edit' as const, label: 'Raw Editor' },
               ]}
-              onChange={setViewMode}
+              onChange={setMode}
             />
             {stale && <Badge tone="busy">chunking...</Badge>}
+            <PasteButton onPaste={setText} />
+            <Button variant="quiet" onClick={() => setText('')} disabled={text.length === 0}>
+              Clear
+            </Button>
           </div>
-
+        }
+      >
+        {/* Quick Samples Ribbon & Navigation Bar */}
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--c-line)] bg-[var(--c-sunken)] px-3 py-2">
           <div className="flex flex-wrap items-center gap-1.5">
             <span className="font-mono text-[10.5px] text-[var(--c-text-faint)]">Samples:</span>
             {SAMPLES.map((sample) => (
@@ -195,52 +193,178 @@ export default function ChunkVisualizer(): React.ReactElement {
                   setText(sample.text);
                   setFocus(null);
                 }}
-                className="rounded border border-[var(--c-line)] bg-[var(--c-sunken)] px-2 py-0.5 font-mono text-[11px] text-[var(--c-text-muted)] transition-colors hover:border-[var(--c-accent)] hover:text-[var(--c-text)]"
+                className="rounded border border-[var(--c-line)] bg-[var(--c-card)] px-2 py-0.5 font-mono text-[11px] text-[var(--c-text-muted)] transition-colors hover:border-[var(--c-accent)] hover:text-[var(--c-text)]"
               >
                 {sample.label}
               </button>
             ))}
-            <PasteButton onPaste={setText} />
-            <button
-              type="button"
-              onClick={() => setText('')}
-              disabled={text.length === 0}
-              className="rounded border border-[var(--c-line)] px-2 py-0.5 font-mono text-[11px] text-[var(--c-text-faint)] transition-colors hover:border-red-400/50 hover:text-red-400 disabled:opacity-40"
-            >
-              Clear
-            </button>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-1 font-mono text-[10.5px] text-[var(--c-text-faint)]">
+            <span>Legend:</span>
+            <span className="inline-flex items-center gap-1 rounded bg-[color-mix(in_srgb,var(--c-accent)_25%,transparent)] px-1.5 py-0.2 text-[var(--c-text)]">
+              ■ Chunk
+            </span>
+            <span className="inline-flex items-center gap-1 rounded bg-[color-mix(in_srgb,var(--c-accent)_65%,transparent)] px-1.5 py-0.2 text-[var(--c-text)]">
+              ■ Overlap
+            </span>
+            <span className="inline-flex items-center gap-1 rounded bg-yellow-500/20 px-1.5 py-0.2 text-yellow-400">
+              ⚠️ Cut
+            </span>
           </div>
         </div>
 
-        {/* Strategy Switcher */}
-        <div className="space-y-2">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="flex items-center gap-2">
-              <span className="eyebrow">STRATEGY</span>
-              <span className="font-mono text-[11px] text-[var(--c-text-faint)]">
-                ({info?.name})
-              </span>
-            </div>
-            <div className="flex items-center gap-3">
-              <Segmented
-                label="Unit"
-                value={unit}
-                options={[
-                  { value: 'char' as const, label: 'Chars' },
-                  { value: 'token' as const, label: 'Tokens' },
-                ]}
-                onChange={setUnit}
-              />
+        {/* Quick Chunk Pills */}
+        {chunks.length > 0 && (
+          <div className="flex flex-wrap items-center gap-1 border-b border-[var(--c-line)] px-3 py-1.5">
+            <span className="mr-1 font-mono text-[10.5px] text-[var(--c-text-faint)]">
+              {chunks.length} Chunks:
+            </span>
+            {chunks.map((c) => (
+              <button
+                key={c.index}
+                type="button"
+                onClick={() => setFocus(focus === c.index ? null : c.index)}
+                className={`rounded px-1.5 py-0.5 font-mono text-[10.5px] transition-colors ${
+                  focus === c.index
+                    ? 'bg-[var(--c-accent)] font-bold text-black'
+                    : c.cutsSentence
+                      ? 'border border-yellow-500/40 bg-yellow-500/10 text-yellow-400 hover:bg-yellow-500/20'
+                      : 'border border-[var(--c-line)] bg-[var(--c-card)] text-[var(--c-text-muted)] hover:border-[var(--c-accent)] hover:text-[var(--c-text)]'
+                }`}
+                title={`Chunk #${c.index + 1} (${c.end - c.start}c, ${c.tokens} tok)`}
+              >
+                #{c.index + 1}
+                {c.cutsSentence && ' ⚠️'}
+              </button>
+            ))}
+            {focus !== null && (
               <button
                 type="button"
-                onClick={() => setShowConfig(!showConfig)}
-                className="font-mono text-[11px] text-[var(--c-accent)] underline underline-offset-2 hover:opacity-80"
+                onClick={() => setFocus(null)}
+                className="ml-2 font-mono text-[10px] text-[var(--c-accent)] underline hover:opacity-80"
               >
-                {showConfig ? 'Hide Knobs' : 'Show Knobs'}
+                Reset Focus
               </button>
+            )}
+          </div>
+        )}
+
+        {/* MAIN CANVAS BODY */}
+        <div className="p-0">
+          {mode === 'live_editor' && (
+            <LiveHighlightedEditor
+              text={text}
+              onChange={setText}
+              painted={painted}
+              chunks={chunks}
+              focus={focus}
+            />
+          )}
+
+          {mode === 'interactive_inspect' && (
+            <InteractiveInspectorDisplay
+              text={deferred}
+              painted={painted}
+              chunks={chunks}
+              focus={focus}
+              onSelectChunk={setFocus}
+            />
+          )}
+
+          {mode === 'split' && (
+            <div className="grid divide-y divide-[var(--c-line)] lg:grid-cols-2 lg:divide-x lg:divide-y-0">
+              <div className="p-3">
+                <div className="mb-2 font-mono text-[11px] text-[var(--c-text-muted)]">
+                  ⌨ Live Typing / Input:
+                </div>
+                <TextArea
+                  id="cv-split-text"
+                  value={text}
+                  onChange={setText}
+                  rows={18}
+                  placeholder="Type or paste text directly here..."
+                />
+              </div>
+              <div className="p-3">
+                <div className="mb-2 font-mono text-[11px] text-[var(--c-accent)]">
+                  ✦ In-Place Highlighted Chunks:
+                </div>
+                <InteractiveInspectorDisplay
+                  text={deferred}
+                  painted={painted}
+                  chunks={chunks}
+                  focus={focus}
+                  onSelectChunk={setFocus}
+                />
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Active Focused Chunk Telemetry Drawer */}
+        {focusedChunk && (
+          <div className="border-t border-[var(--c-line)] bg-[var(--c-sunken)] p-3.5">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex flex-wrap items-center gap-2.5 font-mono text-[11.5px]">
+                <span className="rounded bg-[var(--c-accent)] px-1.5 py-0.5 font-bold text-black">
+                  CHUNK #{focusedChunk.index + 1}
+                </span>
+                <span className="text-[var(--c-text)] font-semibold">
+                  {focusedChunk.end - focusedChunk.start} chars
+                </span>
+                <span className="text-[var(--c-text-faint)]">·</span>
+                <span className="text-[var(--c-accent)]">{focusedChunk.tokens} tokens</span>
+                <span className="text-[var(--c-text-faint)]">·</span>
+                <span className="text-[var(--c-text-muted)]">
+                  range [{focusedChunk.start}..{focusedChunk.end}]
+                </span>
+                {focusedChunk.overlapBefore > 0 && (
+                  <>
+                    <span className="text-[var(--c-text-faint)]">·</span>
+                    <span className="text-emerald-400">+{focusedChunk.overlapBefore}c overlap</span>
+                  </>
+                )}
+                {focusedChunk.cutsSentence && (
+                  <span className="rounded border border-yellow-500/50 bg-yellow-500/10 px-1.5 py-0.5 text-[10.5px] text-yellow-400">
+                    Severed mid-sentence
+                  </span>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                <CopyButton text={focusedChunk.text} label="Copy Chunk" />
+                <Button variant="quiet" onClick={() => setFocus(null)}>
+                  Close
+                </Button>
+              </div>
+            </div>
+            <div className="mt-2 max-h-28 overflow-y-auto rounded border border-[var(--c-line)] bg-[var(--c-card)] p-2.5 font-mono text-[11px] leading-relaxed text-[var(--c-text-muted)] whitespace-pre-wrap select-all">
+              {focusedChunk.text}
             </div>
           </div>
+        )}
+      </Panel>
 
+      {/* ── 02. STRATEGY & TUNER CONTROLS ─────────────────────────────── */}
+      <Panel
+        title="Splitter Strategy & Tuning"
+        aside={
+          <div className="flex items-center gap-3">
+            <span className="font-mono text-[11px] text-[var(--c-text-faint)]">
+              Budget Unit:
+            </span>
+            <Segmented
+              value={unit}
+              options={[
+                { value: 'char' as const, label: 'Characters' },
+                { value: 'token' as const, label: 'Tokens' },
+              ]}
+              onChange={setUnit}
+            />
+          </div>
+        }
+      >
+        <div className="space-y-4 p-4">
           <div className="flex flex-wrap gap-1.5">
             {STRATEGIES.map((entry) => (
               <button
@@ -251,7 +375,7 @@ export default function ChunkVisualizer(): React.ReactElement {
                   setStrategy(entry.id);
                   setFocus(null);
                 }}
-                className={`rounded border px-2.5 py-1 text-left transition-all ${
+                className={`rounded border px-2.5 py-1.5 text-left transition-all ${
                   entry.id === strategy
                     ? 'border-[var(--c-accent)] bg-[var(--c-accent-soft)] shadow-sm'
                     : 'border-[var(--c-line)] bg-[var(--c-sunken)] hover:border-[var(--c-text-muted)]'
@@ -267,13 +391,10 @@ export default function ChunkVisualizer(): React.ReactElement {
             ))}
           </div>
 
-          <p className="font-mono text-[11.5px] leading-relaxed text-[var(--c-text-muted)]">
+          <p className="font-mono text-[12px] leading-relaxed text-[var(--c-text-muted)]">
             {info?.detail}
           </p>
-        </div>
 
-        {/* Tuner Knobs (collapsible or open) */}
-        {showConfig && (
           <div className="grid gap-4 border-t border-[var(--c-line)] pt-3 sm:grid-cols-3">
             <Slider
               id="cv-size"
@@ -298,7 +419,7 @@ export default function ChunkVisualizer(): React.ReactElement {
             {uses('breakpointPercentile') ? (
               <Slider
                 id="cv-percentile"
-                label="Breakpoint percentile"
+                label="Breakpoint Percentile"
                 value={percentile}
                 min={5}
                 max={60}
@@ -309,7 +430,7 @@ export default function ChunkVisualizer(): React.ReactElement {
             ) : (
               <Slider
                 id="cv-window"
-                label="Window (sentences either side)"
+                label="Window (Sentences either side)"
                 value={windowSize}
                 min={0}
                 max={5}
@@ -338,236 +459,54 @@ export default function ChunkVisualizer(): React.ReactElement {
               </div>
             )}
           </div>
-        )}
-      </div>
-
-      {/* ── Live Quick Stats Bar ───────────────────────────────────────── */}
-      {chunks.length > 0 && (
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-6">
-          {statTiles.map((st) => (
-            <div
-              key={st.label}
-              className={`rounded border p-2.5 ${
-                st.tone === 'warn'
-                  ? 'border-yellow-500/40 bg-yellow-500/5'
-                  : 'border-[var(--c-line)] bg-[var(--c-card)]'
-              }`}
-            >
-              <div className="font-mono text-[10px] text-[var(--c-text-faint)] uppercase tracking-wider">
-                {st.label}
-              </div>
-              <div
-                className={`font-mono text-[14px] font-bold ${
-                  st.tone === 'accent'
-                    ? 'text-[var(--c-accent)]'
-                    : st.tone === 'warn'
-                      ? 'text-yellow-400'
-                      : 'text-[var(--c-text)]'
-                }`}
-              >
-                {st.value}
-              </div>
-              {st.hint && (
-                <div className="truncate font-mono text-[9.5px] text-[var(--c-text-faint)]">
-                  {st.hint}
-                </div>
-              )}
-            </div>
-          ))}
         </div>
-      )}
+      </Panel>
 
-      {/* ── MAIN IN-PLACE DISPLAY WORKSPACE ───────────────────────────── */}
-      <div className="space-y-4">
-        {/* If in edit mode, show TextArea */}
-        {viewMode === 'edit' && (
-          <Panel
-            title="Raw Document Editor"
-            cornerTicks
-            aside={
-              <Button variant="quiet" onClick={() => setViewMode('inplace')}>
-                Switch to In-Place Visualizer →
-              </Button>
-            }
-          >
-            <TextArea
-              id="cv-input"
-              value={text}
-              onChange={setText}
-              rows={18}
-              placeholder="Paste or write your document text here..."
-            />
-          </Panel>
-        )}
-
-        {/* If in Split mode: Side by Side Raw Editor & In-Place Painted View */}
-        {viewMode === 'split' && (
-          <div className="grid gap-4 lg:grid-cols-2">
-            <Panel title="Source Editor (Live Input)" cornerTicks>
-              <TextArea
-                id="cv-input-split"
-                value={text}
-                onChange={setText}
-                rows={22}
-                placeholder="Type or paste markdown, prose, transcripts..."
-              />
-            </Panel>
-
-            <Panel
-              title={`In-Place Highlighted Cuts (${num(chunks.length)} chunks)`}
-              cornerTicks
-              aside={
-                <div className="flex items-center gap-2">
-                  {focus !== null && (
-                    <Button variant="quiet" onClick={() => setFocus(null)}>
-                      Clear Focus
-                    </Button>
-                  )}
-                  <CopyButton
-                    text={JSON.stringify(exportable(chunks), null, 2)}
-                    label="Copy JSON"
-                  />
-                </div>
-              }
-            >
-              <InPlaceDisplay
-                text={deferred}
-                painted={painted}
-                chunks={chunks}
-                focus={focus}
-                onSelectChunk={setFocus}
-              />
-            </Panel>
-          </div>
-        )}
-
-        {/* If in In-Place Mode: Direct Front-and-Center Visualizer */}
-        {viewMode === 'inplace' && (
-          <Panel
-            title={`In-Place Boundary Canvas · ${num(chunks.length)} Chunks`}
-            cornerTicks
-            aside={
-              <div className="flex flex-wrap items-center gap-3 font-mono text-[10px] text-[var(--c-text-faint)]">
-                <span className="flex items-center gap-1.5">
-                  <span className="size-2.5 rounded-sm bg-[color-mix(in_srgb,var(--c-accent)_25%,transparent)] ring-1 ring-[var(--c-accent)]" />
-                  Chunk
-                </span>
-                <span className="flex items-center gap-1.5">
-                  <span className="size-2.5 rounded-sm bg-[color-mix(in_srgb,var(--c-accent)_70%,transparent)] ring-1 ring-[var(--c-accent)]" />
-                  Overlap Region
-                </span>
-                <span className="flex items-center gap-1.5">
-                  <span className="size-2.5 rounded-sm bg-yellow-500/30 ring-1 ring-yellow-400" />
-                  Sentence Cut
-                </span>
-                {focus !== null && (
-                  <Button variant="quiet" onClick={() => setFocus(null)}>
-                    Reset Focus
-                  </Button>
-                )}
-                <Button variant="quiet" onClick={() => setViewMode('split')}>
-                  Split View
-                </Button>
-              </div>
-            }
-          >
-            {/* Quick Chunk Navigator Pill Ribbon */}
-            <div className="flex flex-wrap items-center gap-1 border-b border-[var(--c-line)] bg-[var(--c-sunken)] px-3 py-2">
-              <span className="mr-1.5 font-mono text-[10.5px] text-[var(--c-text-faint)]">
-                Jump to:
-              </span>
-              {chunks.map((c) => (
-                <button
-                  key={c.index}
-                  type="button"
-                  onClick={() => setFocus(focus === c.index ? null : c.index)}
-                  className={`rounded px-1.5 py-0.5 font-mono text-[10.5px] transition-colors ${
-                    focus === c.index
-                      ? 'bg-[var(--c-accent)] font-bold text-black'
-                      : c.cutsSentence
-                        ? 'border border-yellow-500/40 bg-yellow-500/10 text-yellow-400 hover:bg-yellow-500/20'
-                        : 'border border-[var(--c-line)] bg-[var(--c-card)] text-[var(--c-text-muted)] hover:border-[var(--c-accent)] hover:text-[var(--c-text)]'
-                  }`}
-                  title={`Chunk #${c.index + 1} (${c.end - c.start}c, ${c.tokens} tok)`}
-                >
-                  #{c.index + 1}
-                  {c.cutsSentence && ' ⚠️'}
-                </button>
-              ))}
-            </div>
-
-            {/* In-Place Text Viewer */}
-            <div ref={containerRef}>
-              <InPlaceDisplay
-                text={deferred}
-                painted={painted}
-                chunks={chunks}
-                focus={focus}
-                onSelectChunk={setFocus}
-              />
-            </div>
-
-            {/* Active Focused Chunk Telemetry Drawer */}
-            {focusedChunk && (
-              <div className="border-t border-[var(--c-line)] bg-[var(--c-sunken)] p-3.5">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <div className="flex flex-wrap items-center gap-2.5 font-mono text-[11.5px]">
-                    <span className="rounded bg-[var(--c-accent)] px-1.5 py-0.5 font-bold text-black">
-                      CHUNK #{focusedChunk.index + 1}
-                    </span>
-                    <span className="text-[var(--c-text)] font-semibold">
-                      {focusedChunk.end - focusedChunk.start} chars
-                    </span>
-                    <span className="text-[var(--c-text-faint)]">·</span>
-                    <span className="text-[var(--c-accent)]">
-                      {focusedChunk.tokens} tokens
-                    </span>
-                    <span className="text-[var(--c-text-faint)]">·</span>
-                    <span className="text-[var(--c-text-muted)]">
-                      range [{focusedChunk.start}..{focusedChunk.end}]
-                    </span>
-                    {focusedChunk.overlapBefore > 0 && (
-                      <>
-                        <span className="text-[var(--c-text-faint)]">·</span>
-                        <span className="text-emerald-400">
-                          +{focusedChunk.overlapBefore}c overlap
-                        </span>
-                      </>
-                    )}
-                    {focusedChunk.cutsSentence && (
-                      <span className="rounded border border-yellow-500/50 bg-yellow-500/10 px-1.5 py-0.5 text-[10.5px] text-yellow-400">
-                        Severed mid-sentence
-                      </span>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <CopyButton text={focusedChunk.text} label="Copy Chunk Text" />
-                    <Button variant="quiet" onClick={() => setFocus(null)}>
-                      Close
-                    </Button>
-                  </div>
-                </div>
-                <div className="mt-2.5 max-h-32 overflow-y-auto rounded border border-[var(--c-line)] bg-[var(--c-card)] p-2.5 font-mono text-[11px] leading-relaxed text-[var(--c-text-muted)] whitespace-pre-wrap select-all">
-                  {focusedChunk.text}
-                </div>
-              </div>
-            )}
-          </Panel>
-        )}
-      </div>
-
-      {/* ── Distribution & Inspector ───────────────────────────────────── */}
-      {chunks.length > 1 && (
+      {/* ── 03. LIVE DIAGNOSTIC METRICS & HISTOGRAM ─────────────────────── */}
+      {chunks.length > 0 && (
         <Panel
-          title="Chunk Size Distribution & Shape"
+          title="Diagnostic Metrics & Sizing Curve"
           cornerTicks
           aside={
             <CopyButton
               text={JSON.stringify(exportable(chunks), null, 2)}
-              label="Export All Chunks (JSON)"
+              label="Copy Chunks (JSON)"
             />
           }
         >
+          <div className="grid grid-cols-2 gap-2 p-3 sm:grid-cols-3 md:grid-cols-6">
+            {statTiles.map((st) => (
+              <div
+                key={st.label}
+                className={`rounded border p-2.5 ${
+                  st.tone === 'warn'
+                    ? 'border-yellow-500/40 bg-yellow-500/5'
+                    : 'border-[var(--c-line)] bg-[var(--c-card)]'
+                }`}
+              >
+                <div className="font-mono text-[10px] text-[var(--c-text-faint)] uppercase tracking-wider">
+                  {st.label}
+                </div>
+                <div
+                  className={`font-mono text-[13.5px] font-bold ${
+                    st.tone === 'accent'
+                      ? 'text-[var(--c-accent)]'
+                      : st.tone === 'warn'
+                        ? 'text-yellow-400'
+                        : 'text-[var(--c-text)]'
+                  }`}
+                >
+                  {st.value}
+                </div>
+                {st.hint && (
+                  <div className="truncate font-mono text-[9px] text-[var(--c-text-faint)]">
+                    {st.hint}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+
           <SizeHistogram chunks={chunks} budget={result.effectiveSize} />
         </Panel>
       )}
@@ -575,9 +514,97 @@ export default function ChunkVisualizer(): React.ReactElement {
   );
 }
 
-/* ── In-Place Text Renderer ────────────────────────────────────────────── */
+/* ── Live In-Place Highlighted Editor (Type Directly with Highlights) ── */
 
-function InPlaceDisplay({
+function LiveHighlightedEditor({
+  text,
+  onChange,
+  painted,
+  chunks,
+  focus,
+}: {
+  text: string;
+  onChange: (value: string) => void;
+  painted: ReturnType<typeof paintChunks>;
+  chunks: readonly Chunk[];
+  focus: number | null;
+}): React.ReactElement {
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const backdropRef = useRef<HTMLDivElement>(null);
+
+  // Synchronize scrolling between textarea and backdrop
+  const handleScroll = (): void => {
+    if (textareaRef.current && backdropRef.current) {
+      backdropRef.current.scrollTop = textareaRef.current.scrollTop;
+      backdropRef.current.scrollLeft = textareaRef.current.scrollLeft;
+    }
+  };
+
+  useEffect(() => {
+    handleScroll();
+  }, [text]);
+
+  return (
+    <div className="relative min-h-[22rem] w-full rounded bg-[var(--c-card)]">
+      {/* ── BACKDROP LAYER: Paints highlights directly behind text ── */}
+      <div
+        ref={backdropRef}
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 z-0 overflow-y-auto overflow-x-hidden p-4 font-mono text-[12.5px] leading-[1.85] whitespace-pre-wrap break-words select-none"
+        style={{ color: 'transparent' }}
+      >
+        {painted.map((segment, i) => {
+          const covering = segment.chunks.length;
+          const primaryChunkIdx = segment.chunks[0];
+          const isFocused = focus !== null && segment.chunks.includes(focus);
+
+          return (
+            <span
+              key={i}
+              style={{
+                backgroundColor:
+                  covering === 0
+                    ? 'transparent'
+                    : covering > 1
+                      ? 'color-mix(in srgb, var(--c-accent) 60%, transparent)'
+                      : (primaryChunkIdx ?? 0) % 2 === 0
+                        ? 'color-mix(in srgb, var(--c-accent) 26%, transparent)'
+                        : 'color-mix(in srgb, var(--c-text) 12%, transparent)',
+                outline: isFocused ? '1.5px solid var(--c-accent)' : undefined,
+                boxShadow: isFocused ? '0 0 10px rgba(0, 230, 180, 0.3)' : undefined,
+                borderRadius: '2px',
+              }}
+            >
+              {text.slice(segment.start, segment.end)}
+            </span>
+          );
+        })}
+        {/* Trailing newline spacer so scroll height matches textarea exactly */}
+        {text.endsWith('\n') && <br />}
+      </div>
+
+      {/* ── FOREGROUND LAYER: Native Textarea for Direct Typing ── */}
+      <textarea
+        ref={textareaRef}
+        id="cv-live-input"
+        value={text}
+        onChange={(e) => onChange(e.target.value)}
+        onScroll={handleScroll}
+        rows={16}
+        placeholder="Type or paste your document directly here... Chunks are highlighted in real-time as you type!"
+        spellCheck={false}
+        className="relative z-10 w-full resize-y bg-transparent p-4 font-mono text-[12.5px] leading-[1.85] text-[var(--c-text)] caret-[var(--c-accent)] placeholder:text-[var(--c-text-faint)] focus:outline-none"
+        style={{
+          minHeight: '22rem',
+        }}
+      />
+    </div>
+  );
+}
+
+/* ── Interactive Inspector Display (Clickable Segments) ───────────────── */
+
+function InteractiveInspectorDisplay({
   text,
   painted,
   chunks,
@@ -593,13 +620,13 @@ function InPlaceDisplay({
   if (text.length === 0) {
     return (
       <div className="p-8 text-center font-mono text-[12px] text-[var(--c-text-faint)]">
-        Paste a document or select a sample above to view in-place highlighted chunk boundaries.
+        Paste a document or type above to view in-place highlighted chunk boundaries.
       </div>
     );
   }
 
   return (
-    <div className="max-h-[34rem] overflow-y-auto p-4 font-mono text-[12.5px] leading-[1.85] whitespace-pre-wrap select-text">
+    <div className="max-h-[32rem] overflow-y-auto p-4 font-mono text-[12.5px] leading-[1.85] whitespace-pre-wrap select-text">
       {painted.map((segment, i) => {
         const covering = segment.chunks.length;
         const primaryChunkIdx = segment.chunks[0];
@@ -607,12 +634,10 @@ function InPlaceDisplay({
         const hasDimming = focus !== null && !isFocused;
 
         const isStartOfChunk =
-          primaryChunkIdx !== undefined &&
-          chunks[primaryChunkIdx]?.start === segment.start;
+          primaryChunkIdx !== undefined && chunks[primaryChunkIdx]?.start === segment.start;
 
         return (
           <span key={i} className="relative inline">
-            {/* Inline Chunk Badge at boundary start */}
             {isStartOfChunk && (
               <span
                 onClick={(e) => {
@@ -648,12 +673,12 @@ function InPlaceDisplay({
                   covering === 0
                     ? 'transparent'
                     : covering > 1
-                      ? 'color-mix(in srgb, var(--c-accent) 55%, transparent)'
+                      ? 'color-mix(in srgb, var(--c-accent) 60%, transparent)'
                       : (primaryChunkIdx ?? 0) % 2 === 0
-                        ? 'color-mix(in srgb, var(--c-accent) 20%, transparent)'
-                        : 'color-mix(in srgb, var(--c-text) 9%, transparent)',
+                        ? 'color-mix(in srgb, var(--c-accent) 24%, transparent)'
+                        : 'color-mix(in srgb, var(--c-text) 12%, transparent)',
                 outline: isFocused ? '1.5px solid var(--c-accent)' : undefined,
-                boxShadow: isFocused ? '0 0 8px rgba(0, 230, 180, 0.25)' : undefined,
+                boxShadow: isFocused ? '0 0 10px rgba(0, 230, 180, 0.3)' : undefined,
                 color: hasDimming
                   ? 'var(--c-text-faint)'
                   : covering === 0
