@@ -504,11 +504,27 @@ export interface ChunkResult {
   readonly effectiveOverlap: number;
 }
 
-/** Does this range start or end inside a sentence? */
-function cutsSentence(range: Range, sentences: readonly Range[]): boolean {
-  const startsMid = sentences.some((s) => range.start > s.start && range.start < s.end - 1);
-  const endsMid = sentences.some((s) => range.end > s.start + 1 && range.end < s.end);
-  return startsMid || endsMid;
+/** Does this range start or end inside the non-whitespace body of a sentence? */
+function cutsSentence(range: Range, sentences: readonly Range[], text: string): boolean {
+  for (const s of sentences) {
+    let contentStart = s.start;
+    while (contentStart < s.end && /\s/.test(text.charAt(contentStart))) {
+      contentStart++;
+    }
+    let contentEnd = s.end;
+    while (contentEnd > contentStart && /\s/.test(text.charAt(contentEnd - 1))) {
+      contentEnd--;
+    }
+
+    if (contentEnd <= contentStart) continue;
+
+    const startsMid = range.start > contentStart && range.start < contentEnd;
+    const endsMid = range.end > contentStart && range.end < contentEnd;
+    if (startsMid || endsMid) {
+      return true;
+    }
+  }
+  return false;
 }
 
 /** Apply `strategy` to `text`. Returns an empty result for empty input. */
@@ -618,7 +634,7 @@ export function chunkText(text: string, strategy: StrategyId, config: ChunkConfi
         tokens: estimateTokens(body).tokens,
         label: labels[index],
         overlapBefore,
-        cutsSentence: cutsSentence(range, sentences),
+        cutsSentence: cutsSentence(range, sentences, text),
       };
     })
     .filter((chunk) => (config.dropEmpty === false ? true : chunk.text.trim().length > 0))
