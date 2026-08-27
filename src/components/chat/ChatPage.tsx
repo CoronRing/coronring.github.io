@@ -22,7 +22,10 @@ export default function ChatPage(): ReactElement {
   const facts: ReadonlyArray<[string, string]> = [
     ['Backend', status ? (status.ready ? 'ready' : 'starting') : 'unreachable'],
     ['Pages indexed', corpus?.pages ? String(corpus.pages) : '—'],
-    ['Corpus size', corpus?.approx_tokens ? `~${corpus.approx_tokens.toLocaleString('en-US')} tokens` : '—'],
+    [
+      'Corpus size',
+      corpus?.approx_tokens ? `~${corpus.approx_tokens.toLocaleString('en-US')} tokens` : '—',
+    ],
     ['Answered by', lastAnswer?.model ?? '—'],
   ];
 
@@ -48,31 +51,29 @@ export default function ChatPage(): ReactElement {
         </div>
 
         {lastAnswer?.degraded && (
-          <p className="text-[var(--c-warn)] font-mono text-[11px] leading-relaxed">
-            Answered by a fallback model — the preferred ones were rate-limited.
+          <p className="font-mono text-[11px] leading-relaxed text-[var(--c-warn)]">
+            Answered by a fallback model, because the preferred ones were rate-limited.
           </p>
         )}
 
         <div className="border-line border-t pt-5">
           <p className="eyebrow">How it works</p>
           <p className="text-muted mt-3 text-[13px] leading-relaxed">
-            The whole site is about four thousand tokens, so there is no retrieval
-            step and no vector database. Every question is answered against the{' '}
-            <em>complete</em> text of every page, which is why the answers can cite
-            exactly where they came from.
+            The whole site is about four thousand tokens, so there is no retrieval step and no
+            vector database. Every question is answered against the <em>complete</em> text of every
+            page, which is why the answers can cite exactly where they came from.
           </p>
           <p className="text-muted mt-3 text-[13px] leading-relaxed">
-            That text is identical on every request, so the model provider&rsquo;s
-            implicit cache absorbs most of it and the repetition costs far less
-            than sending it fresh each time.
+            That text is identical on every request, so the model provider&rsquo;s implicit cache
+            absorbs most of it and the repetition costs far less than sending it fresh each time.
           </p>
         </div>
 
         <div className="border-line border-t pt-5">
           <p className="eyebrow">Planned</p>
           <p className="text-muted mt-3 text-[13px] leading-relaxed">
-            An execution view of each answer — the model chain, the fallbacks, and
-            the timing — rendered from the same trace the backend already records.
+            An execution view of each answer: the model chain, the fallbacks and the timing,
+            rendered from the same trace the backend already records.
           </p>
         </div>
       </aside>

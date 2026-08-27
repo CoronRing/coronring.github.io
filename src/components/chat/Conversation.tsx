@@ -38,9 +38,7 @@ function Turn({ message }: { message: ChatMessage }): ReactElement {
 
   return (
     <div className="space-y-2">
-      <div
-        className={`text-sm ${message.error ? 'text-[var(--c-alert)]' : 'text-muted'}`}
-      >
+      <div className={`text-sm ${message.error ? 'text-[var(--c-alert)]' : 'text-muted'}`}>
         {pending ? <Thinking /> : <Markdown text={message.content} />}
       </div>
 
@@ -69,7 +67,7 @@ function Thinking(): ReactElement {
       {[0, 1, 2].map((i) => (
         <span
           key={i}
-          className="bg-[var(--c-text-faint)] inline-block size-1.5 rounded-full"
+          className="inline-block size-1.5 rounded-full bg-[var(--c-text-faint)]"
           style={{
             animation: 'chat-pulse 1.2s ease-in-out infinite',
             animationDelay: `${i * 0.16}s`,
@@ -147,9 +145,8 @@ export default function Conversation({
         {empty ? (
           <div className="space-y-4">
             <p className="text-muted text-sm leading-relaxed">
-              Ask anything about this site — the projects, the stack behind them, the
-              experience. Answers come from the site&rsquo;s own pages, with links to
-              where they came from.
+              Ask anything about this site: the projects, the stack behind them, the experience.
+              Answers come from the site&rsquo;s own pages, with links to where they came from.
             </p>
             <div className="flex flex-wrap gap-2">
               {suggestions.map((suggestion) => (
@@ -179,14 +176,12 @@ export default function Conversation({
           sit flush against the border and clip. The full page is already inside
           a padded card, so it adds nothing. */}
       <div
-        className={`border-line shrink-0 border-t pt-3 ${
-          density === 'compact' ? 'px-4 pb-4' : ''
-        }`}
+        className={`border-line shrink-0 border-t pt-3 ${density === 'compact' ? 'px-4 pb-4' : ''}`}
       >
         {(offline || notReady) && (
-          <p className="text-[var(--c-warn)] mb-2 font-mono text-[11px]">
+          <p className="mb-2 font-mono text-[11px] text-[var(--c-warn)]">
             {offline
-              ? 'Could not reach the assistant just now — it runs on a small free host. You can still try.'
+              ? 'Could not reach the assistant just now. It runs on a small free host, but you can still try.'
               : 'The assistant is still loading the site content. An answer may take a moment.'}
           </p>
         )}
@@ -207,20 +202,20 @@ export default function Conversation({
             }}
             placeholder={placeholder}
             aria-label="Ask a question about this site"
-            className="border-line bg-surface text-fg placeholder:text-faint focus:border-accent min-h-0 flex-1 resize-none rounded-[var(--r-md)] border px-3 py-2 text-sm leading-relaxed outline-none transition-colors disabled:opacity-60"
+            className="border-line bg-surface text-fg placeholder:text-faint focus:border-accent min-h-0 flex-1 resize-none rounded-[var(--r-md)] border px-3 py-2 text-sm leading-relaxed transition-colors outline-none disabled:opacity-60"
           />
           <button
             type="button"
             onClick={busy ? stop : submit}
             disabled={busy ? false : disabled || !draft.trim()}
-            className="bg-accent-fill text-[var(--c-accent-on-fill)] hover:brightness-95 shrink-0 rounded-[var(--r-md)] px-3.5 py-2.5 font-mono text-[11px] font-medium tracking-wide uppercase transition disabled:cursor-not-allowed disabled:opacity-40"
+            className="bg-accent-fill shrink-0 rounded-[var(--r-md)] px-3.5 py-2.5 font-mono text-[11px] font-medium tracking-wide text-[var(--c-accent-on-fill)] uppercase transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-40"
           >
             {busy ? 'Stop' : 'Ask'}
           </button>
         </div>
 
         <div className="text-faint mt-2 flex items-center justify-between gap-3 font-mono text-[10px]">
-          <span>Answers are generated and can be wrong — follow the source links.</span>
+          <span>Answers are generated and can be wrong, so follow the source links.</span>
           {!empty && (
             <button
               type="button"

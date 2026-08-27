@@ -282,13 +282,18 @@ const MOUSE_MODES: ReadonlyArray<Params['mouseMode']> = ['repel', 'attract', 'or
 const COLOR_MODES: ReadonlyArray<{ value: Params['colorMode']; label: string }> = [
   { value: 'single', label: 'Single color' },
   { value: 'source', label: 'Original image' },
-  { value: 'gradient', label: 'Gradient — corners' },
+  { value: 'gradient', label: 'Gradient, corners' },
   { value: 'palette', label: 'Palette ramp' },
 ];
 
 /** The five wells of the four-corner gradient, in the order they are shown. */
 const GRADIENT_CORNERS: ReadonlyArray<{
-  key: 'gradientTopLeft' | 'gradientTopRight' | 'gradientBottomLeft' | 'gradientBottomRight' | 'gradientCenter';
+  key:
+    | 'gradientTopLeft'
+    | 'gradientTopRight'
+    | 'gradientBottomLeft'
+    | 'gradientBottomRight'
+    | 'gradientCenter';
   label: string;
 }> = [
   { key: 'gradientTopLeft', label: 'Top left' },
@@ -307,10 +312,10 @@ const COLOR_PALETTES: ReadonlyArray<{ value: Params['colorPalette']; label: stri
   { value: 'ocean', label: 'Ocean' },
 ];
 const CLICK_MODES: ReadonlyArray<{ value: Params['leftClickMode']; label: string }> = [
-  { value: 'outward_wave', label: 'Outward wave — ring travels out' },
-  { value: 'inward_wave', label: 'Inward wave — ring travels in' },
-  { value: 'repel_burst', label: 'Repel burst — field pushes, held' },
-  { value: 'attract_burst', label: 'Attract burst — field pulls, held' },
+  { value: 'outward_wave', label: 'Outward wave, travels out' },
+  { value: 'inward_wave', label: 'Inward wave, travels in' },
+  { value: 'repel_burst', label: 'Repel burst, pushes and holds' },
+  { value: 'attract_burst', label: 'Attract burst, pulls and holds' },
   { value: 'none', label: 'None' },
 ];
 
@@ -803,7 +808,10 @@ export default function ParticleWaveDemo({ title }: DemoProps): React.ReactEleme
             title={CLICK_MODE_HINT}
             value={params.rightClickMode}
             onChange={(e) =>
-              setParams((p) => ({ ...p, rightClickMode: e.target.value as Params['rightClickMode'] }))
+              setParams((p) => ({
+                ...p,
+                rightClickMode: e.target.value as Params['rightClickMode'],
+              }))
             }
             className="mt-1 w-full rounded-sm border border-[var(--c-line)] bg-[var(--c-sunken)] px-2 py-1.5 font-mono text-[11px] text-[var(--c-text)] focus:border-[var(--c-accent)] focus:outline-none"
           >
@@ -907,15 +915,15 @@ export default function ParticleWaveDemo({ title }: DemoProps): React.ReactEleme
       <p className="text-xs leading-relaxed text-[var(--c-text-faint)]">
         Move the cursor to push the field, then click to fire the action bound to that button. A{' '}
         <strong className="font-medium text-[var(--c-text-muted)]">wave</strong> is a travelling
-        front — it leaves the click point, kicks each particle once on the way past, and keeps
-        going, so what you see is a ring crossing the cloud. A{' '}
+        front. It leaves the click point, kicks each particle once on the way past, and keeps going,
+        so what you see is a ring crossing the cloud. A{' '}
         <strong className="font-medium text-[var(--c-text-muted)]">burst</strong> does not travel:
         it is a standing radial field that holds everything within its radius for as long as the
-        button is down, hardest at the centre, so what you see is the cloud opening or gathering
-        and then relaxing on release. An uploaded image goes to the
-        ParticleWave service, which extracts the point cloud in Python and sends it back. If that
-        service is unreachable, the image is traced in this tab instead, at lower quality. Nothing
-        is stored either way. The cloud comes back in the response and the upload is discarded.
+        button is down, hardest at the centre, so what you see is the cloud opening or gathering and
+        then relaxing on release. An uploaded image goes to the ParticleWave service, which extracts
+        the point cloud in Python and sends it back. If that service is unreachable, the image is
+        traced in this tab instead, at lower quality. Nothing is stored either way. The cloud comes
+        back in the response and the upload is discarded.
       </p>
 
       <style>{`
