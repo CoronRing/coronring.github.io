@@ -13,6 +13,8 @@ import type { GetStaticPaths } from 'astro';
 import { getCollection, render } from 'astro:content';
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import DemoFrame from '../../components/demos/DemoFrame.astro';
+import PyRunner from '../../components/tools/PyRunner';
+import { findPreset, presetsFor } from '../../data/py-presets';
 import MediaFrame from '../../components/ui/MediaFrame.astro';
 import Icon from '../../components/ui/Icon.astro';
 import { href } from '../../lib/url';
@@ -28,6 +30,20 @@ export const getStaticPaths = (async () => {
 const { project } = Astro.props;
 const { Content } = await render(project);
 const { data } = project;
+
+/**
+ * Optional runnable console for this project's package.
+ *
+ * Resolved here so an unknown id fails the build with a message that names the
+ * registry, rather than rendering an empty environment picker.
+ */
+const pyPreset = data.pyPreset ? findPreset(data.pyPreset) : undefined;
+if (data.pyPreset && !pyPreset) {
+  throw new Error(
+    `Unknown pyPreset "${data.pyPreset}" for project "${data.title}". ` +
+      `Add it to PY_PRESETS in src/data/py-presets.ts.`,
+  );
+}
 ---
 
 <BaseLayout title={data.title} description={data.summary}>
@@ -130,6 +146,28 @@ const { data } = project;
       }
     </aside>
   </div>
+
+  {
+    pyPreset && (
+      <div class="shell border-line border-t py-16">
+        <p class="eyebrow eyebrow-marked">Run it here</p>
+        <p class="text-muted prose-measure mt-4 text-[15px] leading-relaxed">
+          The published package, installed from PyPI into this tab and executed by a real CPython
+          build. Nothing runs on a server, and the first run downloads the interpreter.
+        </p>
+        <div class="mt-8">
+          {/* `client:visible` because this sits well below the fold and the
+              interpreter is a 12 MB download that should not begin on page load. */}
+          <PyRunner
+            client:visible
+            presets={presetsFor([pyPreset.id, 'plain'])}
+            initial={pyPreset.id}
+            rows={14}
+          />
+        </div>
+      </div>
+    )
+  }
 
   {
     data.gallery.length > 0 && (

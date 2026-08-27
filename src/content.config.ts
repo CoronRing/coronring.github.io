@@ -46,6 +46,16 @@ const projects = defineCollection({
     interactive: z.boolean().default(false),
     /** Registry key resolved in `src/components/demos/registry.ts`. */
     demo: z.string().optional(),
+    /**
+     * Environment id from `src/data/py-presets.ts`.
+     *
+     * Set it and the project page grows a runnable Python console with that
+     * package installed. Most of the work here is a package with no interface,
+     * and letting a reader run it is worth more than another paragraph about
+     * what it does. Validated at render time rather than here, so the error
+     * names the preset registry rather than a Zod path.
+     */
+    pyPreset: z.string().optional(),
     tech: z.array(z.string()).default([]),
     role: z.string().optional(),
     period: z.string().optional(),

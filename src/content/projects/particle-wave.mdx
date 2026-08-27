@@ -1,23 +1,26 @@
 ---
 title: Particle Wave
-summary: An image-to-particle-cloud pipeline with a real-time physics renderer — the same engine driving the corona on this site's home page.
+summary: An image-to-particle-cloud pipeline with a real-time physics renderer. The same engine draws the corona on this site's home page.
 order: 10
 status: in-progress
 interactive: true
 demo: particle-wave
+pyPreset: particle-wave
 featured: true
 role: Design and implementation
-period: 2026 — present
+period: 2026 – present
 tech: ['TypeScript', 'Canvas', 'Python', 'Verlet physics']
 highlights:
   - 'Offline pipeline converts any image to a sampled point cloud via edge extraction; the runtime is image-agnostic and only consumes the serialised cloud.'
-  - 'Verlet integrator with spring-to-rest, pluggable custom forces, and propagating click waves — 6,700 particles at 60fps on a single canvas.'
+  - 'Verlet integrator with spring-to-rest, pluggable custom forces and propagating click waves, running 6,700 particles at 60fps on a single canvas.'
   - 'Ships as a compact `.pwcloud` format: normalised coordinates, 33 kB gzipped for the hero cloud.'
+  - 'Uploads on the demo below are extracted by the same Python package the CLI uses, running on a Docker host behind an HTTP API; the browser falls back to a cut-down tracer when that host is unreachable.'
+  - 'Rewriting the Poisson-disc sampler around a coarse acceleration grid cut extraction time by 4-6x, verified bit-identical against the previous implementation across 20 configurations.'
 links:
   - label: SenseRing
     href: https://github.com/CoronRing
 hero:
-  label: Particle Wave — hero capture
+  label: Particle Wave hero capture
   alt: The particle wave engine rendering a corona point cloud
   ratio: '16/9'
   caption: Live capture of the engine responding to the cursor.
@@ -42,14 +45,17 @@ to the cursor is not, but hand-authoring one per image does not scale.
 
 ## The approach
 
-Split the work in two. An offline pipeline turns any image into a sampled
-point cloud — grayscale, edge extraction, then density-aware sampling so
-points land where the detail is. The runtime knows nothing about images: it
+Split the work in two. A Python pipeline turns any image into a sampled point
+cloud: grayscale, multi-scale edge extraction, then Poisson-disc sampling so
+points land where the detail is. The runtime knows nothing about images. It
 loads a cloud, spawns particles at rest positions, and simulates.
 
 Because the two halves only share a serialisation contract, either can be
-replaced. The corona on this site's home page is not traced from an image at
-all — it is generated parametrically and loaded by the same runtime.
+replaced. The demo below proves it in both directions. Uploads go to the Python
+service and come back as a cloud the renderer accepts unchanged, and when that
+service is down a much simpler JavaScript tracer stands in without the renderer
+noticing. The corona on this site's home page is not traced from an image at
+all. It is generated parametrically and loaded by the same runtime.
 
 ## What I would do differently
 
