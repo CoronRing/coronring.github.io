@@ -57,10 +57,12 @@ sudo systemctl enable --now docker >/dev/null 2>&1 || true
 #
 # The ARM instance has plenty of RAM, but the micro fallback has 1 GB and a
 # docker build of scipy/opencv will be OOM-killed without swap. Cheap
+# insurance, and doubled to 4G when the host dropped from 24 GB to 12:
+# the build peak did not change, the headroom above it halved.
 # insurance either way, and it costs nothing when unused.
 if ! sudo swapon --show | grep -q '/swapfile'; then
-  log "adding 2G swap"
-  sudo fallocate -l 2G /swapfile
+  log "adding 4G swap"
+  sudo fallocate -l 4G /swapfile
   sudo chmod 600 /swapfile
   sudo mkswap /swapfile >/dev/null
   sudo swapon /swapfile

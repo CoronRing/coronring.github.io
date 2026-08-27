@@ -30,9 +30,12 @@ import type { PwCloud } from './image-to-cloud';
  * — an unset variable there would silently disable the Python path on the one
  * deployment that matters. The URL is public information, not a credential: it
  * is printed on the service's own status page.
+ *
+ * The host moved on 2026-08-27, when Oracle halved the Always Free
+ * allowance; see MIGRATE.md for the old URL and the reasoning.
  */
 export const API_BASE: string = (
-  import.meta.env.PUBLIC_PARTICLE_WAVE_API ?? 'https://129-146-37-132.sslip.io'
+  import.meta.env.PUBLIC_PARTICLE_WAVE_API ?? 'https://129-146-25-154.sslip.io'
 ).replace(/\/+$/, '');
 
 /** Extraction options. Snake-case because they cross the wire to Python. */

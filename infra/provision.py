@@ -46,7 +46,11 @@ VCN_CIDR = "10.0.0.0/16"
 SUBNET_CIDR = "10.0.1.0/24"
 OPEN_PORTS = [22, 80, 443]
 
-ARM = {"shape": "VM.Standard.A1.Flex", "ocpus": 4, "memory_gb": 24, "arch": "aarch64"}
+# Oracle halved the Always Free Ampere allowance on 2026-06-15, from 4 OCPU and
+# 24 GB to 2 and 12, with no announcement, and began terminating instances over
+# the new ceiling on 2026-08-18. So 2/12 is the shape that survives; anything
+# larger is borrowed time. See MIGRATE.md for the host this replaced.
+ARM = {"shape": "VM.Standard.A1.Flex", "ocpus": 2, "memory_gb": 12, "arch": "aarch64"}
 MICRO = {"shape": "VM.Standard.E2.1.Micro", "ocpus": 1, "memory_gb": 1, "arch": "x86_64"}
 
 
@@ -210,9 +214,18 @@ def newest_ubuntu(compute, compartment: str, spec: dict) -> str:
     return chosen.id
 
 
-def launch(compute, net, compartment: str, subnet_id: str, spec: dict, ads: list) -> object:
-    """Launch the instance, trying each availability domain in turn."""
-    name = f"{PREFIX}-host"
+def launch(
+    compute, net, compartment: str, subnet_id: str, spec: dict, ads: list, name: str
+) -> object:
+    """
+    Launch the instance, trying each availability domain in turn.
+
+    `name` is a parameter rather than a constant because the reuse check below
+    matches on it, and the migration off the old 4 OCPU host needed a *second*
+    instance standing beside the first. With the name hardcoded, this function
+    found the old host and returned it, so a run that was meant to create a
+    replacement silently did nothing at all.
+    """
     existing = find(
         retry(
             lambda: compute.list_instances(compartment_id=compartment).data,
@@ -288,6 +301,16 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--micro", action="store_true", help="Use the AMD micro shape.")
     parser.add_argument("--show", action="store_true", help="Report state, change nothing.")
+    parser.add_argument(
+        "--name",
+        default=f"{PREFIX}-host",
+        help="Instance display name. A new name creates a new host; an existing one is reused.",
+    )
+    parser.add_argument(
+        "--state",
+        default=None,
+        help="Where to write the state file. Defaults to infra/state.json, the host configure.py deploys to.",
+    )
     args = parser.parse_args()
 
     config = load_config()
@@ -325,7 +348,7 @@ def main() -> int:
     ]
 
     print("\ncompute:")
-    instance = launch(compute, net, compartment, subnet_id, spec, ads)
+    instance = launch(compute, net, compartment, subnet_id, spec, ads, args.name)
 
     instance = wait_until(
         lambda: compute.get_instance(instance.id).data,
@@ -349,11 +372,12 @@ def main() -> int:
         "ssh_key": str(Path.home() / ".ssh" / "oracle_particle_wave"),
         "hostname": f"{ip.replace('.', '-')}.sslip.io",
     }
-    STATE_FILE.write_text(json.dumps(state, indent=2), encoding="utf-8")
+    state_file = Path(args.state) if args.state else STATE_FILE
+    state_file.write_text(json.dumps(state, indent=2), encoding="utf-8")
 
     print(f"\ninstance running at {ip}")
     print(f"  ssh -i ~/.ssh/oracle_particle_wave ubuntu@{ip}")
-    print(f"  state written to {STATE_FILE.name}")
+    print(f"  state written to {state_file.name}")
     print("\nNext: python infra/configure.py")
     return 0
 

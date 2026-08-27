@@ -22,8 +22,8 @@
 x-logging: &logging
   driver: json-file
   options:
-    max-size: "10m"
-    max-file: "3"
+    max-size: '10m'
+    max-file: '3'
 
 services:
   app:
@@ -33,23 +33,39 @@ services:
       dockerfile: Dockerfile
     image: particle-wave:local
     restart: unless-stopped
+    # Two ARM cores and 12 GB on this host, shared with the chat service and
+    # Caddy, so the sampler gets a ceiling rather than the whole box. Without a
+    # limit an oversized conversion can OOM-kill its neighbours instead of
+    # failing its own request, which turns one bad upload into an outage.
+    mem_limit: 6g
     environment:
-      # Four ARM cores, so allow real parallelism. The semaphore is per
-      # process and this is the only process.
-      PW_MAX_CONCURRENCY: "3"
+      # Two ARM cores, so two concurrent conversions. The sampler is
+      # CPU-bound pure Python, the semaphore is per process, and this is
+      # the only process. Was 3 on the 4-core host.
+      PW_MAX_CONCURRENCY: '2'
+      # Explicit rather than left at the 40 MP default. Peak memory scales
+      # with pixel count across several intermediate float arrays, so on a
+      # 12 GB box two concurrent 40 MP conversions is the shape of an OOM.
+      # 24 MP is still a full-frame camera image.
+      PW_MAX_IMAGE_PIXELS: '24000000'
       # The site, plus the Astro dev server so local work exercises the
       # real request path rather than silently falling back to the
       # in-browser tracer. The endpoint is open regardless of origin, so
       # naming localhost grants a developer nothing they did not have.
-      PW_ALLOWED_ORIGINS: "https://coronring.github.io,http://localhost:4321,http://127.0.0.1:4321"
-      PW_TRUST_FORWARDED_FOR: "1"
-      PW_LOG_LEVEL: "info"
-      PORT: "7860"
+      PW_ALLOWED_ORIGINS: 'https://coronring.github.io,http://localhost:4321,http://127.0.0.1:4321'
+      PW_TRUST_FORWARDED_FOR: '1'
+      PW_LOG_LEVEL: 'info'
+      PORT: '7860'
     expose:
-      - "7860"
+      - '7860'
     healthcheck:
-      test: ["CMD", "python", "-c",
-             "import urllib.request;urllib.request.urlopen('http://127.0.0.1:7860/api/health')"]
+      test:
+        [
+          'CMD',
+          'python',
+          '-c',
+          "import urllib.request;urllib.request.urlopen('http://127.0.0.1:7860/api/health')",
+        ]
       interval: 30s
       timeout: 5s
       retries: 3
@@ -62,6 +78,9 @@ services:
       dockerfile: Dockerfile
     image: site-chat:local
     restart: unless-stopped
+    # The chat service is IO-bound: it holds a corpus and waits on the
+    # provider. 2 GB is generous for that and leaves the sampler its room.
+    mem_limit: 2g
     # The Gemini keys live here and nowhere else. `chat.env` is written onto
     # the host by `infra/configure.py` from the operator's local .env, mode
     # 0600, and is not in the repo — which is why this is an env_file rather
@@ -71,21 +90,26 @@ services:
     environment:
       # Fetched from the published site, so content changes reach the
       # assistant without redeploying this container.
-      CHAT_CORPUS_URL: "https://coronring.github.io/corpus.json"
-      CHAT_CORPUS_REFRESH_S: "900"
-      CHAT_ALLOWED_ORIGINS: "https://coronring.github.io,http://localhost:4321,http://127.0.0.1:4321"
-      CHAT_TRUST_FORWARDED_FOR: "1"
-      CHAT_LOG_LEVEL: "info"
-      PORT: "7870"
+      CHAT_CORPUS_URL: 'https://coronring.github.io/corpus.json'
+      CHAT_CORPUS_REFRESH_S: '900'
+      CHAT_ALLOWED_ORIGINS: 'https://coronring.github.io,http://localhost:4321,http://127.0.0.1:4321'
+      CHAT_TRUST_FORWARDED_FOR: '1'
+      CHAT_LOG_LEVEL: 'info'
+      PORT: '7870'
     expose:
-      - "7870"
+      - '7870'
     healthcheck:
       # /api/health answers `degraded` rather than failing when the corpus or
       # the keys are missing, so this probes liveness only. A container that is
       # up and honestly reporting a misconfiguration should not be restarted in
       # a loop — the logs say what is wrong and a restart will not fix it.
-      test: ["CMD", "python", "-c",
-             "import urllib.request;urllib.request.urlopen('http://127.0.0.1:7870/api/health')"]
+      test:
+        [
+          'CMD',
+          'python',
+          '-c',
+          "import urllib.request;urllib.request.urlopen('http://127.0.0.1:7870/api/health')",
+        ]
       interval: 30s
       timeout: 5s
       retries: 3
@@ -95,12 +119,13 @@ services:
     logging: *logging
     image: caddy:2-alpine
     restart: unless-stopped
+    mem_limit: 512m
     depends_on:
       - app
       - chat
     ports:
-      - "80:80"
-      - "443:443"
+      - '80:80'
+      - '443:443'
     environment:
       SITE_ADDRESS: ${SITE_ADDRESS}
     volumes:

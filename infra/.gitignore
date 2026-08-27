@@ -1,6 +1,11 @@
 # Machine-specific deployment state: instance OCIDs, public IP, local key path.
-# Not secret, but not shareable either — regenerate it with provision.py.
+# Not secret, but not shareable either: regenerate it with provision.py.
+#
+# The glob covers the retained record of a host that has been migrated away
+# from, such as state.legacy.json. The migration itself is documented in
+# MIGRATE.md, which is tracked; the OCIDs are not worth carrying in git.
 state.json
+state.*.json
 known_hosts
 
 # Never let a key land here.

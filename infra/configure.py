@@ -14,6 +14,7 @@ already-issued TLS certificate.
 from __future__ import annotations
 
 import argparse
+import io
 import json
 import subprocess
 import sys
@@ -91,6 +92,32 @@ def wait_for_ssh(info: dict, timeout: float = 420) -> None:
     )
 
 
+def add_unix_text(archive: tarfile.TarFile, path: Path, arcname: str) -> None:
+    """
+    Add a text file with LF line endings, whatever the working tree has.
+
+    This exists because of a failure that cost a deploy. The repository
+    declares `* text=auto eol=lf`, but a checkout predating that attribute, or
+    any tool that rewrites a file through Python default newline translation
+    on Windows, leaves CRLF on disk. `tarfile.add` copies bytes, so the CRLF
+    travels to the host, and a shell script whose shebang ends in a carriage
+    return fails with
+
+        /usr/bin/env: 'bash\r': No such file or directory
+
+    which names neither the file nor the real cause. Normalising here rather
+    than trusting the checkout makes the upload correct from any machine, and
+    is cheap: these are three small text files.
+    """
+    body = path.read_bytes().replace(b"\r\n", b"\n")
+    info = tarfile.TarInfo(name=arcname)
+    info.size = len(body)
+    info.mtime = int(path.stat().st_mtime)
+    # Executable for the script, ordinary for the configs.
+    info.mode = 0o755 if path.suffix == ".sh" else 0o644
+    archive.addfile(info, io.BytesIO(body))
+
+
 def make_archive() -> Path:
     """Tar the service source, pruning anything the host should rebuild."""
     tmp = Path(tempfile.gettempdir()) / "particle-wave-src.tar.gz"
@@ -105,7 +132,7 @@ def make_archive() -> Path:
         archive.add(SOURCE, arcname="app", filter=keep)
         archive.add(CHAT_SOURCE, arcname="chat", filter=keep)
         for extra in ("compose.yml", "Caddyfile", "bootstrap.sh"):
-            archive.add(HERE / extra, arcname=extra)
+            add_unix_text(archive, HERE / extra, extra)
 
     print(f"  archive {tmp.stat().st_size / 1024:.0f} kB")
     return tmp
@@ -154,23 +181,40 @@ def upload(info: dict, archive: Path) -> None:
 LOCAL_ENV = ROOT.parent / ".env"
 
 
-def read_gemini_keys() -> str:
+#: Names the keys may appear under in the operator's .env, in priority order.
+#:
+#: `CHAT_GEMINI_API_KEYS` is what the service itself reads and what the .env
+#: actually defines. `GOOGLE_AI_API_KEYS` was the name this script looked for,
+#: and only that one, so a correctly configured .env produced a deployment with
+#: keys=0 and a chat service reporting `degraded` for no visible reason. Both
+#: are accepted now, because guessing which of two names an operator used is
+#: cheaper than a silent misconfiguration.
+KEY_NAMES = ("CHAT_GEMINI_API_KEYS", "GOOGLE_AI_API_KEYS")
+
+
+def read_gemini_keys() -> tuple[str, str]:
     """
-    Pull `GOOGLE_AI_API_KEYS` out of the operator's local .env.
+    Pull the Gemini keys out of the operator's local .env.
 
     Returned verbatim rather than reformatted. The service's own parser already
-    handles the three shapes this value turns up in — CSV, JSON array, and the
-    bracketed-unquoted form this .env actually uses — and re-encoding it here
-    would mean two parsers that have to agree forever.
+    handles the three shapes this value turns up in (CSV, JSON array, and the
+    bracketed-unquoted form this .env uses) and re-encoding it here would mean
+    two parsers that have to agree forever.
 
-    :returns: The raw value, or "" when it cannot be found.
+    :returns: ``(value, name)`` where `name` is the variable it came from, or
+        ``("", "")`` when neither name is present.
     """
     if not LOCAL_ENV.is_file():
-        return ""
-    for line in LOCAL_ENV.read_text(encoding="utf-8").splitlines():
-        if line.startswith("GOOGLE_AI_API_KEYS="):
-            return line.split("=", 1)[1].strip()
-    return ""
+        return "", ""
+    lines = LOCAL_ENV.read_text(encoding="utf-8", errors="replace").splitlines()
+    for name in KEY_NAMES:
+        prefix = f"{name}="
+        for line in lines:
+            if line.startswith(prefix):
+                value = line.split("=", 1)[1].strip()
+                if value:
+                    return value, name
+    return "", ""
 
 
 def upload_secrets(info: dict) -> bool:
@@ -188,11 +232,14 @@ def upload_secrets(info: dict) -> bool:
 
     :returns: True if keys were written.
     """
-    keys = read_gemini_keys()
+    keys, source = read_gemini_keys()
     if not keys:
-        print(f"  no GOOGLE_AI_API_KEYS in {LOCAL_ENV} — chat will start unconfigured")
+        names = " or ".join(KEY_NAMES)
+        print(f"  no {names} in {LOCAL_ENV} — chat will start unconfigured")
         # Still write the file: compose `env_file` fails hard if it is missing.
         keys = ""
+    else:
+        print(f"  keys read from {source}")
 
     remote_path = f"{REMOTE}/chat.env"
     command = (

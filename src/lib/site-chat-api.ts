@@ -20,9 +20,12 @@
  * baked in because the GitHub Pages build has no `.env`, and an unset variable
  * there would silently disable chat on the one deployment that matters. The
  * URL is public information, not a credential.
+ *
+ * The host moved on 2026-08-27, when Oracle halved the Always Free
+ * allowance; see MIGRATE.md for the old URL and the reasoning.
  */
 export const CHAT_API_BASE: string = (
-  import.meta.env.PUBLIC_SITE_CHAT_API ?? 'https://129-146-37-132.sslip.io/chat'
+  import.meta.env.PUBLIC_SITE_CHAT_API ?? 'https://129-146-25-154.sslip.io/chat'
 ).replace(/\/+$/, '');
 
 /** A page the answer drew on. */
@@ -174,9 +177,7 @@ export async function ask(
       buffer = frames.pop() ?? '';
 
       for (const frame of frames) {
-        const line = frame
-          .split('\n')
-          .find((l) => l.startsWith('data:'));
+        const line = frame.split('\n').find((l) => l.startsWith('data:'));
         if (!line) continue;
         let event: Record<string, unknown>;
         try {
@@ -194,7 +195,9 @@ export async function ask(
       handlers.onError('The assistant took too long to respond. Try again.');
       return;
     }
-    handlers.onError('Could not reach the assistant. It runs on a small free host and may be asleep.');
+    handlers.onError(
+      'Could not reach the assistant. It runs on a small free host and may be asleep.',
+    );
   } finally {
     clearTimeout(timer);
     signal?.removeEventListener('abort', onAbort);

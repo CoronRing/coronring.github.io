@@ -133,7 +133,7 @@ Mounted at `/chat` by Caddy, so from a browser these are
 `https://<host>/chat/api/...`.
 
 ```bash
-curl -N -X POST https://129-146-37-132.sslip.io/chat/api/chat \
+curl -N -X POST https://129-146-25-154.sslip.io/chat/api/chat \
   -H 'Content-Type: application/json' \
   -d '{"message":"What is Particle Wave?"}'
 ```
@@ -150,7 +150,7 @@ them, per-(key, model) cooldowns, and a rate limiter. A second service would
 mean a second copy of all four.
 
 ```bash
-curl -s -X POST https://129-146-37-132.sslip.io/chat/api/embed \
+curl -s -X POST https://129-146-25-154.sslip.io/chat/api/embed \
   -H 'Content-Type: application/json' \
   -d '{"texts":["the cat sat on the mat","a feline rested upon the rug"]}' \
   | python -c 'import json,sys; d=json.load(sys.stdin); print(d["model"], d["dimensions"], len(d["embeddings"]))'
