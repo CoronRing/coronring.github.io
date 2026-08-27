@@ -1,0 +1,18 @@
+# Vendored, not authored here.
+#
+# `src/vendor/particle-wave` is a verbatim copy of the ParticleWave engine
+# (upstream: ParticleWave/src/particle_wave/FE). Reformatting it locally makes
+# every sync from upstream produce a diff that is mostly whitespace, which is
+# how the two copies drifted apart the last time. Leave it exactly as shipped
+# so `diff -r` between the two remains a real answer.
+src/vendor/
+
+# Build output and dependencies.
+dist/
+.astro/
+node_modules/
+
+# Generated price table, written by scripts/fetch-model-pricing.mjs. It is one
+# minified line on purpose: the tool fetches it at runtime, and expanding 2,400
+# records to one field per line would multiply both its size and its diff.
+public/data/model-pricing.json

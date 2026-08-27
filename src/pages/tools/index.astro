@@ -2,8 +2,9 @@
 /**
  * Tools index — browser-local utilities for LLM work.
  *
- * Flat grid, no group headings: with five tools, category dividers cost more
- * vertical space than the grouping saves. Live tools sort first; planned ones
+ * Flat grid, no group headings: the category is on each card, and dividers at
+ * this count cost more vertical space than the grouping saves. Live tools sort
+ * first; planned ones
  * stay visible because a roadmap is more honest than a short list.
  */
 import PageLayout from '../../layouts/PageLayout.astro';
@@ -20,7 +21,7 @@ const liveCount = TOOLS.filter((t) => t.status === 'live').length;
   eyebrow="Tools"
   title="Tools"
   description="Small, fast, browser-local utilities for working with language models."
-  lede="Everything here runs in your browser. Nothing you paste leaves the page — no server, no logging, no network call."
+  lede="Small instruments for language-model work, and one that runs Python. Almost all of it happens in your browser: what you paste is not uploaded, and every tool that touches the network says on its own page exactly what it touches."
 >
   <p slot="action" class="text-faint font-mono text-[11px]">
     <span class="text-ok">{liveCount} live</span> · {TOOLS.length - liveCount} planned
@@ -59,7 +60,17 @@ const liveCount = TOOLS.filter((t) => t.status === 'live').length;
               <p class="text-muted mt-2 flex-1 text-sm leading-relaxed">{tool.summary}</p>
 
               {live && (
-                <span class="bg-accent-fill mt-5 h-[3px] w-10 transition-[width] duration-[var(--dur-base)] group-hover:w-16" />
+                <p class="text-faint mt-4 flex items-center gap-1.5 font-mono text-[10px]">
+                  <span
+                    aria-hidden="true"
+                    class:list={['size-1.5 rounded-full', tool.offline ? 'bg-ok' : 'bg-warn']}
+                  />
+                  {tool.offline ? 'fully offline' : 'makes network requests'}
+                </p>
+              )}
+
+              {live && (
+                <span class="bg-accent-fill mt-4 h-[3px] w-10 transition-[width] duration-[var(--dur-base)] group-hover:w-16" />
               )}
             </Tag>
           </Reveal>

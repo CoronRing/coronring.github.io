@@ -1,0 +1,91 @@
+---
+/**
+ * Chunk Visualizer tool page.
+ */
+import ToolLayout from '../../layouts/ToolLayout.astro';
+import ChunkVisualizer from '../../components/tools/ChunkVisualizer';
+---
+
+<ToolLayout slug="chunk-visualizer">
+  <ChunkVisualizer client:load />
+
+  <Fragment slot="about">
+    <h2>The problem</h2>
+    <p>
+      Chunk size is the most consequential knob in most retrieval systems and the one most often set
+      by copying a tutorial. The reason is that its effects are invisible. You pick 1000 and 200,
+      the pipeline runs, embeddings come back, and nothing tells you that a third of your chunks
+      begin halfway through a sentence, or that the overlap you configured collapsed to zero because
+      your paragraphs are longer than the step.
+    </p>
+    <p>
+      By the time it shows up, it shows up as a recall number, and a recall number does not say
+      which boundary was wrong.
+    </p>
+
+    <h2>The approach</h2>
+    <p>
+      Seven strategies, implemented over source offsets rather than detached strings. That is the
+      whole trick: because every chunk knows where it came from, the cuts can be painted <em
+        >in place</em
+      > on your own document, and the regions two chunks both claim can be shaded differently from the
+      regions only one does.
+    </p>
+    <p>
+      The implementations follow the shape of the ones people actually use: LangChain's character,
+      recursive-character and Markdown-header splitters, plus the sentence-window pattern from
+      LlamaIndex. The recursive splitter in particular descends the separator ladder and then <em
+        >merges the pieces back up</em
+      > to the size budget, which is the step naive re-implementations skip and the step that decides
+      what the chunks look like. Without it a document of short lines becomes a document of short chunks.
+    </p>
+    <p>The measurements are chosen to catch the failures that hide:</p>
+    <ul>
+      <li>
+        <strong>Overlap achieved versus requested.</strong> Requested overlap is a ceiling, not a promise.
+        A boundary-respecting splitter can only step back to a boundary that exists, so a large overlap
+        against large natural units silently becomes none.
+      </li>
+      <li>
+        <strong>Sentence cuts.</strong> How many chunks begin or end mid-sentence. It is the single most
+        common reason a retrieved chunk is unusable.
+      </li>
+      <li>
+        <strong>Index expansion.</strong> Characters stored divided by characters of source. Overlap is
+        not free: every duplicated token is embedded once and paid for again on every retrieval that returns
+        both neighbours.
+      </li>
+      <li>
+        <strong>Size distribution.</strong> A tight cluster under the budget means the strategy is working.
+        A bimodal one means your document has two kinds of section in it and one strategy will not serve
+        both.
+      </li>
+    </ul>
+
+    <h2>Where it stops being trustworthy</h2>
+    <ul>
+      <li>
+        The semantic strategy is not embedding-based. It measures topic shift with cosine similarity
+        over sentence term vectors, which needs no network call and finds coarse boundaries well,
+        but misses paraphrase: two sentences saying the same thing in different words score as
+        unrelated. It is labelled "lexical" for that reason.
+      </li>
+      <li>
+        Token counts come from the same estimator as the token counter, and carry the same 10 to 15%
+        error. Token budgets are converted to character budgets using the ratio measured on <em
+          >your</em
+        >
+        text, which is more honest than assuming four, and still an approximation.
+      </li>
+      <li>
+        Sentence detection is rule-based. It knows about common abbreviations and single initials,
+        and it will still be wrong on text with unreliable punctuation: transcripts, OCR output,
+        anything without terminal periods.
+      </li>
+      <li>
+        This shows you where a splitter cuts. It does not tell you whether retrieval improves. Only
+        an evaluation over your own queries does that, and no visualiser substitutes for it.
+      </li>
+    </ul>
+  </Fragment>
+</ToolLayout>

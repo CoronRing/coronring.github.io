@@ -5,6 +5,15 @@
  * Metadata is looked up from the registry by slug, so a tool page cannot
  * disagree with the index about its own name. An unregistered slug throws at
  * build time rather than rendering a blank header.
+ *
+ * The instrument leads and the write-up follows, the same order the project
+ * pages use: the artifact is the argument, and the prose underneath explains
+ * what it does and where it stops being trustworthy. Pages supply that through
+ * the `about` slot; the prose treatment matches `projects/[...slug].astro` so
+ * the two read as one site.
+ *
+ * The network line is driven by the registry rather than hardcoded — one tool
+ * here does make requests, and a page that promises otherwise would be lying.
  */
 import BaseLayout from './BaseLayout.astro';
 import Icon from '../components/ui/Icon.astro';
@@ -22,6 +31,12 @@ const tool = TOOLS.find((t) => t.slug === slug);
 if (!tool) {
   throw new Error(`Unknown tool "${slug}". Add it to src/data/tools.ts.`);
 }
+
+const hasAbout = Astro.slots.has('about');
+
+/** Shared prose treatment, kept identical to the project detail page. */
+const PROSE =
+  '[&_a]:text-accent [&_code]:bg-sunken [&_h2]:display [&_pre]:border-line max-w-[var(--prose-max)] text-[15px] leading-[1.75] [&_a]:underline [&_a]:underline-offset-4 [&_code]:rounded-sm [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:font-mono [&_code]:text-[0.85em] [&_h2]:mt-11 [&_h2]:mb-3 [&_h2]:text-xl [&_h3]:mt-8 [&_h3]:mb-2 [&_h3]:text-base [&_li]:my-1.5 [&_ol]:my-4 [&_ol]:list-decimal [&_ol]:pl-5 [&_p]:my-4 [&_pre]:my-5 [&_pre]:overflow-x-auto [&_pre]:border [&_pre]:p-4 [&_ul]:my-4 [&_ul]:list-disc [&_ul]:pl-5';
 ---
 
 <BaseLayout title={tool.name} description={tool.summary}>
@@ -36,15 +51,43 @@ if (!tool) {
 
     <h1 class="display mt-6 text-4xl sm:text-5xl">{tool.name}</h1>
     <p class="text-muted prose-measure mt-4 text-base leading-relaxed">{tool.rationale}</p>
-  </div>
 
-  <div class="shell-content pb-20">
-    <div class="border-line bg-surface border p-5 sm:p-7">
-      <slot />
-    </div>
-
-    <p class="text-faint mt-5 font-mono text-[11px]">
-      No network requests. Everything you type stays in this tab.
+    <p class="mt-5 flex items-center gap-2 font-mono text-[11px]">
+      <span
+        aria-hidden="true"
+        class:list={['size-1.5 rounded-full', tool.offline ? 'bg-ok' : 'bg-warn']}></span>
+      <span class="text-faint">
+        {
+          tool.offline
+            ? 'Runs entirely in this tab. No network requests, no logging, nothing leaves the page.'
+            : tool.network
+        }
+      </span>
     </p>
   </div>
+
+  <div class="shell-content pb-16">
+    <slot />
+  </div>
+
+  {
+    hasAbout && (
+      <div class="border-line border-t">
+        <div class="shell-content py-14">
+          <p class="eyebrow eyebrow-marked">About this tool</p>
+          <article class:list={['mt-7', PROSE]}>
+            <slot name="about" />
+          </article>
+
+          <p class="text-faint mt-10 font-mono text-[11px]">
+            Found a case it gets wrong?{' '}
+            <a href={href('/chat')} class="text-accent underline underline-offset-4">
+              Tell me about it
+            </a>
+            .
+          </p>
+        </div>
+      </div>
+    )
+  }
 </BaseLayout>

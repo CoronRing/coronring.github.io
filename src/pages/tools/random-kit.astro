@@ -1,0 +1,77 @@
+---
+/**
+ * Random Kit tool page.
+ */
+import ToolLayout from '../../layouts/ToolLayout.astro';
+import RandomKit from '../../components/tools/RandomKit';
+---
+
+<ToolLayout slug="random-kit">
+  <RandomKit client:load />
+
+  <Fragment slot="about">
+    <h2>The problem</h2>
+    <p>
+      Every random generator on the web hides its source, which leaves the only two questions anyone
+      has unanswered. Can I get these numbers back tomorrow? And is this safe to use as a password?
+    </p>
+    <p>
+      Those questions have opposite answers, and no single source satisfies both.
+      <code>Math.random()</code>, which is what nearly all of these tools use, satisfies neither: it
+      cannot be seeded, so nothing is reproducible, and it is not cryptographically secure, so
+      nothing is safe. It is the worst of both and it is the default.
+    </p>
+
+    <h2>The approach</h2>
+    <p>
+      The source is the first control on the page. Seeded mode is xoshiro128**, a small well-studied
+      generator driven by a hash of your seed: same seed, same settings, same output on any machine,
+      which is what makes generated data usable as a test fixture. System mode is
+      <code>crypto.getRandomValues</code>, seeded by the operating system, suitable for a token and
+      impossible to reproduce. Both are labelled, and the UI says so again next to generated strings
+      if the seeded source is the one producing them.
+    </p>
+    <p>
+      A few implementation choices are the difference between correct output and plausible output.
+      Unique integer draws switch strategy on density: rejection sampling while the range is much
+      wider than the count, and a partial Fisher-Yates shuffle once the request wants more than a
+      third of the available integers, because rejection sampling on a nearly-full range spends
+      almost all its time rejecting. Shuffling is Fisher-Yates rather than
+      <code>sort(() =&gt; Math.random() - 0.5)</code>, which is measurably biased and extremely
+      common. UUIDs set the version and variant bits, so the result is a well-formed v4 rather than
+      sixteen random bytes with hyphens in it.
+    </p>
+    <p>
+      The histogram is there because a list of numbers all looks equally random. The shape is where
+      a misread option or a bad generator shows itself, and it is the only way to confirm the
+      distribution setting did what it said.
+    </p>
+
+    <h2>Where it stops being trustworthy</h2>
+    <ul>
+      <li>
+        <strong>Seeded output is not secret.</strong> Anyone with the seed can reproduce every value.
+        That is the feature. It also means the seeded mode must never generate a password, and the page
+        says so where it could matter.
+      </li>
+      <li>
+        <strong>The non-uniform distributions are clamped to the range.</strong> Normal and exponential
+        are unbounded, so values past either end are pinned rather than redrawn. That piles a little probability
+        onto the endpoints instead of distorting the interior, and each distribution&rsquo;s note says
+        so. The triangular shape needs no clamping and has none.
+      </li>
+      <li>
+        <strong>Unique floats are close to meaningless.</strong> Rounded to a few decimal places, collisions
+        are common, and the tool reports how many it dropped rather than quietly returning a shorter list.
+      </li>
+      <li>
+        <strong>The entropy figure assumes a uniform source.</strong> True in system mode. In seeded mode
+        the number describes the alphabet, not the unpredictability, because there is none.
+      </li>
+      <li>
+        <strong>One draw is capped at 100,000 values.</strong> Past that a browser tab is the wrong tool
+        and the shell is the right one.
+      </li>
+    </ul>
+  </Fragment>
+</ToolLayout>

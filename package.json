@@ -14,6 +14,7 @@
     "build:fast": "astro build",
     "preview": "astro preview",
     "check": "astro check",
+    "pricing:refresh": "node scripts/fetch-model-pricing.mjs",
     "typecheck": "tsc --noEmit",
     "format": "prettier --write \"**/*.{astro,ts,tsx,js,mjs,json,css,md,mdx}\"",
     "format:check": "prettier --check \"**/*.{astro,ts,tsx,js,mjs,json,css,md,mdx}\"",

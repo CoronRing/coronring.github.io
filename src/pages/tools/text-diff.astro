@@ -1,0 +1,114 @@
+---
+/**
+ * Text Diff tool page.
+ *
+ * `client:load` for the same reason as the token counter: the island is the
+ * page and it sits above the fold.
+ */
+import ToolLayout from '../../layouts/ToolLayout.astro';
+import TextDiff from '../../components/tools/TextDiff';
+---
+
+<ToolLayout slug="text-diff">
+  <TextDiff client:load />
+
+  <Fragment slot="about">
+    <h2>The problem</h2>
+    <p>
+      Most online diff tools answer the wrong question. They tell you which lines differ, which is
+      useful for code and close to useless for everything else. A reflowed paragraph reports as four
+      deleted lines and four added ones, and a config file with one changed value reports the same
+      way as one rewritten from scratch.
+    </p>
+    <p>
+      The question usually being asked is <em>how much of this changed</em>, and a line count cannot
+      answer it. Neither can most similarity scores, which run at the line level and score a
+      one-word edit inside a long sentence as a total replacement.
+    </p>
+
+    <h2>The approach</h2>
+    <p>
+      Line alignment is Myers' greedy edit-graph walk, the algorithm behind <code>git diff</code>.
+      It finds a minimal edit script rather than any script. That matters more than it sounds like
+      it should: a naive longest-common-subsequence pass will happily pair line 4 with line 900
+      because both read
+      <code>}</code>, and produce a diff nobody can read.
+    </p>
+    <p>
+      Then two refinements. Delete and insert runs are paired into modified rows and diffed again at
+      the word level, so you see which words moved rather than which lines. And the similarity ratio
+      is computed over characters: whole lines that survived count in full, and modified lines count
+      only the words that survived. A one-word edit in a long paragraph reads as a small change,
+      because it is one.
+    </p>
+    <p>
+      Common prefix and suffix are stripped before any of that runs, and lines are interned to
+      integers first, so two revisions of the same document diff in milliseconds even at a few
+      thousand lines.
+    </p>
+
+    <h2>The other axis</h2>
+    <p>
+      Character overlap is not meaning, and the two fail in opposite directions. A paraphrase
+      changes every word and no meaning: similarity near zero, meaning unchanged. A negation changes
+      one word and inverts the claim: similarity near one, meaning reversed. Both are the same
+      mistake, which is treating a lexical measure as a semantic one.
+    </p>
+    <p>
+      So the semantic panel measures the second axis. The local engine builds TF-IDF vectors over
+      word terms and character n-grams and compares them in the tab: real, fast, private, and
+      lexical by construction, so it too will call a paraphrase different. The other engine sends
+      both texts to this site&rsquo;s backend to be embedded by a model that does know that two
+      different words can mean the same thing. That one is opt-in per click, and the button says
+      what leaves the page before anything does.
+    </p>
+    <p>
+      Either way the useful reading is the gap between the two figures. When they disagree by a lot,
+      the panel says which way and what it usually means, because that disagreement is the finding.
+      The segment table is where it becomes actionable: a headline score of 0.91 says the document
+      is mostly the same, and the table says which paragraph is the one that is not.
+    </p>
+
+    <h2>Where it stops being trustworthy</h2>
+    <ul>
+      <li>
+        Beyond 2,000 edits the minimal alignment is abandoned and the divergent region is reported
+        as one wholesale replacement. Counts and the similarity figure stay correct; the pairing
+        inside that region does not. The tool says so when it happens.
+      </li>
+      <li>
+        There is no move detection. A block relocated from the top of a file to the bottom shows as
+        a deletion and an unrelated insertion, as it does in <code>git diff</code>.
+      </li>
+      <li>
+        Ignoring whitespace or case changes what counts as equal, so the similarity figure moves
+        with those switches. Compare like with like.
+      </li>
+      <li>
+        Word-level highlighting only happens where the line diff paired two lines. A modified line
+        with no counterpart is shown as a plain deletion.
+      </li>
+      <li>
+        <strong>Embedding models are weak on negation, measurably.</strong> Checked against the model
+        this page uses: &ldquo;the cat sat on the mat&rdquo; against &ldquo;a feline was resting upon
+        the rug&rdquo; scored 0.896, and against &ldquo;the cat did <em>not</em> sit on the mat&rdquo;
+        it scored 0.920. The inverted claim scored <em>higher</em> than the paraphrase. Treat a high semantic
+        score as &ldquo;same subject matter&rdquo;, never as &ldquo;same assertion&rdquo;, and read the
+        lexical diff for the word that flipped.
+      </li>
+      <li>
+        <strong>Raw cosine is a bad scale for embeddings.</strong> Unrelated text sits around 0.65, not
+        0, so the whole interesting range is squeezed into the top third. The interpretation bands account
+        for that, and the angular metric spreads it out without changing the ranking. Reading cosine as
+        a percentage is the most common way to misuse an embedding.
+      </li>
+      <li>
+        <strong>Segment alignment is greedy, and bounded.</strong> Best-first over the similarity matrix
+        rather than an optimal assignment, which agrees with the optimal answer except on near-ties, where
+        the pairing is ambiguous to a reader anyway. With the remote engine the number of segments per
+        request is capped, and the panel says how many were covered rather than presenting a partial table
+        as complete.
+      </li>
+    </ul>
+  </Fragment>
+</ToolLayout>
