@@ -147,7 +147,7 @@ function curatedModels(now: Date): PricedModel[] {
     return {
       id: model.id,
       name: model.name,
-      provider: 'anthropic',
+      provider: model.provider,
       mode: 'chat',
       context: model.context,
       input: price.input,
@@ -164,9 +164,10 @@ export const DEFAULT_SELECTION: readonly string[] = MODELS.map((m) => m.id);
 
 /** The catalogue with only the curated entries — used when the fetch fails. */
 export function fallbackCatalogue(now: Date = new Date()): PriceCatalogue {
+  const models = curatedModels(now);
   return {
-    models: curatedModels(now),
-    providers: ['anthropic'],
+    models,
+    providers: [...new Set(models.map((m) => m.provider))],
     fetched: '',
     source: '',
     complete: false,
@@ -236,9 +237,11 @@ async function fetchCatalogue(now: Date): Promise<PriceCatalogue> {
 
   const fromCatalogue = raw.models.filter((m) => !curatedIds.has(m.i)).map((m) => fromRaw(m));
 
+  const curatedProviders = [...new Set(curated.map((m) => m.provider))];
+
   return {
     models: [...curated, ...fromCatalogue],
-    providers: ['anthropic', ...raw.providers.filter((p) => p !== 'anthropic')],
+    providers: [...curatedProviders, ...raw.providers.filter((p) => !curatedProviders.includes(p))],
     fetched: raw.fetched,
     source: raw.source,
     complete: true,

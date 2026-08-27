@@ -237,15 +237,7 @@ export async function imageToCloud(source: Blob, options: ExtractOptions = {}): 
     const r = rgba[lo * 4] ?? 255;
     const g = rgba[lo * 4 + 1] ?? 255;
     const b = rgba[lo * 4 + 2] ?? 255;
-    data.push(
-      Number(x.toFixed(4)),
-      Number(y.toFixed(4)),
-      Number(w.toFixed(2)),
-      0,
-      r,
-      g,
-      b
-    );
+    data.push(Number(x.toFixed(4)), Number(y.toFixed(4)), Number(w.toFixed(2)), 0, r, g, b);
   }
 
   /*

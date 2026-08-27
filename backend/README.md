@@ -7,10 +7,10 @@ engine shipped inside the same package.
 
 The split is the point of the demo:
 
-| Half | Runs | Cost of a change |
-| --- | --- | --- |
-| **Extraction** — preprocessing, edges, importance, Poisson sampling | Python, server-side | one request |
-| **Render** — spring physics, drift, spin, cursor forces | JavaScript, in the tab | immediate |
+| Half                                                                | Runs                   | Cost of a change |
+| ------------------------------------------------------------------- | ---------------------- | ---------------- |
+| **Extraction** — preprocessing, edges, importance, Poisson sampling | Python, server-side    | one request      |
+| **Render** — spring physics, drift, spin, cursor forces             | JavaScript, in the tab | immediate        |
 
 ## How the package is consumed
 
@@ -36,13 +36,13 @@ service changes.
 
 ## API
 
-| Route | Purpose |
-| --- | --- |
-| `GET /` | the demo page |
-| `GET /api/health` | version, available extractors, and the limits in force |
-| `GET /api/options` | option schema the page builds its controls from |
-| `POST /api/convert` | `image` + `options` → `{cloud, meta}` |
-| `GET /api/docs` | OpenAPI browser |
+| Route               | Purpose                                                |
+| ------------------- | ------------------------------------------------------ |
+| `GET /`             | the demo page                                          |
+| `GET /api/health`   | version, available extractors, and the limits in force |
+| `GET /api/options`  | option schema the page builds its controls from        |
+| `POST /api/convert` | `image` + `options` → `{cloud, meta}`                  |
+| `GET /api/docs`     | OpenAPI browser                                        |
 
 ```bash
 curl -X POST https://129-146-37-132.sslip.io/api/convert \
@@ -69,18 +69,18 @@ All optional; every one is an environment variable, so the same image runs
 locally and on the host unchanged. The deployed values are set in
 [`../infra/compose.yml`](../infra/compose.yml).
 
-| Variable | Default | Purpose |
-| --- | --- | --- |
-| `PW_API_KEY` | *(unset)* | When set, `/api/convert` requires a matching `X-API-Key`. |
-| `PW_ALLOWED_ORIGINS` | *(none)* | Comma-separated CORS allowlist. Empty means same-origin only. |
-| `PW_MAX_UPLOAD_BYTES` | `8388608` | Hard cap on the request body. |
-| `PW_MAX_IMAGE_PIXELS` | `40000000` | Decompression-bomb ceiling. |
-| `PW_MAX_IMAGE_DIMENSION` | `12000` | Per-side pixel limit. |
-| `PW_MAX_CONCURRENCY` | `2` | Simultaneous conversions. |
-| `PW_CONVERT_TIMEOUT_S` | `60` | Wall-clock backstop per conversion. |
-| `PW_RATE_LIMIT_PER_MIN` | `20` | Sustained conversions per client. |
-| `PW_RATE_LIMIT_BURST` | `6` | Bucket depth. |
-| `PW_TRUST_FORWARDED_FOR` | `1` | Set `0` when running with no proxy in front. |
+| Variable                 | Default    | Purpose                                                       |
+| ------------------------ | ---------- | ------------------------------------------------------------- |
+| `PW_API_KEY`             | _(unset)_  | When set, `/api/convert` requires a matching `X-API-Key`.     |
+| `PW_ALLOWED_ORIGINS`     | _(none)_   | Comma-separated CORS allowlist. Empty means same-origin only. |
+| `PW_MAX_UPLOAD_BYTES`    | `8388608`  | Hard cap on the request body.                                 |
+| `PW_MAX_IMAGE_PIXELS`    | `40000000` | Decompression-bomb ceiling.                                   |
+| `PW_MAX_IMAGE_DIMENSION` | `12000`    | Per-side pixel limit.                                         |
+| `PW_MAX_CONCURRENCY`     | `2`        | Simultaneous conversions.                                     |
+| `PW_CONVERT_TIMEOUT_S`   | `60`       | Wall-clock backstop per conversion.                           |
+| `PW_RATE_LIMIT_PER_MIN`  | `20`       | Sustained conversions per client.                             |
+| `PW_RATE_LIMIT_BURST`    | `6`        | Bucket depth.                                                 |
+| `PW_TRUST_FORWARDED_FOR` | `1`        | Set `0` when running with no proxy in front.                  |
 
 **The convert endpoint is open by default**, and is deployed that way. That is
 the right default for a public demo and the wrong one for anything else. Note

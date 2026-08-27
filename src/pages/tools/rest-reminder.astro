@@ -1,0 +1,85 @@
+---
+/**
+ * Rest Reminder tool page.
+ */
+import ToolLayout from '../../layouts/ToolLayout.astro';
+import RestReminder from '../../components/tools/RestReminder';
+---
+
+<ToolLayout slug="rest-reminder">
+  <RestReminder client:load />
+
+  <Fragment slot="about">
+    <div class="grid gap-6 md:grid-cols-3">
+      <div class="hud-card p-5">
+        <h3 class="eyebrow text-accent mb-2">01 · Drift-Free Timestamp Engine</h3>
+        <p class="text-muted text-sm leading-relaxed">
+          Replaces throttled browser <code class="text-accent font-mono">setInterval</code> timers with epoch target
+          timestamps (<code class="text-accent font-mono">targetEndTime = Date.now() + remainingMs</code>). Ensures
+          frame-perfect accuracy across background tabs, sleep wakeups, and OS window switching.
+        </p>
+        <div class="text-faint mt-3 font-mono text-[11px]">
+          Precision: Millisecond sub-ticker with rAF rendering.
+        </div>
+      </div>
+
+      <div class="hud-card p-5">
+        <h3 class="eyebrow text-accent mb-2">02 · Multi-Platform OS Push Alerts</h3>
+        <p class="text-muted text-sm leading-relaxed">
+          Dispatches native system alerts directly to macOS Notification Center, Windows Action
+          Center, and mobile notification trays via the Web Notifications API. Includes document
+          title live badging and hardware haptics.
+        </p>
+        <div class="text-faint mt-3 font-mono text-[11px]">
+          Fallback: Zero-audio in-tab banner & title blinking.
+        </div>
+      </div>
+
+      <div class="hud-card p-5">
+        <h3 class="eyebrow text-accent mb-2">03 · Zero-Network Procedural Synth</h3>
+        <p class="text-muted text-sm leading-relaxed">
+          Pure Web Audio API procedural synthesis generating four high-contrast tactical cues
+          (Tactical Ping, 528Hz Aurora Harmonic Chime, Digital Radar Beep, Zen Singing Bowl) with
+          zero external audio files or network traffic.
+        </p>
+        <div class="text-faint mt-3 font-mono text-[11px]">
+          Privacy: 100% browser-local execution.
+        </div>
+      </div>
+    </div>
+
+    <div class="hud-card border-warn mt-6 border-l-2 p-5">
+      <h3 class="eyebrow text-warn mb-3">Operational Limits & Ergonomic Protocols</h3>
+      <ul class="text-muted grid gap-3 text-xs leading-relaxed sm:grid-cols-2">
+        <li class="flex gap-2">
+          <span class="text-accent font-mono font-bold">·</span>
+          <span>
+            <strong>20-20-20 Rule Protocol:</strong> Every 20 minutes of screen exposure, shift gaze
+            to an object 20+ feet away for 20-30 seconds to relax ciliary ocular tension.
+          </span>
+        </li>
+        <li class="flex gap-2">
+          <span class="text-accent font-mono font-bold">·</span>
+          <span>
+            <strong>Mobile Browser Restrictions:</strong> Mobile Safari and Chrome require an initial user tap
+            to authorize sound synthesis and notification permissions under battery-saving policies.
+          </span>
+        </li>
+        <li class="flex gap-2">
+          <span class="text-accent font-mono font-bold">·</span>
+          <span>
+            <strong>Ultradian Work Cycles:</strong> Based on 90-minute biological alertness rhythms (Kleitman BRAC),
+            interspersed with 15-20 minute parasympathetic nervous recovery breaks.
+          </span>
+        </li>
+        <li class="flex gap-2">
+          <span class="text-accent font-mono font-bold">·</span>
+          <span>
+            <strong>Tactical Box Breathing:</strong> 4s Inhale, 4s Hold, 4s Exhale, 4s Hold cadence
+            lowers cortisol and realigns autonomic balance during rest intervals.
+          </span>
+        </li>
+      </ul>
+    </div>
+  </Fragment>
+</ToolLayout>

@@ -141,23 +141,13 @@ def make_archive() -> Path:
 def upload(info: dict, archive: Path) -> None:
     run_remote(info, f"mkdir -p {REMOTE}", quiet=True)
     print("  uploading")
-    result = subprocess.run(  # noqa: S603
-        [  # noqa: S607 - scp is resolved from PATH, as an ssh client should be
-            "scp",
-            "-i",
-            info["ssh_key"],
-            "-o",
-            "StrictHostKeyChecking=accept-new",
-            "-o",
-            "UserKnownHostsFile=" + str(HERE / "known_hosts"),
-            str(archive),
-            f"{info['ssh_user']}@{info['public_ip']}:{REMOTE}/src.tar.gz",
-        ],
+    result = subprocess.run(
+        [*ssh_base(info), f"cat > {REMOTE}/src.tar.gz"],
+        input=archive.read_bytes(),
         capture_output=True,
-        text=True,
     )
     if result.returncode != 0:
-        raise SystemExit(f"upload failed: {result.stderr.strip()}")
+        raise SystemExit(f"upload failed: {result.stderr.decode().strip()}")
 
     # Replace the source trees wholesale so deleted files do not linger, but
     # keep the compose volumes (and therefore the TLS certificate) untouched.

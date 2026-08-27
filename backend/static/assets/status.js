@@ -23,7 +23,11 @@ function duration(seconds) {
 }
 
 const bytes = (n) =>
-  n < 1024 ? `${n} B` : n < 1048576 ? `${(n / 1024).toFixed(0)} kB` : `${(n / 1048576).toFixed(1)} MB`;
+  n < 1024
+    ? `${n} B`
+    : n < 1048576
+      ? `${(n / 1024).toFixed(0)} kB`
+      : `${(n / 1048576).toFixed(1)} MB`;
 
 /** Relative time, so "when did it last do work" is readable at a glance. */
 function ago(iso) {
@@ -88,28 +92,57 @@ function render(data) {
         `${plural(m.conversions_ok, 'conversion')} served`,
     );
   } else {
-    setVerdict('warn', 'Degraded', data.engine.detail || 'The engine assets could not be resolved.');
+    setVerdict(
+      'warn',
+      'Degraded',
+      data.engine.detail || 'The engine assets could not be resolved.',
+    );
   }
 
   const cards = el('cards');
   cards.textContent = '';
   cards.append(
     card('Uptime', duration(m.uptime_seconds), `since ${m.started_at.replace('T', ' ')}`),
-    card('Conversions', m.conversions_ok.toLocaleString(),
-      m.conversions_failed ? `${m.conversions_failed} failed` : 'none failed'),
-    card('Points produced', m.points_produced.toLocaleString(),
-      m.mean_convert_ms ? `${m.mean_convert_ms} ms mean` : 'no timing yet'),
-    card('In flight', `${m.in_flight} / ${data.limits.max_concurrency}`,
-      m.in_flight ? 'working' : 'idle', m.in_flight ? null : 'quiet'),
-    card('Rejected uploads', m.uploads_rejected.toLocaleString(), 'bad or oversized files',
-      m.uploads_rejected ? 'warn' : 'quiet'),
-    card('Rejected options', m.options_rejected.toLocaleString(), 'out of range or unknown',
-      m.options_rejected ? 'warn' : 'quiet'),
-    card('Rate limited', m.rate_limited.toLocaleString(), `${data.limits.rate_limit_per_min}/min per client`,
-      m.rate_limited ? 'warn' : 'quiet'),
-    card('Last conversion', ago(m.last_conversion_at) ?? 'never',
+    card(
+      'Conversions',
+      m.conversions_ok.toLocaleString(),
+      m.conversions_failed ? `${m.conversions_failed} failed` : 'none failed',
+    ),
+    card(
+      'Points produced',
+      m.points_produced.toLocaleString(),
+      m.mean_convert_ms ? `${m.mean_convert_ms} ms mean` : 'no timing yet',
+    ),
+    card(
+      'In flight',
+      `${m.in_flight} / ${data.limits.max_concurrency}`,
+      m.in_flight ? 'working' : 'idle',
+      m.in_flight ? null : 'quiet',
+    ),
+    card(
+      'Rejected uploads',
+      m.uploads_rejected.toLocaleString(),
+      'bad or oversized files',
+      m.uploads_rejected ? 'warn' : 'quiet',
+    ),
+    card(
+      'Rejected options',
+      m.options_rejected.toLocaleString(),
+      'out of range or unknown',
+      m.options_rejected ? 'warn' : 'quiet',
+    ),
+    card(
+      'Rate limited',
+      m.rate_limited.toLocaleString(),
+      `${data.limits.rate_limit_per_min}/min per client`,
+      m.rate_limited ? 'warn' : 'quiet',
+    ),
+    card(
+      'Last conversion',
+      ago(m.last_conversion_at) ?? 'never',
       m.last_conversion_at ? m.last_conversion_at.replace('T', ' ') : 'since this restart',
-      m.last_conversion_at ? null : 'quiet'),
+      m.last_conversion_at ? null : 'quiet',
+    ),
   );
 
   fillTable(el('limits'), [

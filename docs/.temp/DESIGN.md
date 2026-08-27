@@ -1,13 +1,20 @@
 # coronring.github.io — Design Document
 
-**Version:** 0.7.0
-**Status:** Complete — UI/UX tactical HUD redesign, workspace tab modes, organized toolbars, and scannable technical specification cards
+**Version:** 0.8.0
+**Status:** Complete — Rest Reminder tool with tactical HUD clock dial, OS notifications, Web Audio synth, and box-breathing pacer
 **Last updated:** 2026-08-27
 **Owner:** Guan Zheng Huang (`CoronRing`)
 
 > This document covers the Astro site only. The site is now one of three
 > deployables in this repository, and anything crossing the boundary between
 > them belongs in [`../SYSTEM.md`](../SYSTEM.md).
+>
+> **v0.8.0** — adds the **Rest Reminder** tool (`/tools/rest-reminder`). Introduces
+> a drift-free epoch timestamp engine (`Date.now() + remainingMs`), cross-platform
+> Web Notification API integration (macOS, Windows, mobile), zero-network procedural
+> Web Audio API synthesizer (four high-contrast cues), and an interactive Endfield-inspired
+> tactical HUD clock with 60-radial tick gauges, sweeping scanlines, ambient canvas
+> micro-particle constellation, and a 4-4-4-4 box-breathing recovery pacer.
 >
 > **v0.7.0** — UI/UX overhaul across all nine tools and page layouts. Solves
 > button sprawl and dense prose fatigue. Text Diff introduces primary workspace
@@ -522,7 +529,7 @@ are held to a lower bar.
 
 ## 12.2 The tools
 
-Nine live, registered in `src/data/tools.ts`. The index and `ToolLayout` both
+Ten live, registered in `src/data/tools.ts`. The index and `ToolLayout` both
 render from that registry, so a tool cannot disagree with the index about its
 own name, summary or network behaviour.
 
@@ -537,6 +544,7 @@ own name, summary or network behaviour.
 | Regex Lab        | `components/tools/RegexLab`        | `lib/regex-lab`                          | none                     |
 | Random Kit       | `components/tools/RandomKit`       | `lib/rng`                                | none                     |
 | Read Time        | `components/tools/ReadTime`        | `lib/speech-time`                        | none                     |
+| Rest Reminder    | `components/tools/RestReminder`    | `lib/rest-timer`                         | none                     |
 
 **The engine is never in the island.** Every tool is a thin React presentation
 layer over a dependency-free module in `src/lib/`. That split is what let each

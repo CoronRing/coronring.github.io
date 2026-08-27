@@ -80,8 +80,8 @@ export default function PyRunner({
   );
 
   const [code, setCode] = useState(first.samples[0]?.code ?? '');
-  const [stdin, setStdin] = useState('');
-  const [showStdin, setShowStdin] = useState(false);
+  const [stdin, setStdin] = useState(first.samples[0]?.stdin ?? '');
+  const [showStdin, setShowStdin] = useState(Boolean(first.samples[0]?.stdin));
   const [lines, setLines] = useState<readonly Line[]>([]);
   const [phase, setPhase] = useState<Phase>('idle');
   const [detail, setDetail] = useState('');
@@ -161,6 +161,9 @@ export default function PyRunner({
       const thrown = error as RunFailure;
       setFailure(thrown);
       setElapsed(thrown.elapsedMs);
+      if (thrown.message?.includes('EOFError') || thrown.traceback?.includes('EOFError')) {
+        setShowStdin(true);
+      }
     } finally {
       setBusy(false);
     }
@@ -189,6 +192,8 @@ export default function PyRunner({
       const firstSample = next.samples[0];
       setSampleId(firstSample?.id ?? '');
       setCode(firstSample?.code ?? '');
+      setStdin(firstSample?.stdin ?? '');
+      setShowStdin(Boolean(firstSample?.stdin));
       clearOutput();
       // Package sets differ, so the interpreter has to go: installing preset B's
       // packages on top of preset A's is how you get an environment nobody can
@@ -208,6 +213,8 @@ export default function PyRunner({
       if (!next) return;
       setSampleId(id);
       setCode(next.code);
+      setStdin(next.stdin ?? '');
+      setShowStdin(Boolean(next.stdin));
       setFailure(null);
     },
     [preset],

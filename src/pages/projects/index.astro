@@ -1,36 +1,57 @@
 ---
 /**
- * Projects index — the demo gallery.
- *
- * A plain grid of ProjectCards. No status filters, no group headings, no
- * per-card tag clouds: with a handful of projects those are chrome around
- * content that already fits on one screen. Cards carry their own status dot.
+ * Projects index — the demo gallery & operator deck.
  */
 import { getCollection } from 'astro:content';
 import PageLayout from '../../layouts/PageLayout.astro';
 import ProjectCard from '../../components/ui/ProjectCard.astro';
+import OperatorShowcase from '../../components/demos/OperatorShowcase';
 import Reveal from '../../components/ui/Reveal.astro';
+import { href } from '../../lib/url';
 
 const projects = (await getCollection('projects', (p) => !p.data.draft)).sort(
   (a, b) => a.data.order - b.data.order,
 );
+
+const projectSummaries = projects.map((p) => ({
+  id: p.id,
+  title: p.data.title,
+  summary: p.data.summary,
+  status: p.data.status,
+  tech: p.data.tech,
+  period: p.data.period,
+  href: href(`/projects/${p.id}`),
+}));
 ---
 
 <PageLayout
-  eyebrow="Projects"
-  title="Projects"
-  description="Interactive demos of agent systems, developer tooling, and applied NLP work."
-  lede="Working demos, not screenshots. Each page embeds the thing itself."
+  eyebrow="Interactive Showcase"
+  title="Things you can look at"
+  description="Operator-grade interactive demos of agent systems, physics renderers, and prompt tooling."
+  lede="Working interactive engines, multi-agent pipelines, and developer tooling. 80% visual, live, and driveable."
 >
   {
     projects.length > 0 ? (
-      <ul class="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-        {projects.map((project, i) => (
-          <Reveal as="li" delay={(i % 3) * 80}>
-            <ProjectCard project={project} />
-          </Reveal>
-        ))}
-      </ul>
+      <div class="space-y-14">
+        <Reveal>
+          <OperatorShowcase client:load projects={projectSummaries} />
+        </Reveal>
+
+        <div>
+          <div class="mb-6 flex items-center justify-between border-b border-line pb-3">
+            <span class="eyebrow">Project Blueprints & Architecture</span>
+            <span class="font-mono text-xs text-faint">{projects.length} systems online</span>
+          </div>
+
+          <ul class="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
+            {projects.map((project, i) => (
+              <Reveal as="li" delay={(i % 3) * 80}>
+                <ProjectCard project={project} />
+              </Reveal>
+            ))}
+          </ul>
+        </div>
+      </div>
     ) : (
       <p class="text-muted text-sm">
         No projects published yet. Add an MDX file under{' '}

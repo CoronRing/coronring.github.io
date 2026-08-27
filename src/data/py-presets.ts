@@ -30,6 +30,8 @@ export interface PresetSample {
   /** One line on what the sample demonstrates. */
   readonly note: string;
   readonly code: string;
+  /** Initial standard input lines for input() calls. */
+  readonly stdin?: string;
 }
 
 export interface PresetBlocker {
@@ -100,6 +102,7 @@ sum(x * x for x in range(1, 11))
       id: 'input',
       label: 'Reading input',
       note: 'input() reads the stdin box. One line per call, and None at the end.',
+      stdin: 'Alice\n3',
       code: `name = input("Name: ")
 count = int(input("How many? "))
 

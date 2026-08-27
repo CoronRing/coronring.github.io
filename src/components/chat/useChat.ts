@@ -149,9 +149,7 @@ export function useChat(active: boolean = true): UseChat {
 
       const patch = (change: Partial<ChatMessage>): void => {
         if (!mountedRef.current) return;
-        setMessages((prev) =>
-          prev.map((m) => (m.id === answerId ? { ...m, ...change } : m)),
-        );
+        setMessages((prev) => prev.map((m) => (m.id === answerId ? { ...m, ...change } : m)));
       };
 
       void ask(

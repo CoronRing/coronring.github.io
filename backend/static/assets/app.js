@@ -101,12 +101,7 @@ let serverSchema = null;
  * fields and `importance` nine; a tab that scrolls is the one thing this
  * layout exists to avoid, so roughly eight controls is the budget.
  */
-const CURSOR_KEYS = [
-  'mouseMode',
-  'mouseStrength',
-  'interactionRadius',
-  'continuousWaveInterval',
-];
+const CURSOR_KEYS = ['mouseMode', 'mouseStrength', 'interactionRadius', 'continuousWaveInterval'];
 
 const CLICK_KEYS = [
   'leftClickMode',
@@ -130,25 +125,13 @@ const BURST_KEYS = [
 const WAVE_KEYS = ['waveSpeed', 'waveStrength', 'rippleCount', 'waveWidth'];
 
 /** The importance map proper; the rest of the group is thresholding. */
-const IMPORTANCE_KEYS = [
-  'feature_mode',
-  'edge_weight',
-  'tone_weight',
-  'tone_sigma',
-  'tone_gamma',
-];
+const IMPORTANCE_KEYS = ['feature_mode', 'edge_weight', 'tone_weight', 'tone_sigma', 'tone_gamma'];
 
 /** How many points and how far apart; the rest of `sampling` is the sampler. */
 const POINT_KEYS = ['target_points', 'min_radius', 'max_radius', 'radius_gamma'];
 
 /** Ambient motion, as opposed to the spring that answers it. */
-const MOTION_KEYS = [
-  'restSpin',
-  'spinAxis',
-  'spinMaxDegree',
-  'driftAmplitude',
-  'driftSpeed',
-];
+const MOTION_KEYS = ['restSpin', 'spinAxis', 'spinMaxDegree', 'driftAmplitude', 'driftSpeed'];
 
 /** The five wells the gradient editor owns; they are not drawn as fields. */
 const GRADIENT_WELLS = [
@@ -183,8 +166,7 @@ const TABS = {
 };
 
 const MODE_NOTE = {
-  extract:
-    'Runs server-side in the particle_wave package. Changing these needs a re-convert.',
+  extract: 'Runs server-side in the particle_wave package. Changing these needs a re-convert.',
   render: 'Runs in the engine shipped by the same wheel. Applies on the next frame.',
 };
 
@@ -511,9 +493,13 @@ function typeOf(prop) {
 
 function hexToRgb(hex) {
   const raw = String(hex).replace('#', '');
-  const full = raw.length === 3
-    ? raw.split('').map((c) => c + c).join('')
-    : raw;
+  const full =
+    raw.length === 3
+      ? raw
+          .split('')
+          .map((c) => c + c)
+          .join('')
+      : raw;
   const v = Number.parseInt(full, 16);
   return Number.isNaN(v)
     ? { r: 255, g: 255, b: 255 }
@@ -703,11 +689,7 @@ function engineControl(field) {
   }
 
   if (field.type === 'color') {
-    const { wrap, labelEl, valueEl } = fieldRow(
-      field.label,
-      String(value).toLowerCase(),
-      tiers,
-    );
+    const { wrap, labelEl, valueEl } = fieldRow(field.label, String(value).toLowerCase(), tiers);
     labelEl.htmlFor = id;
     const input = document.createElement('input');
     input.type = 'color';
@@ -1272,10 +1254,9 @@ async function convert() {
     el.convert.textContent = 'Convert';
 
     if (payload.meta.truncated_to_cap) {
-      showMessage(
-        'Stopped at the target point count. Lower the min radius for a denser cloud.',
-        { info: true },
-      );
+      showMessage('Stopped at the target point count. Lower the min radius for a denser cloud.', {
+        info: true,
+      });
     }
 
     await render(payload.cloud);

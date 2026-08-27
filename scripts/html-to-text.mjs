@@ -225,8 +225,7 @@ export function tokenize(html) {
 
     /** @type {Record<string, string>} */
     const attrs = {};
-    const attrRe =
-      /([a-zA-Z_:@][-a-zA-Z0-9_:.]*)\s*(?:=\s*("([^"]*)"|'([^']*)'|([^\s"'`=<>]+)))?/g;
+    const attrRe = /([a-zA-Z_:@][-a-zA-Z0-9_:.]*)\s*(?:=\s*("([^"]*)"|'([^']*)'|([^\s"'`=<>]+)))?/g;
     attrRe.lastIndex = nameMatch[0].length;
     let m;
     while ((m = attrRe.exec(inner)) !== null) {

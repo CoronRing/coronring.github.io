@@ -82,7 +82,7 @@ export interface ChatHealth {
  * underneath this request — a busy model can take twenty seconds just to refuse
  * — and cutting it off early would abandon an answer that was still coming.
  */
-const FIRST_BYTE_TIMEOUT_MS = 45_000;
+const FIRST_BYTE_TIMEOUT_MS = 75_000;
 
 /** Is the service up? Used to disable the composer rather than fail on send. */
 export async function health(signal?: AbortSignal): Promise<ChatHealth | null> {

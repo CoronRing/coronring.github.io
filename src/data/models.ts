@@ -20,6 +20,7 @@ export interface ModelPricing {
 export interface ModelInfo {
   readonly id: string;
   readonly name: string;
+  readonly provider: string;
   /** Context window in tokens. */
   readonly context: number;
   readonly price: ModelPricing;
@@ -32,34 +33,36 @@ export interface ModelInfo {
 
 export const MODELS: readonly ModelInfo[] = [
   {
-    id: 'claude-fable-5',
-    name: 'Claude Fable 5',
-    context: 1_000_000,
-    price: { input: 10, output: 50 },
-    note: 'Most capable. Built for demanding reasoning and long-horizon agentic work.',
-  },
-  {
-    id: 'claude-opus-5',
-    name: 'Claude Opus 5',
+    id: 'claude-opus-4-6',
+    name: 'Claude Opus 4.6',
+    provider: 'anthropic',
     context: 1_000_000,
     price: { input: 5, output: 25 },
-    note: 'Complex agentic coding and enterprise work.',
+    note: 'Most capable Anthropic reasoning and agentic coding model.',
   },
   {
-    id: 'claude-sonnet-5',
-    name: 'Claude Sonnet 5',
+    id: 'gemini/gemini-2.5-flash',
+    name: 'Gemini 2.5 Flash',
+    provider: 'gemini',
+    context: 1_048_576,
+    price: { input: 0.3, output: 2.5 },
+    note: 'High-speed, multimodal Google model with 1M context window.',
+  },
+  {
+    id: 'gpt-4o',
+    name: 'GPT-4o',
+    provider: 'openai',
+    context: 128_000,
+    price: { input: 2.5, output: 10 },
+    note: 'OpenAI flagship versatile multimodal model.',
+  },
+  {
+    id: 'deepseek/deepseek-v4-flash',
+    name: 'DeepSeek V4 Flash',
+    provider: 'deepseek',
     context: 1_000_000,
-    price: { input: 3, output: 15 },
-    introPrice: { input: 2, output: 10 },
-    introUntil: '2026-09-01',
-    note: 'Best speed-to-intelligence balance; near-Opus on coding.',
-  },
-  {
-    id: 'claude-haiku-4-5',
-    name: 'Claude Haiku 4.5',
-    context: 200_000,
-    price: { input: 1, output: 5 },
-    note: 'Fastest and most cost-effective for simple tasks.',
+    price: { input: 0.44, output: 1.32 },
+    note: 'Ultra-fast and cost-efficient reasoning and chat model.',
   },
 ] as const;
 

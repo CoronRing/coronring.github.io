@@ -28,8 +28,8 @@ provisions and deploys it; the GitHub Pages workflow builds neither.
 > **1.1.0** — the Hugging Face Space was deleted and every trace of it removed
 > from the code: the Gradio entry point, the upload script, the Space README
 > frontmatter, the `/gradio` CSP exemption, and the `huggingface.co` frame
-> ancestor. `requirements.txt` had been pinning the wheel by URL *out of the
-> Space* — a workaround for the Gradio builder — so deleting the Space would
+> ancestor. `requirements.txt` had been pinning the wheel by URL _out of the
+> Space_ — a workaround for the Gradio builder — so deleting the Space would
 > have broken the next rebuild; it now points at `./vendor/`. Section 10 is
 > kept as the record of why that host was abandoned.
 
@@ -120,14 +120,14 @@ the old path under a fixed seed, and the 23 existing SenseRing tests still pass.
 
 Measured on the development machine, 512×512 subject on a 1024px raster:
 
-| target_points | min_radius | resulting points | seconds |
-| ---: | ---: | ---: | ---: |
-| 1,000 | 2.0 | 1,000 | 0.31 |
-| 4,000 | 2.0 | 2,236 | 2.66 |
-| 8,000 | 2.0 | 2,226 | 2.72 |
-| 16,000 | 2.0 | 2,243 | 2.79 |
-| 16,000 | 0.5 | 16,000 | 5.22 |
-| 15,000 | 0.8 | 15,000 | 1.60 *(noise image)* |
+| target_points | min_radius | resulting points |              seconds |
+| ------------: | ---------: | ---------------: | -------------------: |
+|         1,000 |        2.0 |            1,000 |                 0.31 |
+|         4,000 |        2.0 |            2,236 |                 2.66 |
+|         8,000 |        2.0 |            2,226 |                 2.72 |
+|        16,000 |        2.0 |            2,243 |                 2.79 |
+|        16,000 |        0.5 |           16,000 |                 5.22 |
+|        15,000 |        0.8 |           15,000 | 1.60 _(noise image)_ |
 
 Two conclusions, both load-bearing:
 
@@ -143,14 +143,14 @@ at 0.8. With `target_points` capped at 15,000 the worst observed conversion is
 ~5 s, against a 60 s timeout — the timeout is a backstop that should never
 fire. If it starts firing, the caps are wrong, not the timeout.
 
-Counter-intuitively a noise image is *faster*: dense seeds everywhere let
+Counter-intuitively a noise image is _faster_: dense seeds everywhere let
 Bridson converge quickly, where a sparse-edge image churns the active list.
 The worst case is a mid-density photograph, not an adversarial one.
 
 ### 4.1 The sampler was the pipeline
 
-Section 4 measured *how many points come out* and found that `min_radius` binds
-the count while `target_points` saturates. Measuring *time* on the deployed ARM
+Section 4 measured _how many points come out_ and found that `min_radius` binds
+the count while `target_points` saturates. Measuring _time_ on the deployed ARM
 host found something else: the cost was almost entirely one function, and it was
 not the one the option documentation pointed at.
 
@@ -169,7 +169,7 @@ Pillow/scipy fallback — the extractor genuinely costs ~60 ms.
 **The cause.** Bridson sizes the acceleration grid at `r/sqrt(2)` so each cell
 holds at most one sample, which is correct when `r` is constant. Here the radius
 varies per pixel across `[min_radius, max_radius]`, and the exclusion test reads
-the radius *at the candidate* — which in a low-detail region is `max_radius`,
+the radius _at the candidate_ — which in a low-detail region is `max_radius`,
 six times `min_radius` at the defaults. A grid sized for `min_radius` therefore
 forced a window of roughly 290 cells, nearly all empty, walked one at a time in
 Python. The exclusion radius was also re-read from `radius_map` inside that
@@ -179,12 +179,12 @@ innermost loop, though it does not vary across it.
 is then 3x3 for any candidate, so the work is proportional to the points that
 could plausibly conflict rather than to the area searched.
 
-| `target_points` | before | after | |
-| --- | --- | --- | --- |
-| 1,500 | 0.6 s | 0.6 s | already dominated by the other stages |
-| 2,500 | 2.2 s | 0.5 s | 4.3x |
-| 3,500 | 5.8 s | 1.2 s | 4.9x |
-| 6,000 | 11.4 s | 1.9 s | 6.0x |
+| `target_points` | before | after |                                       |
+| --------------- | ------ | ----- | ------------------------------------- |
+| 1,500           | 0.6 s  | 0.6 s | already dominated by the other stages |
+| 2,500           | 2.2 s  | 0.5 s | 4.3x                                  |
+| 3,500           | 5.8 s  | 1.2 s | 4.9x                                  |
+| 6,000           | 11.4 s | 1.9 s | 6.0x                                  |
 
 **Output is unchanged.** Verified bit-identical across 20 configurations — five
 image characters (line art, dense grid, text, blobs, noise) at four size and
@@ -194,7 +194,7 @@ side by side under the same seed and comparing SHA-256 over the packed arrays.
 That check earned its keep. The first attempt dropped the fine grid entirely, on
 the reasoning that two accepted points can never be closer than `min_radius` and
 so can never share a cell. Three of the twenty cases diverged. The reasoning had
-missed that a candidate is *tested* at fractional coordinates but *stored*
+missed that a candidate is _tested_ at fractional coordinates but _stored_
 truncated to whole pixels, so an accepted sample can land marginally closer to
 its neighbour than the radius that admitted it — close enough to share a fine
 cell, at which point the later sample overwrote the earlier one and the earlier
@@ -202,7 +202,7 @@ one stopped being visible to the exclusion test while remaining in the output.
 That occlusion is load-bearing: it changes which points are admitted from then
 on. The fine grid is kept purely to reproduce it.
 
-Whether that occlusion is *desirable* is a separate question — it is an accident
+Whether that occlusion is _desirable_ is a separate question — it is an accident
 of truncation, not a design decision, and removing it would very slightly
 improve spacing. It is left alone here because this change was meant to be free.
 
@@ -229,7 +229,7 @@ attacker. Stated plainly so nobody assumes more of it than it does.
   `Image.MAX_IMAGE_PIXELS` is set explicitly as a second line.
 - Only frame 0 of an animated container is read.
 - The decoded frame is **rebuilt from its raw buffer**, which is what actually
-  drops EXIF, ICC, and GPS. `convert("RGB")` alone does *not* — Pillow copies
+  drops EXIF, ICC, and GPS. `convert("RGB")` alone does _not_ — Pillow copies
   the `info` dict across it. A test caught this after the docstring already
   claimed otherwise.
 - Alpha is composited **over white**, not dropped. `convert("RGB")` leaves
@@ -248,7 +248,7 @@ attacker. Stated plainly so nobody assumes more of it than it does.
 - Per-client token bucket, evicted LRU so the limiter cannot itself become the
   memory exhaustion it exists to prevent.
 
-**Honest limitation:** a timed-out conversion abandons the *result*, but the
+**Honest limitation:** a timed-out conversion abandons the _result_, but the
 worker thread runs to completion — Python threads cannot be cancelled. Killing
 work properly would need a process pool. Given the measured worst case of ~5 s
 against a 60 s timeout, that complexity is not yet earned.
@@ -330,7 +330,7 @@ fields, `importance` nine) the split is written out as key lists in `app.js`.
 
 Tracing a photograph and tracing a line drawing want different importance maps
 as much as they want different particles, so a preset that set only the render
-half would be half an answer. Applying one rewrites the extraction options *and*
+half would be half an answer. Applying one rewrites the extraction options _and_
 the engine config, and marks the cloud stale so the Python half can be re-run.
 
 ### 6.4 The wipe
@@ -385,16 +385,16 @@ error, and there are no CSP violations. Bugs it caught:
 
 ## 8. Decisions
 
-| Decision | Why | Alternative rejected |
-| --- | --- | --- |
-| Docker SDK, not Gradio | Needs a custom canvas page running our own engine | Gradio cannot host it |
-| Engine served from the wheel | Renderer and exporter cannot drift | Vendoring the JS separately |
-| `Pipeline.build()` upstream | A server must not spill uploads to disk | Temp files per request |
-| UI generated from JSON Schema | One declaration for bounds, defaults, help | Hand-written controls |
-| Private Space by default | Open CPU endpoint is opt-in, not default | Public by default (see §10) |
-| Single uvicorn worker | Limiter and semaphore are per-process | Multiple workers |
-| `target_points` kept, with a warning | It is a real cap, just not the density lever | Hiding it |
-| Threads, not a process pool | Timeout is a backstop at ~5 s worst case | Cancellable processes |
+| Decision                             | Why                                               | Alternative rejected        |
+| ------------------------------------ | ------------------------------------------------- | --------------------------- |
+| Docker SDK, not Gradio               | Needs a custom canvas page running our own engine | Gradio cannot host it       |
+| Engine served from the wheel         | Renderer and exporter cannot drift                | Vendoring the JS separately |
+| `Pipeline.build()` upstream          | A server must not spill uploads to disk           | Temp files per request      |
+| UI generated from JSON Schema        | One declaration for bounds, defaults, help        | Hand-written controls       |
+| Private Space by default             | Open CPU endpoint is opt-in, not default          | Public by default (see §10) |
+| Single uvicorn worker                | Limiter and semaphore are per-process             | Multiple workers            |
+| `target_points` kept, with a warning | It is a real cap, just not the density lever      | Hiding it                   |
+| Threads, not a process pool          | Timeout is a backstop at ~5 s worst case          | Cancellable processes       |
 
 ## 9. Known gaps
 
@@ -421,9 +421,9 @@ As of 2026 Hugging Face charges for the Docker SDK itself, regardless of
 visibility; only Static and ZeroGPU-Gradio Spaces remain free, and neither can
 run a Python backend.
 
-The error text is accurate and I misread it: *"Static Spaces are free for
+The error text is accurate and I misread it: _"Static Spaces are free for
 everyone, but hosting Gradio and Docker Spaces on free cpu-basic requires a
-PRO subscription."* Worth recording, because the same 402 also fires for the
+PRO subscription."_ Worth recording, because the same 402 also fires for the
 visibility rule and the two are easy to conflate.
 
 Consequences:
@@ -437,12 +437,12 @@ Consequences:
 
 Probing the create API found exactly one free combination that runs Python:
 
-| SDK | Hardware | Result |
-| --- | --- | --- |
-| static | cpu-basic | created — but cannot run Python |
-| gradio | cpu-basic | 402 |
-| **gradio** | **zero-a10g** | **created** |
-| streamlit | cpu-basic | refused |
+| SDK        | Hardware      | Result                          |
+| ---------- | ------------- | ------------------------------- |
+| static     | cpu-basic     | created — but cannot run Python |
+| gradio     | cpu-basic     | 402                             |
+| **gradio** | **zero-a10g** | **created**                     |
+| streamlit  | cpu-basic     | refused                         |
 
 So the service was rebuilt for it: `app/` renamed to `service/` to free the
 name, `app.py` added as the Gradio entry point, Gradio mounted at `/gradio`
@@ -454,7 +454,7 @@ later it still fails, and each failure taught something worth keeping:
    during the pip step. Fixed by referencing the wheel over HTTPS.
 2. **The builder image is Python 3.10.13.** Two ruff autofixes applied under a
    `py311` target were latent bugs: `datetime.UTC` does not exist in 3.10, and
-   a bare `except TimeoutError` there does *not* catch `asyncio.TimeoutError`,
+   a bare `except TimeoutError` there does _not_ catch `asyncio.TimeoutError`,
    so every conversion timeout would have gone unhandled. `target-version` is
    now `py310`, which is what the runtime actually is.
 3. **Gradio 6 defaults to SSR**, which spawns a Node process that claims 7860
@@ -505,7 +505,7 @@ wheels, so nothing compiled from source.
 Three things this deployment required that the Docker path did not:
 
 - **Opening a port on OCI is two jobs.** Oracle's Ubuntu images ship an
-  iptables `INPUT` chain that REJECTs everything but SSH, *in addition to* the
+  iptables `INPUT` chain that REJECTs everything but SSH, _in addition to_ the
   cloud security list. Open the port in the console alone and it reads as open
   from the API while being dead from a browser.
 - **HTTPS is mandatory, so the host needs a name.** The site is HTTPS on

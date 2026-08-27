@@ -34,13 +34,13 @@ these and a stray second VCN is easy to miss in the console.
 
 ## What gets created
 
-| Resource | Name | Notes |
-| --- | --- | --- |
-| VCN | `particle-wave-vcn` | 10.0.0.0/16 |
-| Internet gateway | `particle-wave-igw` | default route 0.0.0.0/0 |
-| Security list | *(VCN default)* | opens 22, 80, 443 + ICMP |
-| Subnet | `particle-wave-subnet` | 10.0.1.0/24, public |
-| Instance | `particle-wave-host` | `VM.Standard.A1.Flex`, 4 OCPU / 24 GB, Ubuntu 24.04 ARM |
+| Resource         | Name                   | Notes                                                   |
+| ---------------- | ---------------------- | ------------------------------------------------------- |
+| VCN              | `particle-wave-vcn`    | 10.0.0.0/16                                             |
+| Internet gateway | `particle-wave-igw`    | default route 0.0.0.0/0                                 |
+| Security list    | _(VCN default)_        | opens 22, 80, 443 + ICMP                                |
+| Subnet           | `particle-wave-subnet` | 10.0.1.0/24, public                                     |
+| Instance         | `particle-wave-host`   | `VM.Standard.A1.Flex`, 4 OCPU / 24 GB, Ubuntu 24.04 ARM |
 
 State lands in `state.json` (gitignored). Credentials live outside the repo
 entirely: the SSH key at `~/.ssh/oracle_particle_wave`, the OCI API signing
@@ -50,7 +50,7 @@ key at `~/.oci/particle-wave.pem`, and the tenancy details in the gitignored
 ## Logs
 
 Container logs are capped in `compose.yml` at 10 MB x 3 files per service.
-Docker's `json-file` driver defaults to *unlimited*, so before this the disk was
+Docker's `json-file` driver defaults to _unlimited_, so before this the disk was
 the only bound and the first symptom of hitting it would have been the whole
 host failing rather than anything log-shaped.
 
@@ -83,7 +83,7 @@ already does behind credentials that exist.
 ## Two traps worth knowing
 
 **Opening a port in OCI is two jobs, not one.** Oracle's Ubuntu images ship an
-iptables `INPUT` chain that REJECTs everything except SSH, *on top of* the
+iptables `INPUT` chain that REJECTs everything except SSH, _on top of_ the
 cloud security list. Open the port in the console alone and it reads as open
 from the API while being dead from a browser. `bootstrap.sh` does both halves
 and persists the host rules across reboots.
@@ -119,11 +119,11 @@ python infra/package_zip.py --only app # just the particle-wave zip
 python infra/package_zip.py --tag git  # suffix filenames with the short commit
 ```
 
-| Artefact | Shape | For |
-| --- | --- | --- |
-| `particle-wave-backend.zip` | `Dockerfile` at the zip root | a provider that builds one image per app |
-| `site-chat.zip` | `Dockerfile` at the zip root | same, for the other service |
-| `coronring-be-stack.zip` | `compose.yml` + `app/` + `chat/` | a provider that accepts a compose file |
+| Artefact                    | Shape                            | For                                      |
+| --------------------------- | -------------------------------- | ---------------------------------------- |
+| `particle-wave-backend.zip` | `Dockerfile` at the zip root     | a provider that builds one image per app |
+| `site-chat.zip`             | `Dockerfile` at the zip root     | same, for the other service              |
+| `coronring-be-stack.zip`    | `compose.yml` + `app/` + `chat/` | a provider that accepts a compose file   |
 
 Each carries a generated `DEPLOY.md` with the port, the health path, and the
 environment variables to paste into the provider's form — the same values

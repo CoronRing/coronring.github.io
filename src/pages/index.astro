@@ -21,6 +21,7 @@ import ParticleField from '../components/decor/ParticleField.astro';
 import HudRing from '../components/decor/HudRing.astro';
 import SectionHead from '../components/ui/SectionHead.astro';
 import ProjectCard from '../components/ui/ProjectCard.astro';
+import OperatorShowcase from '../components/demos/OperatorShowcase';
 import Carousel, { type CarouselItem } from '../components/ui/Carousel';
 import Reveal from '../components/ui/Reveal.astro';
 import Icon from '../components/ui/Icon.astro';
@@ -33,6 +34,16 @@ import { monthYear } from '../lib/format';
 const featured = (await getCollection('projects', (p) => !p.data.draft && p.data.featured)).sort(
   (a, b) => a.data.order - b.data.order,
 );
+
+const featuredSummaries = featured.map((p) => ({
+  id: p.id,
+  title: p.data.title,
+  summary: p.data.summary,
+  status: p.data.status,
+  tech: p.data.tech,
+  period: p.data.period,
+  href: href(`/projects/${p.id}`),
+}));
 
 /** Most recent roles only — the resume page carries everything. */
 const work = (await getCollection('experience', (e) => e.data.kind === 'work'))
@@ -168,21 +179,34 @@ const PILLARS: CarouselItem[] = [
           eyebrow="Selected work"
           title="Things you can look at"
           headingId="work-h"
-          lede="Systems built end to end, from research through deployment."
+          lede="Working interactive engines, multi-agent pipelines, and developer tooling. 80% visual, live, and driveable."
           moreHref="/projects"
           moreLabel="All projects"
         />
       </Reveal>
 
-      <ul class="mt-14 grid gap-6 md:grid-cols-2 xl:grid-cols-3">
-        {
-          featured.map((project, i) => (
-            <Reveal as="li" delay={(i % 3) * 90}>
-              <ProjectCard project={project} />
-            </Reveal>
-          ))
-        }
-      </ul>
+      <div class="mt-10">
+        <Reveal>
+          <OperatorShowcase client:visible projects={featuredSummaries} />
+        </Reveal>
+      </div>
+
+      <div class="mt-14">
+        <div class="mb-6 flex items-center justify-between border-b border-line pb-3">
+          <span class="eyebrow">All Project Blueprints</span>
+          <span class="font-mono text-xs text-faint">{featured.length} live systems</span>
+        </div>
+
+        <ul class="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
+          {
+            featured.map((project, i) => (
+              <Reveal as="li" delay={(i % 3) * 90}>
+                <ProjectCard project={project} />
+              </Reveal>
+            ))
+          }
+        </ul>
+      </div>
     </div>
   </section>
 

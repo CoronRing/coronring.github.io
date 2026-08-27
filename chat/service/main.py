@@ -395,11 +395,14 @@ def _json_answer(system, turns, corpus_hash, cache_key, hit) -> JSONResponse:  #
 
     outcome = router.Outcome()
     last_error: gemini.GeminiError | None = None
+    skipped_model: str | None = None
 
     with _slots:
         metrics.in_flight += 1
         try:
             for attempt in router.plan(settings.all_models, ring):
+                if attempt.model == skipped_model:
+                    continue
                 outcome.attempts += 1
                 metrics.upstream_attempts += 1
                 try:
@@ -415,6 +418,9 @@ def _json_answer(system, turns, corpus_hash, cache_key, hit) -> JSONResponse:  #
                     last_error = exc
                     if isinstance(exc, gemini.RateLimited):
                         metrics.upstream_rate_limited += 1
+                    elif isinstance(exc, gemini.Unavailable):
+                        # If a model times out (e.g. 30s) or returns 503, swap to the next model
+                        skipped_model = attempt.model
                     router.note_failure(ring, attempt, exc)
                     log.info("attempt %d failed (%s on %s/key%d): %s",
                              outcome.attempts, type(exc).__name__, attempt.model,
@@ -611,11 +617,14 @@ def _sse(system, turns, corpus_hash, cache_key, hit) -> Iterator[str]:  # type: 
 
     last_error: gemini.GeminiError | None = None
     attempts = 0
+    skipped_model: str | None = None
 
     with _slots:
         metrics.in_flight += 1
         try:
             for attempt in router.plan(settings.all_models, ring):
+                if attempt.model == skipped_model:
+                    continue
                 attempts += 1
                 metrics.upstream_attempts += 1
                 pieces: list[str] = []
@@ -651,6 +660,9 @@ def _sse(system, turns, corpus_hash, cache_key, hit) -> Iterator[str]:  # type: 
                     last_error = exc
                     if isinstance(exc, gemini.RateLimited):
                         metrics.upstream_rate_limited += 1
+                    elif isinstance(exc, gemini.Unavailable):
+                        # If a model times out (e.g. 30s) or returns 503, swap to the next model
+                        skipped_model = attempt.model
                     router.note_failure(ring, attempt, exc)
                     log.info("stream attempt %d failed (%s on %s/key%d): %s",
                              attempts, type(exc).__name__, attempt.model,

@@ -144,7 +144,7 @@ class Settings:
     fallback_models: tuple[str, ...] = DEFAULT_FALLBACK_MODELS
     """Tried only after `models` is exhausted."""
 
-    request_timeout_s: float = 40.0
+    request_timeout_s: float = 30.0
     """
     Per-attempt ceiling. The chain may outlast this; a single call may not.
 
