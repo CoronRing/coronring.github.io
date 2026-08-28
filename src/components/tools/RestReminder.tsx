@@ -31,6 +31,7 @@ import {
   formatMinutesDisplay,
   formatTimeParts,
   getNotificationPermission,
+  MIN_PHASE_MINUTES,
   normalizeConfig,
   pauseTimerState,
   phaseDurationMs,
@@ -254,7 +255,8 @@ export default function RestReminder(): React.ReactElement {
         phase: transition.from,
         startedAt: transition.startedAt,
         completedAt: transition.endedAt,
-        durationMinutes: Math.round(transition.durationMs / 60000),
+        // Two decimals, so a 1.1 minute block does not log as 1.
+        durationMinutes: Math.round(transition.durationMs / 600) / 100,
         completedNaturally: true,
       }))
       .reverse();
@@ -684,30 +686,33 @@ export default function RestReminder(): React.ReactElement {
           <div>
             <h4 className="eyebrow mb-3 text-[var(--c-accent)]">Intervals</h4>
             <div className="grid gap-4 sm:grid-cols-3">
-              <Field label="Focus (minutes)" htmlFor="cfg-work">
+              <Field label="Focus (minutes)" htmlFor="cfg-work" hint="Decimals work: 1.1 is 66s">
                 <NumberField
                   id="cfg-work"
                   value={config.workMinutes}
-                  min={1}
+                  min={MIN_PHASE_MINUTES}
                   max={600}
+                  step={0.1}
                   onChange={(value) => patchConfig({ workMinutes: value })}
                 />
               </Field>
-              <Field label="Short break (minutes)" htmlFor="cfg-short">
+              <Field label="Short break (minutes)" htmlFor="cfg-short" hint="Down to 0.1">
                 <NumberField
                   id="cfg-short"
                   value={config.shortBreakMinutes}
-                  min={1}
+                  min={MIN_PHASE_MINUTES}
                   max={240}
+                  step={0.1}
                   onChange={(value) => patchConfig({ shortBreakMinutes: value })}
                 />
               </Field>
-              <Field label="Long break (minutes)" htmlFor="cfg-long">
+              <Field label="Long break (minutes)" htmlFor="cfg-long" hint="Down to 0.1">
                 <NumberField
                   id="cfg-long"
                   value={config.longBreakMinutes}
-                  min={1}
+                  min={MIN_PHASE_MINUTES}
                   max={240}
+                  step={0.1}
                   onChange={(value) => patchConfig({ longBreakMinutes: value })}
                 />
               </Field>

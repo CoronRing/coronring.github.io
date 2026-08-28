@@ -210,9 +210,25 @@ export const DEFAULT_CONFIG: TimerConfig = {
   breakNotificationBody: 'Rest interval finished. Pick the next task and start the block.',
 };
 
+/** Shortest settable phase, six seconds. Below this the alarm is a stopwatch. */
+export const MIN_PHASE_MINUTES = 0.1;
+
 function clampInt(value: number, min: number, max: number, fallback: number): number {
   if (!Number.isFinite(value)) return fallback;
   return Math.min(max, Math.max(min, Math.round(value)));
+}
+
+/**
+ * Clamp a duration in minutes, keeping two decimal places.
+ *
+ * Durations are deliberately not integers: 1.1 minutes is a legitimate cadence
+ * and the only sane way to set a sub-minute interval for testing. Two decimals
+ * is 0.6 s of resolution, which is finer than anything a break clock needs and
+ * keeps the number readable when it is written back into the input.
+ */
+function clampMinutes(value: number, min: number, max: number, fallback: number): number {
+  if (!Number.isFinite(value)) return fallback;
+  return Math.min(max, Math.max(min, Math.round(value * 100) / 100));
 }
 
 /**
@@ -234,9 +250,24 @@ export function normalizeConfig(raw: Partial<TimerConfig> | null | undefined): T
 
   return {
     ...config,
-    workMinutes: clampInt(config.workMinutes, 1, 600, DEFAULT_CONFIG.workMinutes),
-    shortBreakMinutes: clampInt(config.shortBreakMinutes, 1, 240, DEFAULT_CONFIG.shortBreakMinutes),
-    longBreakMinutes: clampInt(config.longBreakMinutes, 1, 240, DEFAULT_CONFIG.longBreakMinutes),
+    workMinutes: clampMinutes(
+      config.workMinutes,
+      MIN_PHASE_MINUTES,
+      600,
+      DEFAULT_CONFIG.workMinutes,
+    ),
+    shortBreakMinutes: clampMinutes(
+      config.shortBreakMinutes,
+      MIN_PHASE_MINUTES,
+      240,
+      DEFAULT_CONFIG.shortBreakMinutes,
+    ),
+    longBreakMinutes: clampMinutes(
+      config.longBreakMinutes,
+      MIN_PHASE_MINUTES,
+      240,
+      DEFAULT_CONFIG.longBreakMinutes,
+    ),
     cyclesBeforeLongBreak: clampInt(config.cyclesBeforeLongBreak, 1, 24, 4),
     targetCycles: clampInt(config.targetCycles, 0, 48, 4),
     alertRepeats: clampInt(config.alertRepeats, 0, 10, 2),
@@ -276,9 +307,13 @@ export function formatTimeParts(totalMs: number): {
   };
 }
 
+/**
+ * Compact duration label: seconds under a minute, otherwise minutes with at
+ * most one decimal, so a 1.1 minute block does not read as "1m".
+ */
 export function formatMinutesDisplay(minutes: number): string {
   if (minutes < 1) return `${Math.round(minutes * 60)}s`;
-  return `${Math.round(minutes)}m`;
+  return `${Math.round(minutes * 10) / 10}m`;
 }
 
 /** Wall-clock time for a deadline, e.g. "14:35". */
