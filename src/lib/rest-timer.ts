@@ -1,27 +1,41 @@
 /**
- * Rest Reminder engine — drift-free timer state machine, cross-platform OS
- * notifications, Web Audio procedural synthesizer, and session telemetry.
+ * Rest Reminder engine · background-safe alarm scheduling, OS notifications,
+ * and the phase state machine.
  *
- * ## Drift-free timestamp architecture
- * Browsers throttle `setInterval` and `setTimeout` down to 1000ms+ in background
- * tabs or inactive windows. Rather than counting elapsed ticks on a timer, the
- * engine anchors each active phase to an absolute target epoch timestamp
- * (`targetEndTime = Date.now() + remainingMs`). When the tab wakes or updates,
- * elapsed time is computed as `targetEndTime - Date.now()`, ensuring millisecond
- * accuracy regardless of tab throttling or OS sleep cycles.
+ * ## Why the timer survives a minimised window
+ * `requestAnimationFrame` stops entirely when a window is minimised or the tab
+ * is hidden, so anything that counted down inside a rAF loop simply froze. The
+ * engine instead anchors every running phase to an absolute epoch deadline and
+ * arms three independent wake-ups against it ({@link armAlarm}):
  *
- * ## Zero-network Web Audio synthesis
- * All audio cues (Tactical Ping, Aurora Chime, Digital Radar Beep, Zen Gong) are
- * procedurally synthesized using the Web Audio API with oscillators, biquad
- * filters, and exponential gain ramps. No audio assets or external network
- * downloads are required.
+ * 1. a single long `setTimeout` for the exact remaining time, since background
+ *    throttling clamps how *often* timers may run, not when a lone long timer
+ *    is due, so this lands within a second under normal throttling;
+ * 2. a 1 s reconciliation interval, which still ticks (slowly) while hidden and
+ *    catches the case where the OS suspended the machine mid-phase;
+ * 3. `visibilitychange` / `focus` / `pageshow` listeners, so returning to the
+ *    tab settles the clock immediately rather than on the next tick.
+ *
+ * Chrome applies *intensive* throttling (one wake-up per minute) to pages
+ * hidden for over five minutes, unless the page is playing audio.
+ * {@link backgroundCarrier} holds a 30 Hz oscillator at a gain of 0.0015 open
+ * for the duration of a run, which is inaudible but still counts as playback,
+ * so the page keeps its normal timer budget. It is the only audio node this
+ * module creates; there are no alert chimes.
+ *
+ * ## Why the alert repeats now
+ * The Web Notifications API coalesces notifications by `tag`. A fixed tag plus
+ * `requireInteraction` meant the second and every later alert silently replaced
+ * a banner that was still on screen: visible once, never again. Each alert now
+ * carries a unique tag and sets `renotify`, so every phase boundary raises its
+ * own banner. Delivery prefers the service worker registration, which is the
+ * only path Android Chrome accepts.
  */
 
 /* ── Types & Configuration ───────────────────────────────────────────── */
 
 export type TimerPhase = 'work' | 'short_break' | 'long_break';
 export type TimerStatus = 'idle' | 'running' | 'paused' | 'completed';
-export type SoundType = 'tactical_ping' | 'aurora_chime' | 'digital_beep' | 'zen_gong';
 
 export interface TimerConfig {
   /** Focus/work phase duration in minutes. Default: 25 */
@@ -38,25 +52,30 @@ export interface TimerConfig {
   autoStartBreaks: boolean;
   /** Automatically start the next work session when a break finishes. */
   autoStartWork: boolean;
-  /** Play procedural Web Audio chime on phase changes. */
-  soundEnabled: boolean;
-  /** Master volume (0.0 to 1.0). */
-  soundVolume: number;
-  /** Sound type for work completion (start of break). */
-  workCompleteSound: SoundType;
-  /** Sound type for break completion (start of work). */
-  breakCompleteSound: SoundType;
-  /** Send OS-level push notifications via Web Notifications API. */
+  /** Send OS-level notifications via the Web Notifications API. */
   notificationsEnabled: boolean;
+  /** Keep the OS banner on screen until it is dismissed by hand. */
+  stickyNotifications: boolean;
+  /** Extra alerts fired after an unacknowledged phase end (0 disables). */
+  alertRepeats: number;
+  /** Seconds between repeat alerts. */
+  alertRepeatSeconds: number;
   /** Trigger mobile haptic vibration patterns. */
   hapticsEnabled: boolean;
-  /** Title template for work completion notification. */
+  /**
+   * Hold the silent carrier open while running so the browser treats the page
+   * as playing audio and exempts it from intensive background throttling.
+   */
+  keepAwake: boolean;
+  /** Flash the document title until an alert is acknowledged. */
+  flashTitle: boolean;
+  /** Title for the work completion notification. */
   workNotificationTitle: string;
-  /** Body message for work completion notification. */
+  /** Body for the work completion notification. */
   workNotificationBody: string;
-  /** Title template for break completion notification. */
+  /** Title for the break completion notification. */
   breakNotificationTitle: string;
-  /** Body message for break completion notification. */
+  /** Body for the break completion notification. */
   breakNotificationBody: string;
 }
 
@@ -71,6 +90,8 @@ export interface TimerState {
   targetEndTime: number | null;
   /** Timestamp when timer was paused (if paused). */
   pausedAt: number | null;
+  /** Epoch timestamp the current phase started at, for session logging. */
+  phaseStartedAt: number;
   /** Number of completed work cycles in current session. */
   completedCycles: number;
   /** Total focus time accumulated today in milliseconds. */
@@ -100,6 +121,13 @@ export interface PresetProfile {
   targetCycles: number;
 }
 
+/** Human label for a phase, used in badges, titles, and notification copy. */
+export const PHASE_LABEL: Readonly<Record<TimerPhase, string>> = {
+  work: 'Focus',
+  short_break: 'Short break',
+  long_break: 'Long break',
+};
+
 /* ── Default Presets ─────────────────────────────────────────────────── */
 
 export const PRESETS: readonly PresetProfile[] = [
@@ -107,9 +135,10 @@ export const PRESETS: readonly PresetProfile[] = [
     id: 'eye_care_20',
     name: '20-20-20 Eye Care',
     label: '20m Eye Care',
-    description: 'Every 20 min look at an object 20 feet away for 20-30 seconds to prevent digital eye strain.',
+    description:
+      'Every 20 min look at an object 20 feet away for 20-30 seconds to prevent digital eye strain.',
     workMinutes: 20,
-    shortBreakMinutes: 1, // 1 min (can do 20-30s eye rest)
+    shortBreakMinutes: 1,
     longBreakMinutes: 5,
     cyclesBeforeLongBreak: 4,
     targetCycles: 6,
@@ -166,24 +195,65 @@ export const DEFAULT_CONFIG: TimerConfig = {
   longBreakMinutes: 15,
   cyclesBeforeLongBreak: 4,
   targetCycles: 4,
-  autoStartBreaks: false,
+  autoStartBreaks: true,
   autoStartWork: false,
-  soundEnabled: true,
-  soundVolume: 0.8,
-  workCompleteSound: 'aurora_chime',
-  breakCompleteSound: 'tactical_ping',
   notificationsEnabled: true,
+  stickyNotifications: true,
+  alertRepeats: 2,
+  alertRepeatSeconds: 30,
   hapticsEnabled: true,
-  workNotificationTitle: 'REST REQUIRED // Cadence Complete',
-  workNotificationBody: 'Time to rest your eyes, stretch, and hydrate. Step away from the screen.',
-  breakNotificationTitle: 'FOCUS ARMED // Break Complete',
-  breakNotificationBody: 'Rest interval finished. Return to tactical workstation.',
+  keepAwake: true,
+  flashTitle: true,
+  workNotificationTitle: 'Rest now, focus block complete',
+  workNotificationBody: 'Look 20 feet away, stand up, drink water. Step away from the screen.',
+  breakNotificationTitle: 'Break over, back to focus',
+  breakNotificationBody: 'Rest interval finished. Pick the next task and start the block.',
 };
+
+function clampInt(value: number, min: number, max: number, fallback: number): number {
+  if (!Number.isFinite(value)) return fallback;
+  return Math.min(max, Math.max(min, Math.round(value)));
+}
+
+/**
+ * Rebuild a config from a persisted one.
+ *
+ * Only keys the current shape declares survive, so settings written by an older
+ * version (the alert cues, for one) are dropped rather than lingering in local
+ * storage forever. A key of the wrong type, or missing, falls back to default.
+ */
+export function normalizeConfig(raw: Partial<TimerConfig> | null | undefined): TimerConfig {
+  if (!raw || typeof raw !== 'object') return { ...DEFAULT_CONFIG };
+
+  const merged = {} as Record<string, unknown>;
+  for (const [key, fallback] of Object.entries(DEFAULT_CONFIG)) {
+    const candidate = (raw as Record<string, unknown>)[key];
+    merged[key] = typeof candidate === typeof fallback ? candidate : fallback;
+  }
+  const config = merged as unknown as TimerConfig;
+
+  return {
+    ...config,
+    workMinutes: clampInt(config.workMinutes, 1, 600, DEFAULT_CONFIG.workMinutes),
+    shortBreakMinutes: clampInt(config.shortBreakMinutes, 1, 240, DEFAULT_CONFIG.shortBreakMinutes),
+    longBreakMinutes: clampInt(config.longBreakMinutes, 1, 240, DEFAULT_CONFIG.longBreakMinutes),
+    cyclesBeforeLongBreak: clampInt(config.cyclesBeforeLongBreak, 1, 24, 4),
+    targetCycles: clampInt(config.targetCycles, 0, 48, 4),
+    alertRepeats: clampInt(config.alertRepeats, 0, 10, 2),
+    alertRepeatSeconds: clampInt(config.alertRepeatSeconds, 5, 600, 30),
+  };
+}
 
 /* ── Time Calculations & Formatting ──────────────────────────────────── */
 
 export function minutesToMs(minutes: number): number {
-  return Math.max(1, Math.round(minutes * 60 * 1000));
+  return Math.max(1000, Math.round(minutes * 60 * 1000));
+}
+
+export function phaseDurationMs(phase: TimerPhase, config: TimerConfig): number {
+  if (phase === 'work') return minutesToMs(config.workMinutes);
+  if (phase === 'short_break') return minutesToMs(config.shortBreakMinutes);
+  return minutesToMs(config.longBreakMinutes);
 }
 
 export function formatTimeParts(totalMs: number): {
@@ -207,10 +277,14 @@ export function formatTimeParts(totalMs: number): {
 }
 
 export function formatMinutesDisplay(minutes: number): string {
-  if (minutes < 1) {
-    return `${Math.round(minutes * 60)}s`;
-  }
-  return `${minutes}m`;
+  if (minutes < 1) return `${Math.round(minutes * 60)}s`;
+  return `${Math.round(minutes)}m`;
+}
+
+/** Wall-clock time for a deadline, e.g. "14:35". */
+export function formatClockTime(epochMs: number | null): string {
+  if (epochMs === null) return '--:--';
+  return new Date(epochMs).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 }
 
 /* ── Timer State Engine ──────────────────────────────────────────────── */
@@ -224,27 +298,28 @@ export function createInitialState(config: TimerConfig = DEFAULT_CONFIG): TimerS
     remainingMs: durationMs,
     targetEndTime: null,
     pausedAt: null,
+    phaseStartedAt: Date.now(),
     completedCycles: 0,
     totalFocusMsToday: 0,
     totalBreakMsToday: 0,
   };
 }
 
-export function startTimerState(state: TimerState): TimerState {
+export function startTimerState(state: TimerState, now = Date.now()): TimerState {
   if (state.status === 'running') return state;
-  const now = Date.now();
   return {
     ...state,
     status: 'running',
     targetEndTime: now + state.remainingMs,
     pausedAt: null,
+    phaseStartedAt: state.remainingMs === state.durationMs ? now : state.phaseStartedAt,
   };
 }
 
-export function pauseTimerState(state: TimerState): TimerState {
+export function pauseTimerState(state: TimerState, now = Date.now()): TimerState {
   if (state.status !== 'running') return state;
-  const now = Date.now();
-  const remaining = state.targetEndTime !== null ? Math.max(0, state.targetEndTime - now) : state.remainingMs;
+  const remaining =
+    state.targetEndTime !== null ? Math.max(0, state.targetEndTime - now) : state.remainingMs;
   return {
     ...state,
     status: 'paused',
@@ -254,14 +329,12 @@ export function pauseTimerState(state: TimerState): TimerState {
   };
 }
 
-export function resetTimerState(state: TimerState, config: TimerConfig): TimerState {
-  const durationMs =
-    state.phase === 'work'
-      ? minutesToMs(config.workMinutes)
-      : state.phase === 'short_break'
-        ? minutesToMs(config.shortBreakMinutes)
-        : minutesToMs(config.longBreakMinutes);
-
+export function resetTimerState(
+  state: TimerState,
+  config: TimerConfig,
+  now = Date.now(),
+): TimerState {
+  const durationMs = phaseDurationMs(state.phase, config);
   return {
     ...state,
     status: 'idle',
@@ -269,14 +342,22 @@ export function resetTimerState(state: TimerState, config: TimerConfig): TimerSt
     remainingMs: durationMs,
     targetEndTime: null,
     pausedAt: null,
+    phaseStartedAt: now,
   };
 }
 
-export function adjustTimerDuration(state: TimerState, deltaMinutes: number): TimerState {
+export function adjustTimerDuration(
+  state: TimerState,
+  deltaMinutes: number,
+  now = Date.now(),
+): TimerState {
   const deltaMs = deltaMinutes * 60 * 1000;
-  const newRemaining = Math.max(1000, state.remainingMs + deltaMs);
+  const live =
+    state.status === 'running' && state.targetEndTime !== null
+      ? Math.max(0, state.targetEndTime - now)
+      : state.remainingMs;
+  const newRemaining = Math.max(1000, live + deltaMs);
   const newDuration = Math.max(newRemaining, state.durationMs + deltaMs);
-  const now = Date.now();
 
   return {
     ...state,
@@ -291,15 +372,9 @@ export function switchPhaseState(
   targetPhase: TimerPhase,
   config: TimerConfig,
   autoStart = false,
+  now = Date.now(),
 ): TimerState {
-  const durationMs =
-    targetPhase === 'work'
-      ? minutesToMs(config.workMinutes)
-      : targetPhase === 'short_break'
-        ? minutesToMs(config.shortBreakMinutes)
-        : minutesToMs(config.longBreakMinutes);
-
-  const now = Date.now();
+  const durationMs = phaseDurationMs(targetPhase, config);
   return {
     ...state,
     status: autoStart ? 'running' : 'idle',
@@ -308,6 +383,7 @@ export function switchPhaseState(
     remainingMs: durationMs,
     targetEndTime: autoStart ? now + durationMs : null,
     pausedAt: null,
+    phaseStartedAt: now,
   };
 }
 
@@ -320,18 +396,201 @@ export function computeNextPhase(
     const nextCycleCount = completedCycles + 1;
     const isLongBreak =
       config.cyclesBeforeLongBreak > 0 && nextCycleCount % config.cyclesBeforeLongBreak === 0;
-    return {
-      nextPhase: isLongBreak ? 'long_break' : 'short_break',
-      nextCycleCount,
-      isLongBreak,
+    return { nextPhase: isLongBreak ? 'long_break' : 'short_break', nextCycleCount, isLongBreak };
+  }
+  return { nextPhase: 'work', nextCycleCount: completedCycles, isLongBreak: false };
+}
+
+export interface PhaseTransition {
+  /** Phase that just finished. */
+  from: TimerPhase;
+  /** Phase the timer moved into. */
+  to: TimerPhase;
+  /** Epoch timestamp the finished phase started at. */
+  startedAt: number;
+  /** Epoch timestamp the finished phase ended at. */
+  endedAt: number;
+  /** Length of the finished phase in milliseconds. */
+  durationMs: number;
+}
+
+/** Guard against an unbounded roll-forward after a very long machine sleep. */
+const MAX_ROLL_FORWARD_PHASES = 64;
+
+/**
+ * Advance the state machine past every phase whose deadline has already passed.
+ *
+ * One lapsed phase is the normal case. Several lapse at once when the machine
+ * slept, the tab was throttled hard, or auto-start chained through short phases
+ * while the window was minimised. Each is still returned, so the session log
+ * stays truthful about what actually elapsed.
+ *
+ * @param state Current timer state; a non-running state is returned untouched.
+ * @param config Cadence configuration in force.
+ * @param now Reference timestamp, injectable for tests.
+ * @returns The settled state plus every transition that fired, oldest first.
+ */
+export function rollForwardElapsedPhases(
+  state: TimerState,
+  config: TimerConfig,
+  now = Date.now(),
+): { state: TimerState; transitions: PhaseTransition[] } {
+  const transitions: PhaseTransition[] = [];
+  let current = state;
+
+  for (let i = 0; i < MAX_ROLL_FORWARD_PHASES; i += 1) {
+    if (current.status !== 'running' || current.targetEndTime === null) break;
+    if (current.targetEndTime > now) break;
+
+    const endedAt = current.targetEndTime;
+    const from = current.phase;
+    const { nextPhase, nextCycleCount } = computeNextPhase(from, current.completedCycles, config);
+    const autoStart = from === 'work' ? config.autoStartBreaks : config.autoStartWork;
+    const nextDuration = phaseDurationMs(nextPhase, config);
+
+    transitions.push({
+      from,
+      to: nextPhase,
+      startedAt: current.phaseStartedAt,
+      endedAt,
+      durationMs: current.durationMs,
+    });
+
+    current = {
+      ...current,
+      status: autoStart ? 'running' : 'idle',
+      phase: nextPhase,
+      completedCycles: nextCycleCount,
+      durationMs: nextDuration,
+      remainingMs: nextDuration,
+      // A chained phase is anchored to the moment the previous one ended, not
+      // to `now`, or a late wake-up would silently stretch the cadence.
+      targetEndTime: autoStart ? endedAt + nextDuration : null,
+      pausedAt: null,
+      phaseStartedAt: endedAt,
+      totalFocusMsToday:
+        from === 'work'
+          ? current.totalFocusMsToday + current.durationMs
+          : current.totalFocusMsToday,
+      totalBreakMsToday:
+        from === 'work'
+          ? current.totalBreakMsToday
+          : current.totalBreakMsToday + current.durationMs,
     };
   }
 
-  // Completing a break returns to work
+  // A chained phase that is still overdue when the iteration cap is hit gets a
+  // fresh deadline rather than being left in the past, which would spin.
+  if (
+    current.status === 'running' &&
+    current.targetEndTime !== null &&
+    current.targetEndTime <= now
+  ) {
+    current = { ...current, targetEndTime: now + current.durationMs, phaseStartedAt: now };
+  }
+
+  return { state: current, transitions };
+}
+
+/**
+ * Rebuild a persisted state after a reload, discarding anything incoherent.
+ *
+ * The deadline is absolute, so a run survives a refresh: whatever elapsed while
+ * the page was gone is settled afterwards by {@link rollForwardElapsedPhases}.
+ */
+export function rehydrateState(raw: unknown, config: TimerConfig): TimerState | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const candidate = raw as Partial<TimerState>;
+  if (typeof candidate.phase !== 'string' || typeof candidate.status !== 'string') return null;
+  if (!['work', 'short_break', 'long_break'].includes(candidate.phase)) return null;
+
+  const base = createInitialState(config);
+  const merged: TimerState = {
+    ...base,
+    ...candidate,
+    phase: candidate.phase as TimerPhase,
+    status: candidate.status === 'running' ? 'running' : 'idle',
+    durationMs: Number.isFinite(candidate.durationMs)
+      ? (candidate.durationMs as number)
+      : base.durationMs,
+    remainingMs: Number.isFinite(candidate.remainingMs)
+      ? (candidate.remainingMs as number)
+      : base.remainingMs,
+    targetEndTime:
+      typeof candidate.targetEndTime === 'number' && Number.isFinite(candidate.targetEndTime)
+        ? candidate.targetEndTime
+        : null,
+    phaseStartedAt:
+      typeof candidate.phaseStartedAt === 'number' && Number.isFinite(candidate.phaseStartedAt)
+        ? candidate.phaseStartedAt
+        : Date.now(),
+  };
+
+  if (merged.status === 'running' && merged.targetEndTime === null) {
+    return { ...merged, status: 'idle' };
+  }
+  return merged;
+}
+
+/* ── Background-safe alarm scheduling ────────────────────────────────── */
+
+export interface AlarmHandle {
+  /** Stop every wake-up bound to this deadline. Safe to call twice. */
+  cancel(): void;
+}
+
+/** `setTimeout` saturates past this delay, so long waits are re-armed. */
+const MAX_TIMEOUT_MS = 2_000_000_000;
+
+/**
+ * Fire `onDue` when the wall clock reaches `targetEpochMs`, including while the
+ * window is minimised, the tab is hidden, or the machine has just woken.
+ *
+ * @param targetEpochMs Absolute deadline in epoch milliseconds.
+ * @param onDue Called exactly once, on or after the deadline.
+ * @returns Handle that cancels every pending wake-up.
+ */
+export function armAlarm(targetEpochMs: number, onDue: () => void): AlarmHandle {
+  if (typeof window === 'undefined') return { cancel: () => undefined };
+
+  let fired = false;
+  let timeoutId: number | undefined;
+  let intervalId: number | undefined;
+
+  const cleanup = (): void => {
+    if (timeoutId !== undefined) window.clearTimeout(timeoutId);
+    if (intervalId !== undefined) window.clearInterval(intervalId);
+    timeoutId = undefined;
+    intervalId = undefined;
+    document.removeEventListener('visibilitychange', check);
+    window.removeEventListener('focus', check);
+    window.removeEventListener('pageshow', check);
+  };
+
+  function check(): void {
+    if (fired) return;
+    const remaining = targetEpochMs - Date.now();
+    if (remaining <= 0) {
+      fired = true;
+      cleanup();
+      onDue();
+      return;
+    }
+    if (timeoutId !== undefined) window.clearTimeout(timeoutId);
+    timeoutId = window.setTimeout(check, Math.min(remaining, MAX_TIMEOUT_MS));
+  }
+
+  intervalId = window.setInterval(check, 1000);
+  document.addEventListener('visibilitychange', check);
+  window.addEventListener('focus', check);
+  window.addEventListener('pageshow', check);
+  check();
+
   return {
-    nextPhase: 'work',
-    nextCycleCount: completedCycles,
-    isLongBreak: false,
+    cancel: () => {
+      fired = true;
+      cleanup();
+    },
   };
 }
 
@@ -340,16 +599,12 @@ export function computeNextPhase(
 export type NotificationPermissionState = 'default' | 'granted' | 'denied' | 'unsupported';
 
 export function getNotificationPermission(): NotificationPermissionState {
-  if (typeof window === 'undefined' || !('Notification' in window)) {
-    return 'unsupported';
-  }
+  if (typeof window === 'undefined' || !('Notification' in window)) return 'unsupported';
   return Notification.permission as NotificationPermissionState;
 }
 
 export async function requestNotificationPermission(): Promise<NotificationPermissionState> {
-  if (typeof window === 'undefined' || !('Notification' in window)) {
-    return 'unsupported';
-  }
+  if (typeof window === 'undefined' || !('Notification' in window)) return 'unsupported';
   try {
     const result = await Notification.requestPermission();
     return result as NotificationPermissionState;
@@ -358,47 +613,200 @@ export async function requestNotificationPermission(): Promise<NotificationPermi
   }
 }
 
-export function sendOSNotification({
-  title,
-  body,
-  tag = 'coronring-rest-reminder',
-  icon,
-}: {
+let workerRegistration: ServiceWorkerRegistration | null = null;
+let workerRegistrationPromise: Promise<ServiceWorkerRegistration | null> | null = null;
+
+/**
+ * Register the notification service worker.
+ *
+ * It is the only delivery path Android Chrome accepts (`new Notification()`
+ * throws there) and the only one where clicking the banner focuses this tab
+ * instead of opening a duplicate. The worker handles clicks only, and registers
+ * no `fetch` listener, so it never sits in front of the site's own requests.
+ *
+ * Failure is not fatal: delivery falls back to the `Notification` constructor.
+ *
+ * @param scriptUrl Path to the worker, already resolved against the site base.
+ */
+export function registerNotificationWorker(
+  scriptUrl: string,
+): Promise<ServiceWorkerRegistration | null> {
+  if (typeof window === 'undefined' || !('serviceWorker' in navigator)) {
+    return Promise.resolve(null);
+  }
+  if (workerRegistrationPromise) return workerRegistrationPromise;
+
+  workerRegistrationPromise = navigator.serviceWorker
+    .register(scriptUrl, { scope: scriptUrl.replace(/[^/]+$/, '') })
+    .then(async (registration) => {
+      await navigator.serviceWorker.ready.catch(() => undefined);
+      workerRegistration = registration;
+      return registration;
+    })
+    .catch(() => null);
+
+  return workerRegistrationPromise;
+}
+
+let notificationSequence = 0;
+
+export interface OSNotificationRequest {
   title: string;
   body: string;
-  tag?: string;
+  /** Keep the banner up until dismissed. Ignored by some platforms. */
+  requireInteraction?: boolean;
   icon?: string;
-}): boolean {
-  if (typeof window === 'undefined' || !('Notification' in window)) {
-    return false;
-  }
+  /** Vibration pattern; honoured only on the service worker path. */
+  vibrate?: number[];
+  /** Close the banner after this many ms when it is not sticky. */
+  autoCloseMs?: number;
+}
 
-  if (Notification.permission !== 'granted') {
-    return false;
-  }
+/** What happened to the most recent delivery attempt. */
+export interface DeliveryReport {
+  /** When the attempt was made. */
+  at: number;
+  /** Which path was tried last. */
+  path: 'worker' | 'constructor' | 'blocked';
+  ok: boolean;
+  /** Human-readable outcome, including the thrown message on a failure. */
+  detail: string;
+}
 
+let lastDelivery: DeliveryReport | null = null;
+
+function record(path: DeliveryReport['path'], ok: boolean, detail: string): void {
+  lastDelivery = { at: Date.now(), path, ok, detail };
+}
+
+/** The most recent delivery attempt, so a silent failure stays visible. */
+export function readLastDelivery(): DeliveryReport | null {
+  return lastDelivery;
+}
+
+function showViaConstructor(
+  title: string,
+  options: NotificationOptions,
+  requireInteraction: boolean,
+  autoCloseMs: number | undefined,
+): boolean {
   try {
-    const notification = new Notification(title, {
-      body,
-      tag,
-      icon: icon ?? '/favicon.ico',
-      requireInteraction: true,
-      silent: false,
-    });
-
+    const notification = new Notification(title, options);
     notification.onclick = () => {
       window.focus();
       notification.close();
     };
-
+    notification.onerror = () => record('constructor', false, 'the platform rejected the banner');
+    if (!requireInteraction && autoCloseMs) {
+      window.setTimeout(() => notification.close(), autoCloseMs);
+    }
+    record('constructor', true, 'handed to the browser');
     return true;
-  } catch {
+  } catch (error) {
+    record('constructor', false, error instanceof Error ? error.message : String(error));
     return false;
   }
 }
 
-export function triggerHapticFeedback(pattern: number | number[] = [200, 100, 200, 100, 400]): void {
-  if (typeof window !== 'undefined' && 'navigator' in window && 'vibrate' in navigator) {
+/**
+ * Raise one OS notification.
+ *
+ * Two things make this less obvious than it looks.
+ *
+ * Every call gets a fresh `tag` and sets `renotify`, because the API coalesces
+ * by tag: a fixed tag means the second alert silently replaces a banner that is
+ * still on screen, which is why a cycle used to alert exactly once.
+ *
+ * `ServiceWorkerRegistration.showNotification` returns a promise and rejects
+ * *asynchronously* when the registration has no active worker, so a synchronous
+ * try/catch around it reports success for a banner that never appeared. The
+ * worker path is therefore gated on an active worker and its rejection falls
+ * back to the constructor.
+ *
+ * @returns `true` when a path accepted the notification. The final outcome of
+ * the worker path lands in {@link readLastDelivery}.
+ */
+export function sendOSNotification(request: OSNotificationRequest): boolean {
+  if (typeof window === 'undefined' || !('Notification' in window)) {
+    record('blocked', false, 'this browser has no Notifications API');
+    return false;
+  }
+  if (Notification.permission !== 'granted') {
+    record('blocked', false, `permission is "${Notification.permission}"`);
+    return false;
+  }
+
+  notificationSequence += 1;
+  const requireInteraction = request.requireInteraction ?? true;
+  const options: NotificationOptions & { renotify?: boolean; vibrate?: number[] } = {
+    body: request.body,
+    tag: `coronring-rest-${Date.now()}-${notificationSequence}`,
+    renotify: true,
+    icon: request.icon,
+    badge: request.icon,
+    requireInteraction,
+    silent: false,
+    vibrate: request.vibrate,
+    data: { url: window.location.href },
+  };
+
+  const registration = workerRegistration;
+  if (registration && registration.active) {
+    registration
+      .showNotification(request.title, options)
+      .then(() => record('worker', true, 'shown by the service worker'))
+      .catch((error: unknown) => {
+        const message = error instanceof Error ? error.message : String(error);
+        if (!showViaConstructor(request.title, options, requireInteraction, request.autoCloseMs)) {
+          record('worker', false, message);
+        }
+      });
+    return true;
+  }
+
+  return showViaConstructor(request.title, options, requireInteraction, request.autoCloseMs);
+}
+
+export interface NotificationDiagnostics {
+  /** The Notifications API exists in this browser. */
+  supported: boolean;
+  permission: NotificationPermissionState;
+  /** Notifications are refused outright on an insecure origin. */
+  secureContext: boolean;
+  /** A worker is registered *and* active, which is what delivery requires. */
+  serviceWorkerActive: boolean;
+  /** `'visible' | 'hidden'`, the state that decides background throttling. */
+  visibility: string;
+  /** Outcome of the last attempt, or null when nothing has been sent yet. */
+  lastDelivery: DeliveryReport | null;
+}
+
+/** Snapshot of everything that decides whether an alert can actually appear. */
+export function readNotificationDiagnostics(): NotificationDiagnostics {
+  if (typeof window === 'undefined') {
+    return {
+      supported: false,
+      permission: 'unsupported',
+      secureContext: false,
+      serviceWorkerActive: false,
+      visibility: 'unknown',
+      lastDelivery: null,
+    };
+  }
+  return {
+    supported: 'Notification' in window,
+    permission: getNotificationPermission(),
+    secureContext: window.isSecureContext,
+    serviceWorkerActive: workerRegistration?.active != null,
+    visibility: document.visibilityState,
+    lastDelivery,
+  };
+}
+
+export function triggerHapticFeedback(
+  pattern: number | number[] = [200, 100, 200, 100, 400],
+): void {
+  if (typeof window !== 'undefined' && 'vibrate' in navigator) {
     try {
       navigator.vibrate(pattern);
     } catch {
@@ -407,205 +815,87 @@ export function triggerHapticFeedback(pattern: number | number[] = [200, 100, 20
   }
 }
 
-/* ── Web Audio Procedural Synthesizer ─────────────────────────────────── */
+/* ── Silent background carrier ────────────────────────────────────────── */
 
-class SoundSynthesizer {
+/**
+ * A single inaudible oscillator, held open while a phase runs.
+ *
+ * Chrome and Edge drop a page hidden for more than five minutes to one timer
+ * wake-up per minute, which is enough to make a break alarm land a minute late.
+ * A page that is playing audio is exempt. This holds a 30 Hz sine at a gain of
+ * 0.0015, far below anything a speaker will reproduce as sound but still real
+ * output as far as the audibility check is concerned, so the timers keep their
+ * normal budget. The tab shows a speaker icon while it is running.
+ *
+ * This is the only audio in the tool. There are no alert chimes.
+ */
+class BackgroundCarrier {
   private ctx: AudioContext | null = null;
+  private nodes: { osc: OscillatorNode; gain: GainNode } | null = null;
+
+  private static getConstructor(): typeof AudioContext | undefined {
+    if (typeof window === 'undefined') return undefined;
+    return (
+      window.AudioContext ??
+      (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext
+    );
+  }
 
   private getContext(): AudioContext | null {
-    if (typeof window === 'undefined') return null;
-    const AudioCtx =
-      window.AudioContext ||
-      (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-    if (!AudioCtx) return null;
-
-    if (!this.ctx || this.ctx.state === 'closed') {
-      this.ctx = new AudioCtx();
-    }
-    if (this.ctx.state === 'suspended') {
-      void this.ctx.resume();
-    }
+    const AudioCtor = BackgroundCarrier.getConstructor();
+    if (!AudioCtor) return null;
+    if (!this.ctx || this.ctx.state === 'closed') this.ctx = new AudioCtor();
+    if (this.ctx.state === 'suspended') void this.ctx.resume();
     return this.ctx;
   }
 
-  /**
-   * Tactical Ping: High-tech dual-pitch chirp (880 Hz -> 1760 Hz)
-   * with crisp envelope attack and exponential damping.
-   */
-  playTacticalPing(volume = 0.8): void {
-    const ctx = this.getContext();
-    if (!ctx) return;
+  /** `'unsupported' | 'idle' | AudioContextState`, for the diagnostics panel. */
+  get state(): string {
+    if (!BackgroundCarrier.getConstructor()) return 'unsupported';
+    return this.ctx ? this.ctx.state : 'idle';
+  }
 
-    const now = ctx.currentTime;
-    const masterGain = ctx.createGain();
-    masterGain.gain.setValueAtTime(Math.max(0.01, Math.min(1, volume)) * 0.35, now);
-    masterGain.connect(ctx.destination);
-
-    // Primary osc
-    const osc1 = ctx.createOscillator();
-    const gain1 = ctx.createGain();
-    osc1.type = 'sine';
-    osc1.frequency.setValueAtTime(880, now);
-    osc1.frequency.exponentialRampToValueAtTime(1760, now + 0.08);
-
-    gain1.gain.setValueAtTime(0.001, now);
-    gain1.gain.linearRampToValueAtTime(1.0, now + 0.015);
-    gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
-
-    osc1.connect(gain1);
-    gain1.connect(masterGain);
-    osc1.start(now);
-    osc1.stop(now + 0.38);
-
-    // Secondary sub-harmonic harmonic chirp
-    const osc2 = ctx.createOscillator();
-    const gain2 = ctx.createGain();
-    osc2.type = 'triangle';
-    osc2.frequency.setValueAtTime(1320, now + 0.05);
-    osc2.frequency.exponentialRampToValueAtTime(2640, now + 0.12);
-
-    gain2.gain.setValueAtTime(0.001, now + 0.05);
-    gain2.gain.linearRampToValueAtTime(0.6, now + 0.065);
-    gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.45);
-
-    osc2.connect(gain2);
-    gain2.connect(masterGain);
-    osc2.start(now + 0.05);
-    osc2.stop(now + 0.48);
+  get active(): boolean {
+    return this.nodes !== null;
   }
 
   /**
-   * Aurora Chime: Ethereal harmonic triad chord (C5, E5, G5, B5 Solfeggio feel)
-   * with warm ambient resonance and smooth multi-stage decay.
+   * Open the audio context from inside a user gesture.
+   *
+   * Autoplay policy refuses a context first created inside a timer callback, so
+   * every control that can start a run calls this first.
    */
-  playAuroraChime(volume = 0.8): void {
+  unlock(): void {
     const ctx = this.getContext();
-    if (!ctx) return;
+    if (ctx) void ctx.resume();
+  }
 
-    const now = ctx.currentTime;
-    const masterGain = ctx.createGain();
-    masterGain.gain.setValueAtTime(Math.max(0.01, Math.min(1, volume)) * 0.28, now);
-    masterGain.connect(ctx.destination);
-
-    // 528 Hz (Solfeggio Transformation) + C5 (523Hz), E5 (659Hz), G5 (784Hz), B5 (987Hz)
-    const frequencies = [528, 659.25, 783.99, 987.77];
-    const delays = [0, 0.06, 0.12, 0.18];
-
-    frequencies.forEach((freq, idx) => {
+  setActive(on: boolean): void {
+    if (on) {
+      if (this.nodes) return;
+      const ctx = this.getContext();
+      if (!ctx) return;
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
-      const filter = ctx.createBiquadFilter();
-
-      const startTime = now + (delays[idx] ?? 0);
-
       osc.type = 'sine';
-      osc.frequency.setValueAtTime(freq, startTime);
-
-      filter.type = 'lowpass';
-      filter.frequency.setValueAtTime(3200, startTime);
-      filter.frequency.exponentialRampToValueAtTime(800, startTime + 1.2);
-
-      gain.gain.setValueAtTime(0.001, startTime);
-      gain.gain.linearRampToValueAtTime(0.8 / (idx + 1), startTime + 0.04);
-      gain.gain.exponentialRampToValueAtTime(0.0001, startTime + 1.6);
-
-      osc.connect(filter);
-      filter.connect(gain);
-      gain.connect(masterGain);
-
-      osc.start(startTime);
-      osc.stop(startTime + 1.65);
-    });
-  }
-
-  /**
-   * Digital Radar Beep: Triple square/saw alert pattern for sharp tactical focus.
-   */
-  playDigitalBeep(volume = 0.8): void {
-    const ctx = this.getContext();
-    if (!ctx) return;
-
-    const now = ctx.currentTime;
-    const masterGain = ctx.createGain();
-    masterGain.gain.setValueAtTime(Math.max(0.01, Math.min(1, volume)) * 0.22, now);
-    masterGain.connect(ctx.destination);
-
-    const beeps = [0, 0.12, 0.24];
-    beeps.forEach((offset) => {
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      const t = now + offset;
-
-      osc.type = 'square';
-      osc.frequency.setValueAtTime(1046.5, t); // C6
-
-      gain.gain.setValueAtTime(0.001, t);
-      gain.gain.linearRampToValueAtTime(0.9, t + 0.01);
-      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.07);
-
-      osc.connect(gain);
-      gain.connect(masterGain);
-      osc.start(t);
-      osc.stop(t + 0.08);
-    });
-  }
-
-  /**
-   * Zen Gong / Singing Bowl: Deep acoustic singing bowl with low harmonic
-   * resonance (130Hz fundamental) and sustained calming fade-out.
-   */
-  playZenGong(volume = 0.8): void {
-    const ctx = this.getContext();
-    if (!ctx) return;
-
-    const now = ctx.currentTime;
-    const masterGain = ctx.createGain();
-    masterGain.gain.setValueAtTime(Math.max(0.01, Math.min(1, volume)) * 0.45, now);
-    masterGain.connect(ctx.destination);
-
-    // Fundamental + overtone ratios (1.0, 2.76, 5.4, 8.93)
-    const fundamental = 146.83; // D3
-    const overtones = [
-      { freq: fundamental * 1.0, gain: 0.9, decay: 2.8 },
-      { freq: fundamental * 2.76, gain: 0.4, decay: 2.2 },
-      { freq: fundamental * 5.4, gain: 0.2, decay: 1.5 },
-      { freq: fundamental * 8.93, gain: 0.1, decay: 1.0 },
-    ];
-
-    overtones.forEach(({ freq, gain, decay }) => {
-      const osc = ctx.createOscillator();
-      const g = ctx.createGain();
-
-      osc.type = 'sine';
-      osc.frequency.setValueAtTime(freq, now);
-
-      g.gain.setValueAtTime(0.001, now);
-      g.gain.linearRampToValueAtTime(gain, now + 0.03);
-      g.gain.exponentialRampToValueAtTime(0.0001, now + decay);
-
-      osc.connect(g);
-      g.connect(masterGain);
-      osc.start(now);
-      osc.stop(now + decay + 0.05);
-    });
-  }
-
-  play(sound: SoundType, volume = 0.8): void {
-    switch (sound) {
-      case 'tactical_ping':
-        this.playTacticalPing(volume);
-        break;
-      case 'aurora_chime':
-        this.playAuroraChime(volume);
-        break;
-      case 'digital_beep':
-        this.playDigitalBeep(volume);
-        break;
-      case 'zen_gong':
-        this.playZenGong(volume);
-        break;
+      osc.frequency.setValueAtTime(30, ctx.currentTime);
+      gain.gain.setValueAtTime(0.0015, ctx.currentTime);
+      osc.connect(gain).connect(ctx.destination);
+      osc.start();
+      this.nodes = { osc, gain };
+      return;
     }
+
+    if (!this.nodes) return;
+    try {
+      this.nodes.osc.stop();
+      this.nodes.osc.disconnect();
+      this.nodes.gain.disconnect();
+    } catch {
+      /* already torn down */
+    }
+    this.nodes = null;
   }
 }
 
-export const soundSynth = new SoundSynthesizer();
+export const backgroundCarrier = new BackgroundCarrier();

@@ -134,9 +134,9 @@ export const TOOLS: readonly ToolEntry[] = [
   {
     slug: 'rest-reminder',
     name: 'Rest Reminder',
-    summary: 'Tactical HUD recovery clock with cross-platform OS notifications and zero-network audio synthesis.',
+    summary: 'A break clock that still fires when the window is minimised.',
     rationale:
-      'Long uninterrupted screen sessions cause ciliary eye lock and posture fatigue. Set your cadence (20-20-20 eye care, 25m Pomodoro, 50m deep work, 90m ultradian rhythm), get native OS alerts to your desktop or phone, and follow tactical box-breathing prompts during breaks.',
+      'Browser timers stop counting the moment a window is minimised, which is exactly when a break reminder has to work. This one keeps its deadline.',
     status: 'live',
     group: 'runtime',
     offline: true,

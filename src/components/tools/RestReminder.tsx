@@ -1,290 +1,471 @@
 /**
- * Rest Reminder — Tactical HUD Clock & Cross-Platform Recovery Cadence.
+ * Rest Reminder · a break clock that keeps firing while the window is minimised.
  *
- * References the Endfield interior HUD design language in `.agent_temp/reference`:
- * - Concentric rotating dials and 60-tick radial progress gauges with hazard-yellow fills
- * - Diagonal heavy bezel brackets, coordinate ticks, and telemetry readout rails
- * - Sweep scanline needle and ambient micro-particle constellation in canvas
- * - Procedural Web Audio alerts and cross-platform OS notifications
- * - Interactive box-breathing pacer for restorative eye and posture breaks
+ * The engine in `src/lib/rest-timer.ts` owns the hard parts: an absolute epoch
+ * deadline armed against three independent wake-ups, a silent carrier that
+ * keeps the page off Chrome's throttled-background path, and uniquely-tagged
+ * notifications so every cycle raises its own banner.
+ *
+ * ## Render budget
+ * Only {@link LiveClock} re-renders on a tick, at 4 Hz, and the tab title is
+ * written from an interval that holds no state at all. The first version put
+ * the countdown in the parent and advanced it from `requestAnimationFrame`,
+ * which re-rendered the whole page (settings form, 60 SVG ticks, delivery
+ * panel) sixty times a second. Chrome absorbed it. Edge did not.
+ *
+ * Layout is one column, no tabs: alert, clock, then settings directly beneath
+ * the thing they configure, then the delivery self-check, guide, and log.
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   DEFAULT_CONFIG,
+  PHASE_LABEL,
   PRESETS,
   adjustTimerDuration,
+  armAlarm,
+  backgroundCarrier,
   computeNextPhase,
   createInitialState,
+  formatClockTime,
   formatMinutesDisplay,
   formatTimeParts,
   getNotificationPermission,
-  minutesToMs,
+  normalizeConfig,
   pauseTimerState,
+  phaseDurationMs,
+  readNotificationDiagnostics,
+  registerNotificationWorker,
+  rehydrateState,
   requestNotificationPermission,
   resetTimerState,
+  rollForwardElapsedPhases,
   sendOSNotification,
-  soundSynth,
   startTimerState,
   switchPhaseState,
   triggerHapticFeedback,
+  type NotificationDiagnostics,
   type NotificationPermissionState,
   type PresetProfile,
   type SessionLogEntry,
-  type SoundType,
   type TimerConfig,
   type TimerPhase,
   type TimerState,
 } from '../../lib/rest-timer';
+import { href } from '../../lib/url';
 import {
   Badge,
   Button,
   Field,
+  Kbd,
   NumberField,
   OutputBox,
   Panel,
-  Select,
-  Slider,
   StatRow,
-  Tabs,
+  TextField,
   Toggle,
-  usePersisted,
 } from './ui';
 
-/* ── Sound Options ───────────────────────────────────────────────────── */
+/* ── Storage ──────────────────────────────────────────────────────────── */
 
-const SOUND_OPTIONS: ReadonlyArray<{ value: SoundType; label: string }> = [
-  { value: 'aurora_chime', label: '✦ Aurora Chime (Harmonic)' },
-  { value: 'tactical_ping', label: '◈ Tactical Ping (Dual-Chirp)' },
-  { value: 'digital_beep', label: '▲ Digital Radar Beep' },
-  { value: 'zen_gong', label: '◉ Zen Singing Bowl' },
-];
+const KEY_CONFIG = 'coronring.tools.rest-reminder.config';
+const KEY_STATE = 'coronring.tools.rest-reminder.state';
+const KEY_HISTORY = 'coronring.tools.rest-reminder.history';
 
-/* ── Breathing Phase for Break Pacer ─────────────────────────────────── */
+function readJson<T>(key: string): T | null {
+  try {
+    const raw = window.localStorage.getItem(key);
+    return raw === null ? null : (JSON.parse(raw) as T);
+  } catch {
+    return null;
+  }
+}
+
+function writeJson(key: string, value: unknown): void {
+  try {
+    window.localStorage.setItem(key, JSON.stringify(value));
+  } catch {
+    /* storage full or blocked */
+  }
+}
+
+/* ── Constants ────────────────────────────────────────────────────────── */
+
+const BASE_TITLE = 'Rest Reminder · coronring';
+const TEST_DELAY_SECONDS = 10;
+/** A phase that ended longer ago than this settles silently on catch-up. */
+const STALE_ALERT_MS = 5 * 60 * 1000;
+/** Display cadence. Four a second reads as live and costs 15x less than rAF. */
+const TICK_MS = 250;
 
 type BreathStep = 'inhale' | 'hold1' | 'exhale' | 'hold2';
 
+interface PendingAlert {
+  /** Phase that just finished. */
+  completed: TimerPhase;
+  /** Phase the timer moved into. */
+  next: TimerPhase;
+  /** When the phase ended. */
+  at: number;
+  /** Whether the next phase started on its own. */
+  autoStarted: boolean;
+  /** Set when the alert was reconstructed after the fact, not seen live. */
+  stale: boolean;
+}
+
+/** Milliseconds left right now, taken from the deadline rather than a counter. */
+function liveRemaining(state: TimerState): number {
+  if (state.status === 'running' && state.targetEndTime !== null) {
+    return Math.max(0, state.targetEndTime - Date.now());
+  }
+  return state.remainingMs;
+}
+
+/* ── Component ────────────────────────────────────────────────────────── */
+
 export default function RestReminder(): React.ReactElement {
-  /* ── Persisted Config & History ────────────────────────────────────── */
-  const [config, setConfig] = usePersisted<TimerConfig>('rest-reminder.config', DEFAULT_CONFIG);
-  const [history, setHistory] = usePersisted<SessionLogEntry[]>('rest-reminder.history', []);
-  const [selectedPreset, setSelectedPreset] = useState<string>('pomodoro_25');
-  const [activeTab, setActiveTab] = useState<'timer' | 'pacer' | 'settings' | 'history'>('timer');
+  const [config, setConfig] = useState<TimerConfig>(DEFAULT_CONFIG);
+  const [state, setState] = useState<TimerState>(() => createInitialState(DEFAULT_CONFIG));
+  const [history, setHistory] = useState<SessionLogEntry[]>([]);
+  const [hydrated, setHydrated] = useState(false);
 
-  /* ── Timer Runtime State ───────────────────────────────────────────── */
-  const [state, setState] = useState<TimerState>(() => createInitialState(config));
-  const [displayRemainingMs, setDisplayRemainingMs] = useState<number>(state.remainingMs);
+  const [pendingAlert, setPendingAlert] = useState<PendingAlert | null>(null);
   const [notificationPerm, setNotificationPerm] = useState<NotificationPermissionState>('default');
+  const [diagnostics, setDiagnostics] = useState<NotificationDiagnostics | null>(null);
+  const [testCountdown, setTestCountdown] = useState<number | null>(null);
+  /** Bumped to re-arm a deadline whose wake-up found nothing to settle. */
+  const [armToken, setArmToken] = useState(0);
 
-  const animationFrameRef = useRef<number | null>(null);
-  const sessionStartRef = useRef<number>(Date.now());
+  const configRef = useRef(config);
+  const stateRef = useRef(state);
+  const dueRef = useRef<() => void>(() => undefined);
+  const repeatTimerRef = useRef<number | undefined>(undefined);
+  const testAlarmRef = useRef<{ cancel: () => void } | null>(null);
 
-  // Check notification permission on mount
+  configRef.current = config;
+  stateRef.current = state;
+
+  /* ── Hydration ─────────────────────────────────────────────────────── */
+  // localStorage cannot be read during the first render without breaking
+  // Astro's hydration match, so the saved cadence lands one tick later.
   useEffect(() => {
+    const storedConfig = normalizeConfig(readJson<Partial<TimerConfig>>(KEY_CONFIG));
+    const storedState = rehydrateState(readJson<unknown>(KEY_STATE), storedConfig);
+    setConfig(storedConfig);
+    setState(storedState ?? createInitialState(storedConfig));
+    setHistory(readJson<SessionLogEntry[]>(KEY_HISTORY) ?? []);
     setNotificationPerm(getNotificationPermission());
+    setDiagnostics(readNotificationDiagnostics());
+    setHydrated(true);
   }, []);
 
-  /* ── High-Precision Drift-Free Animation Loop ──────────────────────── */
   useEffect(() => {
-    if (state.status !== 'running' || state.targetEndTime === null) {
-      setDisplayRemainingMs(state.remainingMs);
-      if (animationFrameRef.current !== null) {
-        cancelAnimationFrame(animationFrameRef.current);
-        animationFrameRef.current = null;
-      }
+    if (hydrated) writeJson(KEY_CONFIG, config);
+  }, [config, hydrated]);
+
+  useEffect(() => {
+    if (hydrated) writeJson(KEY_STATE, state);
+  }, [state, hydrated]);
+
+  useEffect(() => {
+    if (hydrated) writeJson(KEY_HISTORY, history);
+  }, [history, hydrated]);
+
+  /* ── Notification channel ──────────────────────────────────────────── */
+  useEffect(() => {
+    if (getNotificationPermission() !== 'granted') return;
+    void registerNotificationWorker(href('/rest-reminder-sw.js')).then(() => {
+      setDiagnostics(readNotificationDiagnostics());
+    });
+  }, [notificationPerm]);
+
+  /* ── Alerting ──────────────────────────────────────────────────────── */
+
+  const fireAlert = useCallback((completedPhase: TimerPhase, cfg: TimerConfig): void => {
+    if (cfg.hapticsEnabled) {
+      triggerHapticFeedback(completedPhase === 'work' ? [200, 100, 200, 100, 400] : [150, 80, 150]);
+    }
+    if (cfg.notificationsEnabled) {
+      const isWork = completedPhase === 'work';
+      sendOSNotification({
+        title: isWork ? cfg.workNotificationTitle : cfg.breakNotificationTitle,
+        body: isWork ? cfg.workNotificationBody : cfg.breakNotificationBody,
+        requireInteraction: cfg.stickyNotifications,
+        icon: href('/favicon.svg'),
+        vibrate: cfg.hapticsEnabled ? [200, 100, 200] : undefined,
+        autoCloseMs: 30_000,
+      });
+    }
+    // The worker path resolves a tick later, so read the outcome after it.
+    window.setTimeout(() => setDiagnostics(readNotificationDiagnostics()), 400);
+  }, []);
+
+  const stopRepeatAlerts = useCallback((): void => {
+    if (repeatTimerRef.current !== undefined) {
+      window.clearInterval(repeatTimerRef.current);
+      repeatTimerRef.current = undefined;
+    }
+  }, []);
+
+  /** Re-alert on an interval until the break is acknowledged, up to N times. */
+  const startRepeatAlerts = useCallback(
+    (completedPhase: TimerPhase, cfg: TimerConfig): void => {
+      stopRepeatAlerts();
+      if (cfg.alertRepeats <= 0) return;
+      let sent = 0;
+      repeatTimerRef.current = window.setInterval(
+        () => {
+          sent += 1;
+          if (sent > cfg.alertRepeats) {
+            stopRepeatAlerts();
+            return;
+          }
+          fireAlert(completedPhase, configRef.current);
+        },
+        Math.max(5, cfg.alertRepeatSeconds) * 1000,
+      );
+    },
+    [fireAlert, stopRepeatAlerts],
+  );
+
+  const acknowledgeAlert = useCallback((): void => {
+    stopRepeatAlerts();
+    setPendingAlert(null);
+  }, [stopRepeatAlerts]);
+
+  /* ── Deadline reached ──────────────────────────────────────────────── */
+
+  const handleDue = useCallback((): void => {
+    const cfg = configRef.current;
+    const now = Date.now();
+    const { state: settled, transitions } = rollForwardElapsedPhases(stateRef.current, cfg, now);
+    if (transitions.length === 0) {
+      // The wake-up beat the state it was armed against. Re-arm rather than
+      // leaving the deadline with nothing watching it.
+      setArmToken((token) => token + 1);
       return;
     }
 
-    const loop = (): void => {
-      const now = Date.now();
-      const diff = state.targetEndTime! - now;
+    // Newest first, matching the log order. Reversed here rather than inside
+    // the updater, which React may invoke more than once.
+    const entries: SessionLogEntry[] = transitions
+      .map((transition, index) => ({
+        id: `${transition.endedAt}-${index}`,
+        phase: transition.from,
+        startedAt: transition.startedAt,
+        completedAt: transition.endedAt,
+        durationMinutes: Math.round(transition.durationMs / 60000),
+        completedNaturally: true,
+      }))
+      .reverse();
+    setHistory((prev) => [...entries, ...prev].slice(0, 200));
 
-      if (diff <= 0) {
-        // Phase naturally completed!
-        handlePhaseCompletion();
-        return;
-      }
+    const last = transitions[transitions.length - 1]!;
+    const stale = now - last.endedAt > STALE_ALERT_MS;
 
-      setDisplayRemainingMs(diff);
-      animationFrameRef.current = requestAnimationFrame(loop);
-    };
-
-    animationFrameRef.current = requestAnimationFrame(loop);
-    return () => {
-      if (animationFrameRef.current !== null) {
-        cancelAnimationFrame(animationFrameRef.current);
-        animationFrameRef.current = null;
-      }
-    };
-  }, [state.status, state.targetEndTime]);
-
-  /* ── Update Document Title with Live Time & Phase ──────────────────── */
-  useEffect(() => {
-    if (typeof document === 'undefined') return;
-    const parts = formatTimeParts(displayRemainingMs);
-    const phaseLabel =
-      state.phase === 'work' ? 'FOCUS' : state.phase === 'short_break' ? 'REST' : 'LONG BREAK';
-
-    if (state.status === 'running') {
-      document.title = `[${parts.minutes}:${parts.seconds}] ${phaseLabel} // Rest Reminder`;
-    } else if (state.status === 'paused') {
-      document.title = `[PAUSED ${parts.minutes}:${parts.seconds}] Rest Reminder`;
-    } else {
-      document.title = 'Rest Reminder · Tactical HUD Clock';
-    }
-
-    return () => {
-      document.title = 'Rest Reminder · Tactical HUD Clock';
-    };
-  }, [displayRemainingMs, state.phase, state.status]);
-
-  /* ── Phase Completion Handler ──────────────────────────────────────── */
-  const handlePhaseCompletion = useCallback(() => {
-    const prevPhase = state.phase;
-    const now = Date.now();
-    const durationMins = Math.round(state.durationMs / (60 * 1000));
-
-    // 1. Record session log entry
-    const newEntry: SessionLogEntry = {
-      id: `${now}-${Math.random().toString(36).slice(2, 7)}`,
-      phase: prevPhase,
-      startedAt: sessionStartRef.current,
-      completedAt: now,
-      durationMinutes: durationMins,
-      completedNaturally: true,
-    };
-    setHistory([newEntry, ...history.slice(0, 99)]);
-
-    // 2. Compute next phase and cycles
-    const { nextPhase, nextCycleCount } = computeNextPhase(
-      prevPhase,
-      state.completedCycles,
-      config,
-    );
-
-    // 3. Audio & Haptics & Notification Cues
-    if (prevPhase === 'work') {
-      if (config.soundEnabled) soundSynth.play(config.workCompleteSound, config.soundVolume);
-      if (config.hapticsEnabled) triggerHapticFeedback([200, 100, 200, 100, 400]);
-      if (config.notificationsEnabled) {
-        sendOSNotification({
-          title: config.workNotificationTitle,
-          body: config.workNotificationBody,
-        });
-      }
-    } else {
-      if (config.soundEnabled) soundSynth.play(config.breakCompleteSound, config.soundVolume);
-      if (config.hapticsEnabled) triggerHapticFeedback([150, 80, 150]);
-      if (config.notificationsEnabled) {
-        sendOSNotification({
-          title: config.breakNotificationTitle,
-          body: config.breakNotificationBody,
-        });
-      }
-    }
-
-    // 4. Update state to next phase
-    const shouldAutoStart =
-      prevPhase === 'work' ? config.autoStartBreaks : config.autoStartWork;
-
-    setState((prev) => {
-      const nextDuration =
-        nextPhase === 'work'
-          ? minutesToMs(config.workMinutes)
-          : nextPhase === 'short_break'
-            ? minutesToMs(config.shortBreakMinutes)
-            : minutesToMs(config.longBreakMinutes);
-
-      sessionStartRef.current = now;
-      return {
-        ...prev,
-        status: shouldAutoStart ? 'running' : 'idle',
-        phase: nextPhase,
-        completedCycles: nextCycleCount,
-        durationMs: nextDuration,
-        remainingMs: nextDuration,
-        targetEndTime: shouldAutoStart ? now + nextDuration : null,
-        totalFocusMsToday:
-          prevPhase === 'work' ? prev.totalFocusMsToday + prev.durationMs : prev.totalFocusMsToday,
-        totalBreakMsToday:
-          prevPhase !== 'work' ? prev.totalBreakMsToday + prev.durationMs : prev.totalBreakMsToday,
-      };
+    setState(settled);
+    setPendingAlert({
+      completed: last.from,
+      next: last.to,
+      at: last.endedAt,
+      autoStarted: settled.status === 'running',
+      stale,
     });
-  }, [config, setHistory, state.completedCycles, state.durationMs, state.phase]);
 
-  /* ── Interactive Timer Actions ─────────────────────────────────────── */
-  const handleStart = (): void => {
-    sessionStartRef.current = Date.now();
+    if (stale) return;
+    fireAlert(last.from, cfg);
+    startRepeatAlerts(last.from, cfg);
+  }, [fireAlert, startRepeatAlerts]);
+
+  dueRef.current = handleDue;
+
+  /* ── Keep the page out of intensive background throttling ──────────── */
+  useEffect(() => {
+    backgroundCarrier.setActive(config.keepAwake && state.status === 'running');
+  }, [config.keepAwake, state.status]);
+
+  /* ── Arm the deadline ──────────────────────────────────────────────── */
+  useEffect(() => {
+    if (state.status !== 'running' || state.targetEndTime === null) return;
+    const handle = armAlarm(state.targetEndTime, () => dueRef.current());
+    return () => handle.cancel();
+  }, [state.status, state.targetEndTime, armToken]);
+
+  useEffect(
+    () => () => {
+      backgroundCarrier.setActive(false);
+      if (repeatTimerRef.current !== undefined) window.clearInterval(repeatTimerRef.current);
+      if (testAlarmRef.current) testAlarmRef.current.cancel();
+    },
+    [],
+  );
+
+  useDocumentTitle(state, pendingAlert, config.flashTitle);
+
+  /* ── Diagnostics refresh ───────────────────────────────────────────── */
+  useEffect(() => {
+    const refresh = (): void => setDiagnostics(readNotificationDiagnostics());
+    document.addEventListener('visibilitychange', refresh);
+    const interval = window.setInterval(refresh, 5000);
+    return () => {
+      document.removeEventListener('visibilitychange', refresh);
+      window.clearInterval(interval);
+    };
+  }, []);
+
+  /* ── Controls ──────────────────────────────────────────────────────── */
+
+  const handleStart = useCallback((): void => {
+    backgroundCarrier.unlock();
+    acknowledgeAlert();
     setState((prev) => startTimerState(prev));
-  };
+  }, [acknowledgeAlert]);
 
-  const handlePause = (): void => {
+  const handlePause = useCallback((): void => {
     setState((prev) => pauseTimerState(prev));
-  };
+  }, []);
 
-  const handleReset = (): void => {
-    setState((prev) => resetTimerState(prev, config));
-    setDisplayRemainingMs(
-      state.phase === 'work'
-        ? minutesToMs(config.workMinutes)
-        : state.phase === 'short_break'
-          ? minutesToMs(config.shortBreakMinutes)
-          : minutesToMs(config.longBreakMinutes),
-    );
-  };
+  const handleReset = useCallback((): void => {
+    acknowledgeAlert();
+    setState((prev) => resetTimerState(prev, configRef.current));
+  }, [acknowledgeAlert]);
 
-  const handleSkip = (): void => {
-    const { nextPhase, nextCycleCount } = computeNextPhase(
-      state.phase,
-      state.completedCycles,
-      config,
-    );
-    sessionStartRef.current = Date.now();
-    setState((prev) =>
-      switchPhaseState(
+  const handleSkip = useCallback((): void => {
+    backgroundCarrier.unlock();
+    acknowledgeAlert();
+    setState((prev) => {
+      const cfg = configRef.current;
+      const { nextPhase, nextCycleCount } = computeNextPhase(prev.phase, prev.completedCycles, cfg);
+      return switchPhaseState(
         { ...prev, completedCycles: nextCycleCount },
         nextPhase,
-        config,
-        state.status === 'running',
-      ),
-    );
-  };
+        cfg,
+        prev.status === 'running',
+      );
+    });
+  }, [acknowledgeAlert]);
 
-  const handleAdjust = (deltaMinutes: number): void => {
+  const handleAdjust = useCallback((deltaMinutes: number): void => {
     setState((prev) => adjustTimerDuration(prev, deltaMinutes));
-  };
+  }, []);
 
-  const handleSelectPreset = (preset: PresetProfile): void => {
-    setSelectedPreset(preset.id);
-    const newConfig: TimerConfig = {
-      ...config,
-      workMinutes: preset.workMinutes,
-      shortBreakMinutes: preset.shortBreakMinutes,
-      longBreakMinutes: preset.longBreakMinutes,
-      cyclesBeforeLongBreak: preset.cyclesBeforeLongBreak,
-      targetCycles: preset.targetCycles,
-    };
-    setConfig(newConfig);
-    setState(createInitialState(newConfig));
-    setDisplayRemainingMs(minutesToMs(preset.workMinutes));
-  };
+  /**
+   * Write a config change through, and re-length the current phase with it when
+   * the clock is not running. A running phase keeps its deadline: silently
+   * moving a deadline someone is already counting down against is worse than
+   * waiting for the next phase to pick the new length up.
+   */
+  const patchConfig = useCallback((patch: Partial<TimerConfig>): void => {
+    const next = normalizeConfig({ ...configRef.current, ...patch });
+    configRef.current = next;
+    setConfig(next);
+    setState((prev) => {
+      if (prev.status === 'running') return prev;
+      const duration = phaseDurationMs(prev.phase, next);
+      return { ...prev, durationMs: duration, remainingMs: duration };
+    });
+  }, []);
 
-  const handleRequestPermission = async (): Promise<void> => {
-    const perm = await requestNotificationPermission();
-    setNotificationPerm(perm);
-    if (perm === 'granted') {
+  const handleSelectPreset = useCallback(
+    (preset: PresetProfile): void => {
+      patchConfig({
+        workMinutes: preset.workMinutes,
+        shortBreakMinutes: preset.shortBreakMinutes,
+        longBreakMinutes: preset.longBreakMinutes,
+        cyclesBeforeLongBreak: preset.cyclesBeforeLongBreak,
+        targetCycles: preset.targetCycles,
+      });
+      setState((prev) =>
+        prev.status === 'running'
+          ? prev
+          : {
+              ...createInitialState(configRef.current),
+              completedCycles: prev.completedCycles,
+              totalFocusMsToday: prev.totalFocusMsToday,
+              totalBreakMsToday: prev.totalBreakMsToday,
+            },
+      );
+    },
+    [patchConfig],
+  );
+
+  const handleRequestPermission = useCallback(async (): Promise<void> => {
+    const permission = await requestNotificationPermission();
+    setNotificationPerm(permission);
+    if (permission === 'granted') {
+      await registerNotificationWorker(href('/rest-reminder-sw.js'));
       sendOSNotification({
-        title: 'TACTICAL NOTIFICATIONS // ARMED',
-        body: 'Cross-platform rest reminder notifications are active and verified.',
+        title: 'Notifications are on',
+        body: 'This is what a break alert will look like.',
+        requireInteraction: false,
+        icon: href('/favicon.svg'),
+        autoCloseMs: 12_000,
       });
     }
-  };
+    window.setTimeout(() => setDiagnostics(readNotificationDiagnostics()), 400);
+  }, []);
 
-  /* ── Calculations for Display ──────────────────────────────────────── */
-  const timeParts = formatTimeParts(displayRemainingMs);
-  const elapsedMs = Math.max(0, state.durationMs - displayRemainingMs);
-  const progressRatio = Math.min(1, Math.max(0, elapsedMs / (state.durationMs || 1)));
-  const progressPercent = Math.round(progressRatio * 100);
+  /**
+   * Schedule a one-off alert so the browser can be minimised and the delivery
+   * path checked end to end without waiting out a whole focus block.
+   */
+  const handleDelayedTest = useCallback((): void => {
+    if (testAlarmRef.current) testAlarmRef.current.cancel();
+
+    const target = Date.now() + TEST_DELAY_SECONDS * 1000;
+    setTestCountdown(TEST_DELAY_SECONDS);
+
+    const countdown = window.setInterval(() => {
+      const left = Math.ceil((target - Date.now()) / 1000);
+      setTestCountdown(left > 0 ? left : null);
+      if (left <= 0) window.clearInterval(countdown);
+    }, 500);
+
+    const handle = armAlarm(target, () => {
+      window.clearInterval(countdown);
+      setTestCountdown(null);
+      testAlarmRef.current = null;
+      sendOSNotification({
+        title: 'Delivery test',
+        body: `Fired ${TEST_DELAY_SECONDS}s after the button, with the window wherever you left it.`,
+        requireInteraction: configRef.current.stickyNotifications,
+        icon: href('/favicon.svg'),
+        autoCloseMs: 20_000,
+      });
+      window.setTimeout(() => setDiagnostics(readNotificationDiagnostics()), 400);
+    });
+
+    testAlarmRef.current = {
+      cancel: () => {
+        handle.cancel();
+        window.clearInterval(countdown);
+        setTestCountdown(null);
+      },
+    };
+  }, []);
+
+  /* ── Keyboard shortcuts ────────────────────────────────────────────── */
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent): void => {
+      const target = event.target as HTMLElement | null;
+      if (target && /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName)) return;
+      if (event.metaKey || event.ctrlKey || event.altKey) return;
+
+      if (event.code === 'Space') {
+        event.preventDefault();
+        if (stateRef.current.status === 'running') handlePause();
+        else handleStart();
+      } else if (event.key.toLowerCase() === 'r') {
+        handleReset();
+      } else if (event.key.toLowerCase() === 's') {
+        handleSkip();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [handleStart, handlePause, handleReset, handleSkip]);
+
+  /* ── Derived display values ────────────────────────────────────────── */
 
   const phaseColor =
     state.phase === 'work'
@@ -292,84 +473,107 @@ export default function RestReminder(): React.ReactElement {
       : state.phase === 'short_break'
         ? 'var(--c-ok)'
         : 'var(--c-warn)';
+  const phaseTone =
+    state.phase === 'work' ? 'accent' : state.phase === 'short_break' ? 'ok' : 'warn';
 
-  const phaseTone = state.phase === 'work' ? 'accent' : state.phase === 'short_break' ? 'ok' : 'warn';
+  /** Highlighted purely by what the config says, so it survives a reload. */
+  const selectedPreset = useMemo(
+    () =>
+      PRESETS.find(
+        (preset) =>
+          preset.workMinutes === config.workMinutes &&
+          preset.shortBreakMinutes === config.shortBreakMinutes &&
+          preset.longBreakMinutes === config.longBreakMinutes &&
+          preset.cyclesBeforeLongBreak === config.cyclesBeforeLongBreak,
+      )?.id ?? '',
+    [
+      config.workMinutes,
+      config.shortBreakMinutes,
+      config.longBreakMinutes,
+      config.cyclesBeforeLongBreak,
+    ],
+  );
 
   const stats = useMemo(() => {
-    const focusMins = Math.round(state.totalFocusMsToday / (60 * 1000));
-    const breakMins = Math.round(state.totalBreakMsToday / (60 * 1000));
-    const target = config.targetCycles > 0 ? config.targetCycles : '∞';
-    const cycleTone: 'ok' | 'accent' =
-      state.completedCycles >= config.targetCycles && config.targetCycles > 0 ? 'ok' : 'accent';
-    const notifTone: 'ok' | 'warn' = notificationPerm === 'granted' ? 'ok' : 'warn';
+    const focusMins = Math.round(state.totalFocusMsToday / 60000);
+    const breakMins = Math.round(state.totalBreakMsToday / 60000);
+    const target = config.targetCycles > 0 ? String(config.targetCycles) : '∞';
+    const alertsReady =
+      notificationPerm === 'granted' && config.notificationsEnabled
+        ? 'Ready'
+        : notificationPerm === 'granted'
+          ? 'Off'
+          : notificationPerm;
 
     return [
       {
-        label: 'Cycle Progress',
+        label: 'Cycles done',
         value: `${state.completedCycles} / ${target}`,
-        hint: `Long break every ${config.cyclesBeforeLongBreak} cycles`,
-        tone: cycleTone,
+        hint: `Long break every ${config.cyclesBeforeLongBreak}`,
+        tone:
+          config.targetCycles > 0 && state.completedCycles >= config.targetCycles
+            ? ('ok' as const)
+            : ('accent' as const),
       },
       {
-        label: 'Focus Time Today',
+        label: 'Focus today',
         value: `${focusMins}m`,
-        hint: `${(focusMins / 60).toFixed(1)} hours active flow`,
+        hint: `${(focusMins / 60).toFixed(1)} h at the desk`,
       },
       {
-        label: 'Rest Time Taken',
+        label: 'Rest today',
         value: `${breakMins}m`,
-        hint: `${history.filter((h) => h.phase !== 'work').length} break sessions`,
+        hint: `${history.filter((entry) => entry.phase !== 'work').length} breaks logged`,
         tone: 'ok' as const,
       },
       {
-        label: 'OS Alert Channel',
-        value: notificationPerm === 'granted' ? 'ARMED' : notificationPerm.toUpperCase(),
-        hint: notificationPerm === 'granted' ? 'Native Push active' : 'Click to authorize',
-        tone: notifTone,
+        label: 'Alerts',
+        value: alertsReady,
+        hint:
+          config.keepAwake && state.status === 'running'
+            ? 'Silent carrier holding'
+            : 'Carrier idle',
+        tone: alertsReady === 'Ready' ? ('ok' as const) : ('warn' as const),
       },
     ];
   }, [
     state.completedCycles,
-    config.targetCycles,
-    config.cyclesBeforeLongBreak,
+    state.status,
     state.totalFocusMsToday,
     state.totalBreakMsToday,
+    config.targetCycles,
+    config.cyclesBeforeLongBreak,
+    config.notificationsEnabled,
+    config.keepAwake,
     history,
     notificationPerm,
   ]);
 
   return (
-    <div className="space-y-6">
-      {/* ── Top Workspace Mode Tabs ───────────────────────────────────── */}
-      <Tabs
-        active={activeTab}
-        onChange={setActiveTab}
-        tabs={[
-          { id: 'timer', label: 'Tactical Clock' },
-          { id: 'pacer', label: '20-20-20 & Breath Pacer' },
-          { id: 'settings', label: 'Cadence Settings' },
-          {
-            id: 'history',
-            label: 'Session Logs',
-            badge: history.length > 0 ? history.length : undefined,
-          },
-        ]}
-      />
+    <div className="space-y-5">
+      {pendingAlert && (
+        <AlertBanner
+          alert={pendingAlert}
+          onAcknowledge={acknowledgeAlert}
+          onStartNext={handleStart}
+          running={state.status === 'running'}
+        />
+      )}
 
-      {/* ── Preset Selector Bar ───────────────────────────────────────── */}
+      {/* ── Preset rail ─────────────────────────────────────────────── */}
       <div className="flex flex-wrap items-center justify-between gap-3 border-y border-[var(--c-line)] bg-[var(--c-sunken)] px-4 py-2.5">
         <div className="flex flex-wrap items-center gap-1.5">
-          <span className="eyebrow mr-1 text-[var(--c-text-muted)]">Presets:</span>
+          <span className="eyebrow mr-1 text-[var(--c-text-muted)]">Cadence</span>
           {PRESETS.map((preset) => {
-            const isSelected = selectedPreset === preset.id;
+            const selected = selectedPreset === preset.id;
             return (
               <button
                 key={preset.id}
                 type="button"
                 onClick={() => handleSelectPreset(preset)}
                 title={preset.description}
-                className={`rounded-[2px] px-2.5 py-1 font-mono text-[11px] font-medium transition-all ${
-                  isSelected
+                className={`rounded-[2px] px-2.5 py-1 font-mono text-[11px] font-medium transition-colors ${
+                  selected
                     ? 'bg-[var(--c-accent-fill)] font-bold text-[var(--c-accent-on-fill)] shadow-xs'
                     : 'border border-[var(--c-line)] bg-[var(--c-surface)] text-[var(--c-text-muted)] hover:border-[var(--c-accent)] hover:text-[var(--c-text)]'
                 }`}
@@ -380,439 +584,361 @@ export default function RestReminder(): React.ReactElement {
           })}
         </div>
 
-        <div className="flex items-center gap-2">
-          {notificationPerm !== 'granted' && (
-            <Button
-              variant="primary"
-              onClick={handleRequestPermission}
-              title="Enable OS system notifications for rest alerts"
-            >
-              🔔 Enable OS Alerts
-            </Button>
-          )}
-        </div>
+        {notificationPerm !== 'granted' && (
+          <Button variant="primary" onClick={() => void handleRequestPermission()}>
+            Enable OS alerts
+          </Button>
+        )}
       </div>
 
-      {/* ── TAB 1: Tactical HUD Clock ─────────────────────────────────── */}
-      {activeTab === 'timer' && (
-        <div className="space-y-6">
-          <Panel
-            title="SYS.CLK // REST_CADENCE_ORBIT"
-            cornerTicks
-            aside={
-              <div className="flex items-center gap-2">
-                <Badge tone={phaseTone}>
-                  {state.phase === 'work'
-                    ? '✦ FOCUS SESSION'
-                    : state.phase === 'short_break'
-                      ? '☕ SHORT REST'
-                      : '◈ RECOVERY ORBIT'}
-                </Badge>
-                <Badge tone={state.status === 'running' ? 'busy' : 'idle'}>
-                  {state.status === 'running'
-                    ? 'ARMED · TICKING'
-                    : state.status === 'paused'
-                      ? 'PAUSED'
-                      : 'STANDBY'}
-                </Badge>
-              </div>
-            }
-          >
-            <div className="relative overflow-hidden p-6 sm:p-10">
-              {/* Tactical background grid & sector markings */}
-              <div
-                aria-hidden="true"
-                className="pointer-events-none absolute inset-0 opacity-15"
-                style={{
-                  backgroundImage:
-                    'radial-gradient(circle at center, var(--c-accent-fill) 0, transparent 70%)',
-                }}
-              />
+      {/* ── Clock ───────────────────────────────────────────────────── */}
+      <Panel
+        title="CLOCK"
+        cornerTicks
+        aside={
+          <div className="flex items-center gap-2">
+            <Badge tone={phaseTone}>{PHASE_LABEL[state.phase]}</Badge>
+            <Badge tone={state.status === 'running' ? 'busy' : 'idle'}>
+              {state.status === 'running'
+                ? 'Running'
+                : state.status === 'paused'
+                  ? 'Paused'
+                  : 'Standby'}
+            </Badge>
+          </div>
+        }
+      >
+        <div className="relative overflow-hidden p-6 sm:p-9">
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-0 opacity-15"
+            style={{
+              backgroundImage:
+                'radial-gradient(circle at center, var(--c-accent-fill) 0, transparent 70%)',
+            }}
+          />
 
-              <div className="relative mx-auto flex max-w-xl flex-col items-center justify-center">
-                {/* ── Main Concentric HUD Dial ──────────────────────── */}
-                <TacticalClockDial
-                  remainingMs={displayRemainingMs}
-                  progressRatio={progressRatio}
-                  phase={state.phase}
-                  status={state.status}
-                  phaseColor={phaseColor}
-                  timeParts={timeParts}
+          <div className="relative mx-auto flex max-w-xl flex-col items-center justify-center">
+            <LiveClock state={state} phaseColor={phaseColor} />
+
+            <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
+              {state.status === 'running' ? (
+                <Button variant="primary" onClick={handlePause} title="Pause (Space)">
+                  ❚❚ Pause
+                </Button>
+              ) : (
+                <Button variant="primary" onClick={handleStart} title="Start (Space)">
+                  ▶ Start {PHASE_LABEL[state.phase].toLowerCase()}
+                </Button>
+              )}
+              <Button variant="ghost" onClick={handleReset} title="Reset this phase (R)">
+                ↺ Reset
+              </Button>
+              <Button variant="ghost" onClick={handleSkip} title="Jump to the next phase (S)">
+                ⏭ Skip
+              </Button>
+            </div>
+
+            <div className="mt-4 flex flex-wrap items-center justify-center gap-1.5 border-t border-[var(--c-line)] pt-4">
+              <span className="eyebrow mr-1 text-[var(--c-text-faint)]">Adjust</span>
+              <Button variant="quiet" onClick={() => handleAdjust(-5)}>
+                −5m
+              </Button>
+              <Button variant="quiet" onClick={() => handleAdjust(-1)}>
+                −1m
+              </Button>
+              <Button variant="quiet" onClick={() => handleAdjust(1)}>
+                +1m
+              </Button>
+              <Button variant="quiet" onClick={() => handleAdjust(5)}>
+                +5m
+              </Button>
+              <Button variant="quiet" onClick={() => handleAdjust(10)}>
+                +10m
+              </Button>
+            </div>
+
+            <p className="mt-4 flex flex-wrap items-center gap-1.5 font-mono text-[10.5px] text-[var(--c-text-faint)]">
+              <Kbd>Space</Kbd> start or pause
+              <span className="px-1">·</span>
+              <Kbd>R</Kbd> reset
+              <span className="px-1">·</span>
+              <Kbd>S</Kbd> skip
+            </p>
+          </div>
+        </div>
+
+        <StatRow stats={stats} />
+      </Panel>
+
+      {/* ── Settings, directly below the clock ──────────────────────── */}
+      <Panel
+        title="SETTINGS"
+        aside={
+          <span className="font-mono text-[10.5px] text-[var(--c-text-faint)]">
+            Saved in this browser
+          </span>
+        }
+      >
+        <div className="space-y-6 p-5 sm:p-6">
+          <div>
+            <h4 className="eyebrow mb-3 text-[var(--c-accent)]">Intervals</h4>
+            <div className="grid gap-4 sm:grid-cols-3">
+              <Field label="Focus (minutes)" htmlFor="cfg-work">
+                <NumberField
+                  id="cfg-work"
+                  value={config.workMinutes}
+                  min={1}
+                  max={600}
+                  onChange={(value) => patchConfig({ workMinutes: value })}
                 />
+              </Field>
+              <Field label="Short break (minutes)" htmlFor="cfg-short">
+                <NumberField
+                  id="cfg-short"
+                  value={config.shortBreakMinutes}
+                  min={1}
+                  max={240}
+                  onChange={(value) => patchConfig({ shortBreakMinutes: value })}
+                />
+              </Field>
+              <Field label="Long break (minutes)" htmlFor="cfg-long">
+                <NumberField
+                  id="cfg-long"
+                  value={config.longBreakMinutes}
+                  min={1}
+                  max={240}
+                  onChange={(value) => patchConfig({ longBreakMinutes: value })}
+                />
+              </Field>
+            </div>
 
-                {/* ── Primary Action Controls ───────────────────────── */}
-                <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
-                  {state.status === 'running' ? (
-                    <Button
-                      variant="primary"
-                      onClick={handlePause}
-                      title="Pause countdown (Space)"
-                    >
-                      <span className="text-sm">❚❚</span> PAUSE TIMER
-                    </Button>
-                  ) : (
-                    <Button
-                      variant="primary"
-                      onClick={handleStart}
-                      title="Start recovery timer (Space)"
-                    >
-                      <span className="text-sm">▶</span> START {state.phase.toUpperCase()}
-                    </Button>
-                  )}
+            <div className="mt-4 grid gap-4 sm:grid-cols-2">
+              <Field
+                label="Focus blocks before a long break"
+                htmlFor="cfg-cycle-interval"
+                hint="Every nth break becomes the long one"
+              >
+                <NumberField
+                  id="cfg-cycle-interval"
+                  value={config.cyclesBeforeLongBreak}
+                  min={1}
+                  max={24}
+                  onChange={(value) => patchConfig({ cyclesBeforeLongBreak: value })}
+                />
+              </Field>
+              <Field
+                label="Target blocks for the day"
+                htmlFor="cfg-target-cycles"
+                hint="0 runs without a target"
+              >
+                <NumberField
+                  id="cfg-target-cycles"
+                  value={config.targetCycles}
+                  min={0}
+                  max={48}
+                  onChange={(value) => patchConfig({ targetCycles: value })}
+                />
+              </Field>
+            </div>
 
-                  <Button variant="ghost" onClick={handleReset} title="Reset current phase">
-                    ↺ RESET
-                  </Button>
+            <div className="mt-4 flex flex-wrap items-center gap-6">
+              <Toggle
+                id="cfg-auto-brk"
+                label="Start breaks automatically"
+                checked={config.autoStartBreaks}
+                onChange={(value) => patchConfig({ autoStartBreaks: value })}
+              />
+              <Toggle
+                id="cfg-auto-wrk"
+                label="Start the next focus block automatically"
+                checked={config.autoStartWork}
+                onChange={(value) => patchConfig({ autoStartWork: value })}
+              />
+            </div>
+          </div>
 
-                  <Button
-                    variant="ghost"
-                    onClick={handleSkip}
-                    title="Skip to next work or break phase"
-                  >
-                    ⏭ SKIP PHASE
-                  </Button>
-                </div>
+          <div className="border-t border-[var(--c-line)] pt-5">
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+              <h4 className="eyebrow text-[var(--c-accent)]">Alerts</h4>
+              <Badge tone={notificationPerm === 'granted' ? 'ok' : 'warn'}>
+                Permission: {notificationPerm}
+              </Badge>
+            </div>
 
-                {/* ── Quick Duration Adjustments (+1m, +5m, -1m, +10m) ─ */}
-                <div className="mt-4 flex flex-wrap items-center justify-center gap-1.5 border-t border-[var(--c-line)] pt-4">
-                  <span className="eyebrow mr-1 text-[var(--c-text-faint)]">Quick Adjust:</span>
-                  <Button variant="quiet" onClick={() => handleAdjust(-1)}>
-                    -1m
-                  </Button>
-                  <Button variant="quiet" onClick={() => handleAdjust(1)}>
-                    +1m
-                  </Button>
-                  <Button variant="quiet" onClick={() => handleAdjust(5)}>
-                    +5m
-                  </Button>
-                  <Button variant="quiet" onClick={() => handleAdjust(10)}>
-                    +10m
-                  </Button>
-                </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="flex flex-col gap-3">
+                <Toggle
+                  id="cfg-notif-en"
+                  label="Send an OS notification"
+                  checked={config.notificationsEnabled}
+                  onChange={(value) => patchConfig({ notificationsEnabled: value })}
+                />
+                <Toggle
+                  id="cfg-notif-sticky"
+                  label="Keep the banner up until dismissed"
+                  checked={config.stickyNotifications}
+                  onChange={(value) => patchConfig({ stickyNotifications: value })}
+                  title="Windows and some Linux desktops ignore this and auto-dismiss anyway"
+                />
+                <Toggle
+                  id="cfg-flash"
+                  label="Flash the tab title until acknowledged"
+                  checked={config.flashTitle}
+                  onChange={(value) => patchConfig({ flashTitle: value })}
+                />
+                <Toggle
+                  id="cfg-hap-en"
+                  label="Vibrate on mobile"
+                  checked={config.hapticsEnabled}
+                  onChange={(value) => patchConfig({ hapticsEnabled: value })}
+                />
+                <Toggle
+                  id="cfg-keepawake"
+                  label="Hold the silent carrier while running"
+                  checked={config.keepAwake}
+                  onChange={(value) => patchConfig({ keepAwake: value })}
+                  title="An inaudible 30 Hz tone that marks the tab as playing audio, so the browser does not throttle the timer in the background. The tab shows a speaker icon."
+                />
+              </div>
 
-                {/* Tactical Telemetry Readout Footnote */}
-                <div className="mt-6 flex w-full flex-wrap items-center justify-between border-t border-[var(--c-line)] pt-3 font-mono text-[11px] text-[var(--c-text-faint)]">
-                  <span>
-                    LAT 38.2° // SEC.{state.phase === 'work' ? '01' : '02'}
-                  </span>
-                  <span>
-                    COMPLETION: <strong className="text-[var(--c-text)]">{progressPercent}%</strong>
-                  </span>
-                  <span>
-                    TARGET: {formatMinutesDisplay(state.durationMs / 60000)}
-                  </span>
-                </div>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Field
+                  label="Repeat alerts"
+                  htmlFor="cfg-repeats"
+                  hint="Extra nudges if you miss the first"
+                >
+                  <NumberField
+                    id="cfg-repeats"
+                    value={config.alertRepeats}
+                    min={0}
+                    max={10}
+                    onChange={(value) => patchConfig({ alertRepeats: value })}
+                  />
+                </Field>
+                <Field label="Repeat gap (seconds)" htmlFor="cfg-repeat-gap">
+                  <NumberField
+                    id="cfg-repeat-gap"
+                    value={config.alertRepeatSeconds}
+                    min={5}
+                    max={600}
+                    onChange={(value) => patchConfig({ alertRepeatSeconds: value })}
+                  />
+                </Field>
               </div>
             </div>
 
-            <StatRow stats={stats} />
-          </Panel>
-
-          {/* ── Ergonomic Guidance Banner ─────────────────────────────── */}
-          <div className="rounded-sm border border-[var(--c-line)] bg-[var(--c-raised)] p-4">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <h4 className="eyebrow text-[var(--c-accent)]">Ergonomic Protocol</h4>
-                <p className="mt-1 text-xs text-[var(--c-text-muted)]">
-                  {state.phase === 'work'
-                    ? 'Maintain upright posture, 50-70cm screen distance, and natural blink frequency.'
-                    : 'Rest active: Shift gaze 20+ feet away, hydrate, and release neck tension.'}
-                </p>
-              </div>
-              <Button onClick={() => setActiveTab('pacer')} variant="ghost">
-                ✦ Launch Eye & Breath Pacer
-              </Button>
+            <div className="mt-4 grid gap-4 sm:grid-cols-2">
+              <Field label="End of focus title" htmlFor="cfg-notif-title">
+                <TextField
+                  id="cfg-notif-title"
+                  value={config.workNotificationTitle}
+                  onChange={(value) => patchConfig({ workNotificationTitle: value })}
+                />
+              </Field>
+              <Field label="End of focus message" htmlFor="cfg-notif-body">
+                <TextField
+                  id="cfg-notif-body"
+                  value={config.workNotificationBody}
+                  onChange={(value) => patchConfig({ workNotificationBody: value })}
+                />
+              </Field>
+              <Field label="End of break title" htmlFor="cfg-notif-btitle">
+                <TextField
+                  id="cfg-notif-btitle"
+                  value={config.breakNotificationTitle}
+                  onChange={(value) => patchConfig({ breakNotificationTitle: value })}
+                />
+              </Field>
+              <Field label="End of break message" htmlFor="cfg-notif-bbody">
+                <TextField
+                  id="cfg-notif-bbody"
+                  value={config.breakNotificationBody}
+                  onChange={(value) => patchConfig({ breakNotificationBody: value })}
+                />
+              </Field>
             </div>
           </div>
         </div>
-      )}
+      </Panel>
 
-      {/* ── TAB 2: 20-20-20 & Breath Pacer ────────────────────────────── */}
-      {activeTab === 'pacer' && (
-        <Panel title="Ergonomic Recovery // 20-20-20 & Tactical Box Breathing" cornerTicks>
-          <div className="p-6 sm:p-10">
-            <div className="grid gap-8 lg:grid-cols-2">
-              {/* Box Breathing Guided Animation Canvas */}
-              <div className="flex flex-col items-center justify-center rounded-sm border border-[var(--c-line)] bg-[var(--c-sunken)] p-6">
-                <h4 className="eyebrow text-[var(--c-accent)] mb-4">Tactical Box Breathing Pacer (4-4-4-4)</h4>
-                <BoxBreathingPacer />
-              </div>
+      {/* ── Delivery check ──────────────────────────────────────────── */}
+      <DeliveryCheck
+        diagnostics={diagnostics}
+        permission={notificationPerm}
+        carrierState={backgroundCarrier.state}
+        carrierOn={config.keepAwake && state.status === 'running'}
+        testCountdown={testCountdown}
+        onRequestPermission={() => void handleRequestPermission()}
+        onSendNow={() => fireAlert(state.phase === 'work' ? 'work' : 'short_break', config)}
+        onDelayedTest={handleDelayedTest}
+        onCancelTest={() => testAlarmRef.current?.cancel()}
+      />
 
-              {/* 20-20-20 Rule Interactive Checklist */}
-              <div className="space-y-4">
-                <div className="rounded-sm border border-[var(--c-line)] bg-[var(--c-surface)] p-5">
-                  <h4 className="eyebrow text-[var(--c-accent)] mb-2">01 · The 20-20-20 Rule</h4>
-                  <p className="text-xs leading-relaxed text-[var(--c-text-muted)]">
-                    Every <strong>20 minutes</strong>, focus your eyes on an object at least{' '}
-                    <strong>20 feet (6 meters) away</strong> for a full <strong>20 seconds</strong>.
-                    This completely relaxes the ciliary eye muscles that stay locked during monitor work.
-                  </p>
-                </div>
+      {/* ── Break guidance ──────────────────────────────────────────── */}
+      <Collapsible title="BREAK GUIDE" defaultOpen={false}>
+        <div className="grid gap-8 p-5 sm:p-6 lg:grid-cols-2">
+          <div className="flex flex-col items-center justify-center rounded-sm border border-[var(--c-line)] bg-[var(--c-sunken)] p-4">
+            <h4 className="eyebrow mb-2 text-[var(--c-accent)]">Box breathing · 4-4-4-4</h4>
+            <BoxBreathingPacer />
+          </div>
 
-                <div className="rounded-sm border border-[var(--c-line)] bg-[var(--c-surface)] p-5">
-                  <h4 className="eyebrow text-[var(--c-accent)] mb-2">02 · Micro-Movement Checklist</h4>
-                  <ul className="grid gap-2.5 font-mono text-[12px] text-[var(--c-text)]">
-                    <li className="flex items-center gap-2">
-                      <span className="text-[var(--c-ok)]">✓</span> Neck Rolls: 5 clockwise, 5 counter-clockwise
-                    </li>
-                    <li className="flex items-center gap-2">
-                      <span className="text-[var(--c-ok)]">✓</span> Shoulder Shrugs: Release trapezius tension
-                    </li>
-                    <li className="flex items-center gap-2">
-                      <span className="text-[var(--c-ok)]">✓</span> Hydration: Drink 150-200ml water
-                    </li>
-                    <li className="flex items-center gap-2">
-                      <span className="text-[var(--c-ok)]">✓</span> Wrist Extensions: Flex and shake out forearm muscles
-                    </li>
-                  </ul>
-                </div>
+          <div className="space-y-4">
+            <div className="rounded-sm border border-[var(--c-line)] bg-[var(--c-surface)] p-4">
+              <h4 className="eyebrow mb-2 text-[var(--c-accent)]">The 20-20-20 rule</h4>
+              <p className="text-xs leading-relaxed text-[var(--c-text-muted)]">
+                Every <strong>20 minutes</strong>, look at something at least{' '}
+                <strong>20 feet</strong> away for <strong>20 seconds</strong>. That is long enough
+                for the ciliary muscles to let go of the focal distance they have been holding.
+              </p>
+            </div>
 
-                <div className="flex items-center gap-2 pt-2">
-                  <Button variant="primary" onClick={() => soundSynth.play('zen_gong', config.soundVolume)}>
-                    ◉ Sound Rest Gong
-                  </Button>
-                  <Button variant="ghost" onClick={() => setActiveTab('timer')}>
-                    Return to Clock Dial
-                  </Button>
-                </div>
-              </div>
+            <div className="rounded-sm border border-[var(--c-line)] bg-[var(--c-surface)] p-4">
+              <h4 className="eyebrow mb-2 text-[var(--c-accent)]">While you are up</h4>
+              <ul className="grid gap-2 font-mono text-[12px] text-[var(--c-text)]">
+                <li className="flex items-center gap-2">
+                  <span className="text-[var(--c-ok)]">·</span> Neck rolls, five each way
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className="text-[var(--c-ok)]">·</span> Shoulder shrugs to unload the traps
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className="text-[var(--c-ok)]">·</span> 150-200 ml of water
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className="text-[var(--c-ok)]">·</span> Wrist extensions, shake out the
+                  forearms
+                </li>
+              </ul>
             </div>
           </div>
-        </Panel>
-      )}
+        </div>
+      </Collapsible>
 
-      {/* ── TAB 3: Settings ───────────────────────────────────────────── */}
-      {activeTab === 'settings' && (
-        <Panel title="Cadence Configuration" cornerTicks>
-          <div className="space-y-6 p-6">
-            {/* Timing Durations */}
-            <div>
-              <h4 className="eyebrow text-[var(--c-accent)] mb-3">Time Parameters</h4>
-              <div className="grid gap-4 sm:grid-cols-3">
-                <Field label="Work Duration (Minutes)" htmlFor="cfg-work">
-                  <NumberField
-                    id="cfg-work"
-                    value={config.workMinutes}
-                    min={1}
-                    max={180}
-                    onChange={(val) => {
-                      const next = { ...config, workMinutes: Math.max(1, Math.round(val)) };
-                      setConfig(next);
-                      if (state.phase === 'work' && state.status === 'idle') {
-                        setState(createInitialState(next));
-                      }
-                    }}
-                  />
-                </Field>
-
-                <Field label="Short Break (Minutes)" htmlFor="cfg-short">
-                  <NumberField
-                    id="cfg-short"
-                    value={config.shortBreakMinutes}
-                    min={1}
-                    max={60}
-                    onChange={(val) =>
-                      setConfig({ ...config, shortBreakMinutes: Math.max(1, Math.round(val)) })
-                    }
-                  />
-                </Field>
-
-                <Field label="Long Break (Minutes)" htmlFor="cfg-long">
-                  <NumberField
-                    id="cfg-long"
-                    value={config.longBreakMinutes}
-                    min={1}
-                    max={90}
-                    onChange={(val) =>
-                      setConfig({ ...config, longBreakMinutes: Math.max(1, Math.round(val)) })
-                    }
-                  />
-                </Field>
-              </div>
-
-              <div className="mt-4 grid gap-4 sm:grid-cols-2">
-                <Field
-                  label="Cycles Before Long Break"
-                  htmlFor="cfg-cycle-interval"
-                  hint="Number of work blocks before a long recovery break (e.g. 4)"
-                >
-                  <NumberField
-                    id="cfg-cycle-interval"
-                    value={config.cyclesBeforeLongBreak}
-                    min={1}
-                    max={12}
-                    onChange={(val) =>
-                      setConfig({
-                        ...config,
-                        cyclesBeforeLongBreak: Math.max(1, Math.round(val)),
-                      })
-                    }
-                  />
-                </Field>
-
-                <Field
-                  label="Target Total Cycles"
-                  htmlFor="cfg-target-cycles"
-                  hint="Set to 0 for infinite / continuous mode"
-                >
-                  <NumberField
-                    id="cfg-target-cycles"
-                    value={config.targetCycles}
-                    min={0}
-                    max={24}
-                    onChange={(val) =>
-                      setConfig({ ...config, targetCycles: Math.max(0, Math.round(val)) })
-                    }
-                  />
-                </Field>
-              </div>
-            </div>
-
-            {/* Audio Synthesis Settings */}
-            <div className="border-t border-[var(--c-line)] pt-5">
-              <h4 className="eyebrow text-[var(--c-accent)] mb-3">Procedural Web Audio Synth</h4>
-              <div className="grid gap-4 sm:grid-cols-3">
-                <Field label="Work Complete Sound" htmlFor="cfg-snd-work">
-                  <Select
-                    id="cfg-snd-work"
-                    value={config.workCompleteSound}
-                    options={SOUND_OPTIONS}
-                    onChange={(val) => setConfig({ ...config, workCompleteSound: val as SoundType })}
-                  />
-                </Field>
-
-                <Field label="Break Complete Sound" htmlFor="cfg-snd-break">
-                  <Select
-                    id="cfg-snd-break"
-                    value={config.breakCompleteSound}
-                    options={SOUND_OPTIONS}
-                    onChange={(val) =>
-                      setConfig({ ...config, breakCompleteSound: val as SoundType })
-                    }
-                  />
-                </Field>
-
-                <div className="flex flex-col justify-end">
-                  <Button
-                    variant="ghost"
-                    onClick={() => soundSynth.play(config.workCompleteSound, config.soundVolume)}
-                  >
-                    🔊 Test Work Sound
-                  </Button>
-                </div>
-              </div>
-
-              <div className="mt-4 grid gap-4 sm:grid-cols-2">
-                <Slider
-                  id="cfg-vol"
-                  label="Master Volume"
-                  value={Math.round(config.soundVolume * 100)}
-                  min={0}
-                  max={100}
-                  step={5}
-                  suffix="%"
-                  onChange={(val) => setConfig({ ...config, soundVolume: val / 100 })}
-                />
-
-                <div className="flex items-center gap-6 pt-5">
-                  <Toggle
-                    id="cfg-snd-en"
-                    label="Enable Audio Chimes"
-                    checked={config.soundEnabled}
-                    onChange={(val) => setConfig({ ...config, soundEnabled: val })}
-                  />
-                  <Toggle
-                    id="cfg-hap-en"
-                    label="Mobile Haptics"
-                    checked={config.hapticsEnabled}
-                    onChange={(val) => setConfig({ ...config, hapticsEnabled: val })}
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* OS Notification Settings */}
-            <div className="border-t border-[var(--c-line)] pt-5">
-              <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
-                <h4 className="eyebrow text-[var(--c-accent)]">Cross-Platform OS Notifications</h4>
-                <Badge tone={notificationPerm === 'granted' ? 'ok' : 'warn'}>
-                  Status: {notificationPerm.toUpperCase()}
-                </Badge>
-              </div>
-
-              <div className="grid gap-4 sm:grid-cols-2">
-                <Toggle
-                  id="cfg-notif-en"
-                  label="Send OS System Notifications"
-                  checked={config.notificationsEnabled}
-                  onChange={(val) => setConfig({ ...config, notificationsEnabled: val })}
-                />
-                <Button variant="ghost" onClick={handleRequestPermission}>
-                  🔔 Request / Test OS Permission
-                </Button>
-              </div>
-
-              <div className="mt-4 grid gap-4 sm:grid-cols-2">
-                <Field label="Work Complete Notification Title" htmlFor="cfg-notif-title">
-                  <input
-                    id="cfg-notif-title"
-                    type="text"
-                    value={config.workNotificationTitle}
-                    onChange={(e) => setConfig({ ...config, workNotificationTitle: e.target.value })}
-                    className="w-full rounded-sm border border-[var(--c-line)] bg-[var(--c-sunken)] px-2.5 py-1.5 font-mono text-[12px] text-[var(--c-text)] focus:border-[var(--c-accent)] focus:outline-none"
-                  />
-                </Field>
-                <Field label="Work Complete Notification Message" htmlFor="cfg-notif-body">
-                  <input
-                    id="cfg-notif-body"
-                    type="text"
-                    value={config.workNotificationBody}
-                    onChange={(e) => setConfig({ ...config, workNotificationBody: e.target.value })}
-                    className="w-full rounded-sm border border-[var(--c-line)] bg-[var(--c-sunken)] px-2.5 py-1.5 font-mono text-[12px] text-[var(--c-text)] focus:border-[var(--c-accent)] focus:outline-none"
-                  />
-                </Field>
-              </div>
-            </div>
-
-            {/* Automation Toggles */}
-            <div className="border-t border-[var(--c-line)] pt-5">
-              <h4 className="eyebrow text-[var(--c-accent)] mb-3">Flow Automation</h4>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <Toggle
-                  id="cfg-auto-brk"
-                  label="Auto-start Breaks (No manual click required)"
-                  checked={config.autoStartBreaks}
-                  onChange={(val) => setConfig({ ...config, autoStartBreaks: val })}
-                />
-                <Toggle
-                  id="cfg-auto-wrk"
-                  label="Auto-start Work Session after Break"
-                  checked={config.autoStartWork}
-                  onChange={(val) => setConfig({ ...config, autoStartWork: val })}
-                />
-              </div>
-            </div>
-          </div>
-        </Panel>
-      )}
-
-      {/* ── TAB 4: Session History & Telemetry ─────────────────────────── */}
-      {activeTab === 'history' && (
-        <div className="space-y-4">
+      {/* ── Session log ─────────────────────────────────────────────── */}
+      <Collapsible
+        title="SESSION LOG"
+        defaultOpen={false}
+        aside={
+          <span className="font-mono text-[10.5px] text-[var(--c-text-faint)]">
+            {history.length} completed
+          </span>
+        }
+      >
+        <div className="p-4">
           <OutputBox
-            title="Completed Session History"
+            title="Completed phases"
             filename="rest-reminder-history.json"
             mime="application/json"
-            empty="No completed sessions yet today. Start the clock to begin recording cadence telemetry."
+            empty="Nothing logged yet. Every phase that runs to its deadline lands here."
             text={
               history.length > 0
                 ? JSON.stringify(
-                    history.map((h) => ({
-                      phase: h.phase,
-                      durationMinutes: h.durationMinutes,
-                      started: new Date(h.startedAt).toLocaleTimeString(),
-                      completed: new Date(h.completedAt).toLocaleTimeString(),
-                      naturalCompletion: h.completedNaturally,
+                    history.map((entry) => ({
+                      phase: entry.phase,
+                      durationMinutes: entry.durationMinutes,
+                      started: new Date(entry.startedAt).toLocaleTimeString(),
+                      completed: new Date(entry.completedAt).toLocaleTimeString(),
                     })),
                     null,
                     2,
@@ -822,73 +948,404 @@ export default function RestReminder(): React.ReactElement {
             aside={
               history.length > 0 ? (
                 <Button variant="quiet" onClick={() => setHistory([])}>
-                  Clear History
+                  Clear
                 </Button>
               ) : undefined
             }
           />
         </div>
-      )}
+      </Collapsible>
     </div>
   );
 }
 
 /* ─────────────────────────────────────────────────────────────────────────
- * TacticalClockDial — Canvas and SVG Composite Dial
- * Inspired by Endfield HUD reference: Concentric rings, radial 60-ticks,
- * sweep scanline needle, particle dust field, and Archivo display typography.
+ * useDocumentTitle · the countdown in the tab, without a single re-render
  * ─────────────────────────────────────────────────────────────────────── */
 
-interface TacticalClockDialProps {
+/**
+ * Drive `document.title` from an interval that owns no React state.
+ *
+ * The title is the only thing that needs the time while the tab is hidden, and
+ * routing it through state would re-render the page once a second for a string
+ * nobody is looking at.
+ */
+function useDocumentTitle(
+  state: TimerState,
+  pendingAlert: PendingAlert | null,
+  flash: boolean,
+): void {
+  useEffect(() => {
+    let flashOn = true;
+
+    const write = (): void => {
+      if (pendingAlert) {
+        const message = pendingAlert.completed === 'work' ? 'Time to rest' : 'Break over';
+        document.title = !flash || flashOn ? message : BASE_TITLE;
+        flashOn = !flashOn;
+        return;
+      }
+      if (state.status === 'idle') {
+        document.title = BASE_TITLE;
+        return;
+      }
+      const parts = formatTimeParts(liveRemaining(state));
+      const clock = `${parts.minutes}:${parts.seconds}`;
+      document.title =
+        state.status === 'running'
+          ? `${clock} · ${PHASE_LABEL[state.phase]}`
+          : `Paused ${clock} · ${PHASE_LABEL[state.phase]}`;
+    };
+
+    write();
+    const interval = window.setInterval(write, 1000);
+    return () => {
+      window.clearInterval(interval);
+      document.title = BASE_TITLE;
+    };
+  }, [state, pendingAlert, flash]);
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+ * LiveClock · the only subtree that re-renders on a tick
+ * ─────────────────────────────────────────────────────────────────────── */
+
+function LiveClock({
+  state,
+  phaseColor,
+}: {
+  state: TimerState;
+  phaseColor: string;
+}): React.ReactElement {
+  const [remainingMs, setRemainingMs] = useState(() => liveRemaining(state));
+
+  useEffect(() => {
+    setRemainingMs(liveRemaining(state));
+    if (state.status !== 'running' || state.targetEndTime === null) return;
+
+    const target = state.targetEndTime;
+    let interval = 0;
+    const tick = (): void => setRemainingMs(Math.max(0, target - Date.now()));
+
+    // A hidden tab needs no more than one update a second, and the browser
+    // would clamp it there anyway.
+    const attach = (): void => {
+      window.clearInterval(interval);
+      tick();
+      interval = window.setInterval(tick, document.visibilityState === 'visible' ? TICK_MS : 1000);
+    };
+
+    attach();
+    document.addEventListener('visibilitychange', attach);
+    return () => {
+      window.clearInterval(interval);
+      document.removeEventListener('visibilitychange', attach);
+    };
+  }, [state]);
+
+  const timeParts = formatTimeParts(remainingMs);
+  const elapsedMs = Math.max(0, state.durationMs - remainingMs);
+  const progressRatio = Math.min(1, Math.max(0, elapsedMs / (state.durationMs || 1)));
+
+  return (
+    <>
+      <ClockDial
+        remainingMs={remainingMs}
+        progressRatio={progressRatio}
+        phase={state.phase}
+        running={state.status === 'running'}
+        phaseColor={phaseColor}
+        minutes={timeParts.minutes}
+        seconds={timeParts.seconds}
+      />
+
+      <div className="mt-6 flex w-full flex-wrap items-center justify-between gap-2 border-t border-[var(--c-line)] pt-3 font-mono text-[11px] text-[var(--c-text-faint)]">
+        <span>
+          Ends at{' '}
+          <strong className="text-[var(--c-text)]">
+            {formatClockTime(state.status === 'running' ? state.targetEndTime : null)}
+          </strong>
+        </span>
+        <span>
+          Elapsed{' '}
+          <strong className="text-[var(--c-text)]">{Math.round(progressRatio * 100)}%</strong>
+        </span>
+        <span>
+          Block length{' '}
+          <strong className="text-[var(--c-text)]">
+            {formatMinutesDisplay(state.durationMs / 60000)}
+          </strong>
+        </span>
+      </div>
+    </>
+  );
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+ * AlertBanner · the in-page fallback for a boundary the OS may have swallowed
+ * ─────────────────────────────────────────────────────────────────────── */
+
+function AlertBanner({
+  alert,
+  onAcknowledge,
+  onStartNext,
+  running,
+}: {
+  alert: PendingAlert;
+  onAcknowledge: () => void;
+  onStartNext: () => void;
+  running: boolean;
+}): React.ReactElement {
+  const restNow = alert.completed === 'work';
+  return (
+    <div
+      role="status"
+      aria-live="assertive"
+      className={`flex flex-wrap items-center justify-between gap-4 rounded-md border border-l-2 border-[var(--c-line)] p-4 ${
+        restNow
+          ? 'border-l-[var(--c-accent-fill)] bg-[var(--c-accent-soft)]'
+          : 'border-l-[var(--c-ok)] bg-[var(--c-raised)]'
+      }`}
+    >
+      <div>
+        <p className="display text-lg text-[var(--c-text)]">
+          {restNow ? 'Rest now.' : 'Break over.'}
+        </p>
+        <p className="mt-1 font-mono text-[11.5px] text-[var(--c-text-muted)]">
+          {PHASE_LABEL[alert.completed]} finished at {formatClockTime(alert.at)}
+          {alert.stale && ' (caught up after the tab came back)'}
+          {alert.autoStarted
+            ? ` · ${PHASE_LABEL[alert.next].toLowerCase()} is already running`
+            : ` · ${PHASE_LABEL[alert.next].toLowerCase()} is queued`}
+        </p>
+      </div>
+      <div className="flex items-center gap-2">
+        {!running && (
+          <Button variant="primary" onClick={onStartNext}>
+            Start {PHASE_LABEL[alert.next].toLowerCase()}
+          </Button>
+        )}
+        <Button variant="ghost" onClick={onAcknowledge}>
+          Dismiss
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+ * DeliveryCheck · why an alert did or did not reach the desktop
+ * ─────────────────────────────────────────────────────────────────────── */
+
+function DeliveryCheck({
+  diagnostics,
+  permission,
+  carrierState,
+  carrierOn,
+  testCountdown,
+  onRequestPermission,
+  onSendNow,
+  onDelayedTest,
+  onCancelTest,
+}: {
+  diagnostics: NotificationDiagnostics | null;
+  permission: NotificationPermissionState;
+  carrierState: string;
+  carrierOn: boolean;
+  testCountdown: number | null;
+  onRequestPermission: () => void;
+  onSendNow: () => void;
+  onDelayedTest: () => void;
+  onCancelTest: () => void;
+}): React.ReactElement {
+  const last = diagnostics?.lastDelivery ?? null;
+
+  const rows: Array<{ label: string; value: string; ok: boolean; hint: string }> = [
+    {
+      label: 'Notifications API',
+      value: diagnostics?.supported ? 'available' : 'missing',
+      ok: Boolean(diagnostics?.supported),
+      hint: 'Absent in some in-app browsers and older iOS Safari',
+    },
+    {
+      label: 'Permission',
+      value: permission,
+      ok: permission === 'granted',
+      hint: 'Denied is sticky. Clear it in the padlock menu for this site',
+    },
+    {
+      label: 'Secure context',
+      value: diagnostics?.secureContext ? 'yes' : 'no',
+      ok: Boolean(diagnostics?.secureContext),
+      hint: 'https and localhost qualify, a LAN IP does not',
+    },
+    {
+      label: 'Service worker',
+      value: diagnostics?.serviceWorkerActive ? 'active' : 'not active',
+      ok: true,
+      hint: 'Required on Android. Elsewhere delivery falls back to the page itself',
+    },
+    {
+      label: 'Silent carrier',
+      value: carrierOn ? `holding (${carrierState})` : 'idle',
+      ok: carrierOn,
+      hint: 'On while a phase runs, if enabled. Keeps the timer off the throttled path',
+    },
+    {
+      label: 'Last attempt',
+      value: last ? `${last.path}, ${last.ok ? 'delivered' : 'failed'}` : 'none yet',
+      ok: last ? last.ok : true,
+      hint: last ? last.detail : 'Send one below to fill this in',
+    },
+  ];
+
+  return (
+    <Panel
+      title="ALERT DELIVERY"
+      aside={
+        <span className="font-mono text-[10.5px] text-[var(--c-text-faint)]">
+          {diagnostics?.visibility === 'hidden' ? 'tab hidden' : 'tab visible'}
+        </span>
+      }
+    >
+      <div className="space-y-4 p-5 sm:p-6">
+        <div className="grid gap-2 sm:grid-cols-2">
+          {rows.map((row) => (
+            <div
+              key={row.label}
+              className="flex items-start gap-2.5 rounded-sm border border-[var(--c-line)] bg-[var(--c-sunken)] px-3 py-2"
+            >
+              <span
+                aria-hidden="true"
+                className="mt-1.5 size-1.5 shrink-0 rounded-full"
+                style={{ backgroundColor: row.ok ? 'var(--c-ok)' : 'var(--c-warn)' }}
+              />
+              <div className="min-w-0">
+                <p className="font-mono text-[11.5px] text-[var(--c-text)]">
+                  {row.label}: <strong>{row.value}</strong>
+                </p>
+                <p className="mt-0.5 font-mono text-[10.5px] leading-relaxed text-[var(--c-text-faint)]">
+                  {row.hint}
+                </p>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2 border-t border-[var(--c-line)] pt-4">
+          {permission !== 'granted' && (
+            <Button variant="primary" onClick={onRequestPermission}>
+              Enable OS alerts
+            </Button>
+          )}
+          <Button variant="ghost" onClick={onSendNow}>
+            Send one now
+          </Button>
+          {testCountdown === null ? (
+            <Button variant="ghost" onClick={onDelayedTest}>
+              Fire in {TEST_DELAY_SECONDS}s, then minimise
+            </Button>
+          ) : (
+            <Button variant="danger" onClick={onCancelTest}>
+              Cancel test ({testCountdown}s)
+            </Button>
+          )}
+        </div>
+
+        <p className="font-mono text-[10.5px] leading-relaxed text-[var(--c-text-faint)]">
+          If the banner never appears with permission granted, the block is at the OS level: on
+          Windows check Settings, System, Notifications for your browser and turn off Do Not
+          Disturb; on macOS check System Settings, Notifications and Focus.
+        </p>
+      </div>
+    </Panel>
+  );
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+ * Collapsible · a Panel that folds, for the sections below the fold
+ * ─────────────────────────────────────────────────────────────────────── */
+
+function Collapsible({
+  title,
+  defaultOpen,
+  aside,
+  children,
+}: {
+  title: string;
+  defaultOpen: boolean;
+  aside?: React.ReactNode;
+  children: React.ReactNode;
+}): React.ReactElement {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <Panel
+      title={title}
+      aside={
+        <div className="flex items-center gap-3">
+          {aside}
+          <Button variant="quiet" onClick={() => setOpen((prev) => !prev)}>
+            {open ? 'Hide' : 'Show'}
+          </Button>
+        </div>
+      }
+    >
+      {open ? children : null}
+    </Panel>
+  );
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+ * ClockDial · concentric gauge, 60 radial ticks, drifting particle field
+ * ─────────────────────────────────────────────────────────────────────── */
+
+interface ClockDialProps {
   remainingMs: number;
   progressRatio: number;
   phase: TimerPhase;
-  status: string;
+  running: boolean;
   phaseColor: string;
-  timeParts: {
-    minutes: string;
-    seconds: string;
-    hundredths: string;
-    totalSeconds: number;
-  };
+  minutes: string;
+  seconds: string;
 }
 
-function TacticalClockDial({
+const PARTICLE_COUNT = 22;
+/** Roughly 30 fps for the decorative field. Nothing here needs 60. */
+const PARTICLE_FRAME_MS = 33;
+
+function ClockDial({
   remainingMs,
   progressRatio,
   phase,
-  status,
+  running,
   phaseColor,
-  timeParts,
-}: TacticalClockDialProps): React.ReactElement {
+  minutes,
+  seconds,
+}: ClockDialProps): React.ReactElement {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
-  /* Ambient Canvas Micro-Particle Constellation Effect */
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    let animId: number;
-    const count = 38;
-    const particles = Array.from({ length: count }, (_, i) => ({
-      angle: (i / count) * Math.PI * 2,
+    let frame = 0;
+    let lastDraw = 0;
+    const particles = Array.from({ length: PARTICLE_COUNT }, (_, i) => ({
+      angle: (i / PARTICLE_COUNT) * Math.PI * 2,
       radius: 65 + (i % 5) * 16,
       speed: (0.002 + (i % 3) * 0.001) * (i % 2 === 0 ? 1 : -1),
       size: 1.2 + (i % 4) * 0.5,
       alpha: 0.2 + (i % 5) * 0.15,
     }));
 
-    const render = (): void => {
-      const w = canvas.width;
-      const h = canvas.height;
-      ctx.clearRect(0, 0, w, h);
+    const draw = (advance: boolean): void => {
+      const { width, height } = canvas;
+      ctx.clearRect(0, 0, width, height);
+      const cx = width / 2;
+      const cy = height / 2;
 
-      const cx = w / 2;
-      const cy = h / 2;
-
-      // Draw subtle orbital guide tracks
       ctx.strokeStyle = 'rgba(255, 255, 255, 0.04)';
       ctx.lineWidth = 1;
       ctx.beginPath();
@@ -896,54 +1353,74 @@ function TacticalClockDial({
       ctx.arc(cx, cy, 115, 0, Math.PI * 2);
       ctx.stroke();
 
-      // Render drifting particles
-      particles.forEach((p) => {
-        p.angle += p.speed * (status === 'running' ? 1.5 : 0.6);
-        const px = cx + Math.cos(p.angle) * p.radius;
-        const py = cy + Math.sin(p.angle) * p.radius;
-
-        ctx.fillStyle = `rgba(255, 250, 0, ${p.alpha * (phase === 'work' ? 0.9 : 0.4)})`;
+      // One fillStyle for the whole field, opacity per particle: setting a
+      // colour string per particle was most of the cost of a frame.
+      ctx.fillStyle = phase === 'work' ? 'rgb(255, 250, 0)' : 'rgb(160, 158, 40)';
+      particles.forEach((particle) => {
+        if (advance) particle.angle += particle.speed * 1.5;
+        ctx.globalAlpha = particle.alpha * (phase === 'work' ? 0.9 : 0.4);
         ctx.beginPath();
-        ctx.arc(px, py, p.size, 0, Math.PI * 2);
+        ctx.arc(
+          cx + Math.cos(particle.angle) * particle.radius,
+          cy + Math.sin(particle.angle) * particle.radius,
+          particle.size,
+          0,
+          Math.PI * 2,
+        );
         ctx.fill();
       });
-
-      animId = requestAnimationFrame(render);
+      ctx.globalAlpha = 1;
     };
 
-    animId = requestAnimationFrame(render);
-    return () => cancelAnimationFrame(animId);
-  }, [phase, status]);
+    const loop = (now: number): void => {
+      if (now - lastDraw >= PARTICLE_FRAME_MS) {
+        lastDraw = now;
+        draw(true);
+      }
+      frame = requestAnimationFrame(loop);
+    };
 
-  // Circumference for outer progress circle: Radius = 135
+    // The field drifts while a phase runs. Idle or hidden, it is one static
+    // frame: an animation nobody is watching is pure battery.
+    const attach = (): void => {
+      cancelAnimationFrame(frame);
+      if (running && document.visibilityState === 'visible') {
+        frame = requestAnimationFrame(loop);
+      } else {
+        draw(false);
+      }
+    };
+
+    attach();
+    document.addEventListener('visibilitychange', attach);
+    return () => {
+      cancelAnimationFrame(frame);
+      document.removeEventListener('visibilitychange', attach);
+    };
+  }, [phase, running]);
+
   const radius = 135;
   const circumference = 2 * Math.PI * radius;
   const strokeDashoffset = circumference * (1 - progressRatio);
-
-  // Angle for the sweeping needle
   const needleAngle = progressRatio * 360 - 90;
 
-  // Generate 60 radial ticks around 360 degrees
-  const ticks = useMemo(() => {
-    return Array.from({ length: 60 }, (_, i) => {
-      const tickAngle = (i / 60) * 360;
-      const isMajor = i % 5 === 0;
-      const isQuarter = i % 15 === 0;
-      const tickProgress = i / 60;
-      const isActive = tickProgress <= progressRatio;
-      return {
+  // Keyed on the number of lit ticks rather than the raw ratio, so the 60 line
+  // elements rebuild 60 times per phase instead of four times a second.
+  const litTicks = Math.round(progressRatio * 60);
+  const ticks = useMemo(
+    () =>
+      Array.from({ length: 60 }, (_, i) => ({
         index: i,
-        angle: tickAngle,
-        isMajor,
-        isQuarter,
-        isActive,
-      };
-    });
-  }, [progressRatio]);
+        angle: (i / 60) * 360,
+        isMajor: i % 5 === 0,
+        isQuarter: i % 15 === 0,
+        isActive: i <= litTicks,
+      })),
+    [litTicks],
+  );
 
   return (
     <div className="relative flex size-72 items-center justify-center sm:size-84">
-      {/* ── Background Particle Canvas ──────────────────────────────── */}
       <canvas
         ref={canvasRef}
         width={340}
@@ -951,25 +1428,18 @@ function TacticalClockDial({
         className="pointer-events-none absolute inset-0 size-full"
       />
 
-      {/* ── Concentric SVG Dial Gauge ────────────────────────────────── */}
       <svg
         viewBox="0 0 340 340"
         className="pointer-events-none absolute inset-0 size-full"
         aria-hidden="true"
       >
-        {/* Outer tactical bezel quadrant brackets */}
         <g stroke="var(--c-line-strong)" strokeWidth="1.5" fill="none" opacity="0.65">
-          {/* 45 deg bracket */}
           <path d="M 245 45 L 265 45 L 265 65" />
-          {/* 135 deg bracket */}
           <path d="M 265 275 L 265 295 L 245 295" />
-          {/* 225 deg bracket */}
           <path d="M 95 295 L 75 295 L 75 275" />
-          {/* 315 deg bracket */}
           <path d="M 75 65 L 75 45 L 95 45" />
         </g>
 
-        {/* Outer Static Track */}
         <circle
           cx="170"
           cy="170"
@@ -980,7 +1450,6 @@ function TacticalClockDial({
           opacity="0.4"
         />
 
-        {/* Outer Segmented Progress Track */}
         <circle
           cx="170"
           cy="170"
@@ -992,42 +1461,33 @@ function TacticalClockDial({
           strokeDashoffset={strokeDashoffset}
           strokeLinecap="round"
           transform="rotate(-90 170 170)"
-          className="transition-all duration-150"
         />
 
-        {/* 60 Radial Ticks Gauge */}
         <g transform="translate(170, 170)">
-          {ticks.map((t) => {
-            const rad = (t.angle - 90) * (Math.PI / 180);
-            const innerR = t.isQuarter ? 144 : t.isMajor ? 147 : 150;
-            const outerR = 155;
-            const x1 = Math.cos(rad) * innerR;
-            const y1 = Math.sin(rad) * innerR;
-            const x2 = Math.cos(rad) * outerR;
-            const y2 = Math.sin(rad) * outerR;
-
+          {ticks.map((tick) => {
+            const rad = (tick.angle - 90) * (Math.PI / 180);
+            const innerR = tick.isQuarter ? 144 : tick.isMajor ? 147 : 150;
             return (
               <line
-                key={t.index}
-                x1={x1}
-                y1={y1}
-                x2={x2}
-                y2={y2}
+                key={tick.index}
+                x1={Math.cos(rad) * innerR}
+                y1={Math.sin(rad) * innerR}
+                x2={Math.cos(rad) * 155}
+                y2={Math.sin(rad) * 155}
                 stroke={
-                  t.isActive
+                  tick.isActive
                     ? phaseColor
-                    : t.isQuarter
+                    : tick.isQuarter
                       ? 'var(--c-text-faint)'
                       : 'var(--c-line)'
                 }
-                strokeWidth={t.isQuarter ? 2 : t.isMajor ? 1.5 : 1}
-                opacity={t.isActive ? 0.95 : 0.4}
+                strokeWidth={tick.isQuarter ? 2 : tick.isMajor ? 1.5 : 1}
+                opacity={tick.isActive ? 0.95 : 0.4}
               />
             );
           })}
 
-          {/* Sweeping Radar Needle Line */}
-          {status === 'running' && (
+          {running && (
             <g transform={`rotate(${needleAngle})`}>
               <line
                 x1="0"
@@ -1044,35 +1504,25 @@ function TacticalClockDial({
         </g>
       </svg>
 
-      {/* ── Central Time Display & Telemetry Readout ─────────────────── */}
       <div className="relative z-10 flex flex-col items-center justify-center text-center select-none">
-        {/* Eyebrow Status Marker */}
         <span className="eyebrow mb-1 tracking-widest text-[var(--c-text-faint)]">
-          {phase === 'work' ? 'FOCUS_INTERVAL' : 'RECOVERY_INTERVAL'}
+          {PHASE_LABEL[phase]}
         </span>
 
-        {/* Primary Giant Time Digits */}
-        <div className="display flex items-baseline font-mono text-4xl tracking-tight sm:text-5xl">
-          <span className="text-[var(--c-text)]">{timeParts.minutes}</span>
-          <span className="animate-pulse px-1 text-[var(--c-accent)]">:</span>
-          <span className="text-[var(--c-text)]">{timeParts.seconds}</span>
-          <span className="ml-1 text-sm font-normal text-[var(--c-text-faint)]">
-            .{timeParts.hundredths}
-          </span>
+        <div className="display flex items-baseline font-mono text-5xl tracking-tight sm:text-6xl">
+          <span className="text-[var(--c-text)]">{minutes}</span>
+          <span className="px-1 text-[var(--c-accent)]">:</span>
+          <span className="text-[var(--c-text)]">{seconds}</span>
         </div>
 
-        {/* Dynamic Micro-Progress Meter */}
         <div className="mt-2 flex items-center gap-2">
           <span className="font-mono text-[10px] font-semibold text-[var(--c-text-faint)]">
-            {formatMinutesDisplay(remainingMs / 60000)} LEFT
+            {formatMinutesDisplay(remainingMs / 60000)} left
           </span>
           <div className="h-1 w-16 overflow-hidden rounded-full bg-[var(--c-sunken)]">
             <div
-              className="h-full rounded-full transition-all"
-              style={{
-                width: `${progressRatio * 100}%`,
-                backgroundColor: phaseColor,
-              }}
+              className="h-full rounded-full"
+              style={{ width: `${progressRatio * 100}%`, backgroundColor: phaseColor }}
             />
           </div>
           <span className="font-mono text-[10px] font-semibold text-[var(--c-text-muted)]">
@@ -1085,98 +1535,79 @@ function TacticalClockDial({
 }
 
 /* ─────────────────────────────────────────────────────────────────────────
- * BoxBreathingPacer — 4-4-4-4 Tactical Breathing Guide Component
- * Inhale 4s -> Hold 4s -> Exhale 4s -> Hold 4s
+ * BoxBreathingPacer · 4-4-4-4, inhale, hold, exhale, hold
  * ─────────────────────────────────────────────────────────────────────── */
 
 function BoxBreathingPacer(): React.ReactElement {
   const [elapsed, setElapsed] = useState(0);
 
   useEffect(() => {
-    let anim: number;
-    let start = Date.now();
-
-    const loop = (): void => {
-      const now = Date.now();
-      setElapsed((now - start) / 1000);
-      anim = requestAnimationFrame(loop);
-    };
-
-    anim = requestAnimationFrame(loop);
-    return () => cancelAnimationFrame(anim);
+    const start = Date.now();
+    // 20 Hz is plenty for a circle that takes four seconds to grow.
+    const interval = window.setInterval(() => setElapsed((Date.now() - start) / 1000), 50);
+    return () => window.clearInterval(interval);
   }, []);
 
-  // 16-second total cycle (4s per stage)
-  const cycleSeconds = 16;
-  const currentMod = elapsed % cycleSeconds;
+  const currentMod = elapsed % 16;
 
   let step: BreathStep = 'inhale';
   let stepProgress = 0;
-  let label = 'INHALE';
-  let sublabel = 'Deep breath through nose';
+  let label = 'Inhale';
+  let sublabel = 'Breathe in slowly';
   let scale = 1;
 
   if (currentMod < 4) {
     step = 'inhale';
     stepProgress = currentMod / 4;
-    label = 'INHALE';
-    sublabel = 'Breathe in slowly (4s)';
-    scale = 1.0 + stepProgress * 0.45; // 1.0 -> 1.45
+    scale = 1 + stepProgress * 0.45;
   } else if (currentMod < 8) {
     step = 'hold1';
     stepProgress = (currentMod - 4) / 4;
-    label = 'HOLD';
-    sublabel = 'Hold breath calmly (4s)';
+    label = 'Hold';
+    sublabel = 'Hold it, lungs full';
     scale = 1.45;
   } else if (currentMod < 12) {
     step = 'exhale';
     stepProgress = (currentMod - 8) / 4;
-    label = 'EXHALE';
-    sublabel = 'Release through mouth (4s)';
-    scale = 1.45 - stepProgress * 0.45; // 1.45 -> 1.0
+    label = 'Exhale';
+    sublabel = 'Release through the mouth';
+    scale = 1.45 - stepProgress * 0.45;
   } else {
     step = 'hold2';
     stepProgress = (currentMod - 12) / 4;
-    label = 'HOLD';
-    sublabel = 'Rest empty lungs (4s)';
-    scale = 1.0;
+    label = 'Hold';
+    sublabel = 'Rest, lungs empty';
+    scale = 1;
   }
 
+  const warm = step === 'inhale' || step === 'hold1';
+
   return (
-    <div className="flex flex-col items-center justify-center p-6 text-center">
-      {/* Animated Expanding/Contracting Breathing Ring */}
+    <div className="flex flex-col items-center justify-center p-4 text-center">
       <div className="relative flex size-52 items-center justify-center">
-        {/* Glow halo */}
         <div
           aria-hidden="true"
           className="absolute inset-0 rounded-full transition-transform duration-100 ease-out"
           style={{
             transform: `scale(${scale * 1.1})`,
-            backgroundColor:
-              step === 'inhale' || step === 'hold1'
-                ? 'rgba(255, 250, 0, 0.08)'
-                : 'rgba(74, 222, 128, 0.08)',
+            backgroundColor: warm ? 'rgba(255, 250, 0, 0.08)' : 'rgba(74, 222, 128, 0.08)',
           }}
         />
-
-        {/* Main pulsing circle */}
         <div
-          className="relative z-10 flex size-36 flex-col items-center justify-center rounded-full border-2 border-[var(--c-accent)] bg-[var(--c-surface)] shadow-lg transition-transform duration-100 ease-out"
+          className="relative z-10 flex size-36 flex-col items-center justify-center rounded-full border-2 bg-[var(--c-surface)] shadow-lg transition-transform duration-100 ease-out"
           style={{
             transform: `scale(${scale})`,
-            borderColor:
-              step === 'inhale' || step === 'hold1' ? 'var(--c-accent)' : 'var(--c-ok)',
+            borderColor: warm ? 'var(--c-accent)' : 'var(--c-ok)',
           }}
         >
           <span className="font-mono text-base font-bold tracking-wider text-[var(--c-text)]">
             {label}
           </span>
           <span className="font-mono text-[11px] text-[var(--c-text-faint)]">
-            {Math.ceil(4 - (stepProgress * 4))}s
+            {Math.ceil(4 - stepProgress * 4)}s
           </span>
         </div>
       </div>
-
       <p className="mt-4 font-mono text-xs text-[var(--c-text-muted)]">{sublabel}</p>
     </div>
   );
