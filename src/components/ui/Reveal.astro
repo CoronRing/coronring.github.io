@@ -13,9 +13,12 @@
  * Progressive enhancement, four ways:
  *   1. `.no-js` (set on <html> until the shell script clears it) shows content.
  *   2. A missing IntersectionObserver reveals everything immediately.
- *   3. A 2s safety timeout reveals anything the observer never reached — an
- *      element stuck at `opacity: 0` forever is far worse than a missed
- *      animation.
+ *   3. A 2s safety timeout reveals anything *already on screen* that the
+ *      observer never reached. An element stuck at `opacity: 0` forever is far
+ *      worse than a missed animation, but the net has to be cast narrowly:
+ *      revealing everything, including the sections a visitor has not scrolled
+ *      to yet, marks the whole page shown two seconds after load and there is
+ *      nothing left to animate on the way down.
  *   4. `prefers-reduced-motion` collapses the transition in global.css.
  *
  * The observer is registered once per page, not once per component.
@@ -71,12 +74,23 @@ const { delay = 0, variant = 'rise', as: Tag = 'div', class: className } = Astro
       targets.forEach((el) => observer.observe(el));
 
       /*
-       * Safety net. `[data-reveal]` starts hidden, so anything this observer
-       * fails to reach stays invisible *forever*. Reveal everything still
-       * pending shortly after load, whatever the reason.
+       * Safety net, scoped to the viewport.
+       *
+       * `[data-reveal]` starts hidden, so anything the observer fails to reach
+       * stays invisible forever — but "reveal everything still pending" is the
+       * wrong repair. It fires two seconds after load, when the visitor is
+       * still on the first screen, and marks every section below the fold as
+       * already shown; scrolling down then finds a page that has quietly
+       * finished animating without them.
+       *
+       * So only what is on screen, or above it, is forced. Anything genuinely
+       * below the fold stays with the observer, which is the thing that is
+       * supposed to reveal it.
        */
       window.setTimeout(() => {
-        document.querySelectorAll('[data-reveal]:not([data-shown])').forEach(show);
+        document.querySelectorAll('[data-reveal]:not([data-shown])').forEach((el) => {
+          if (el.getBoundingClientRect().top < window.innerHeight) show(el);
+        });
       }, 2000);
     };
 

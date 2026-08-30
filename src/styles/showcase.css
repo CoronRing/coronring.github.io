@@ -1,0 +1,248 @@
+/*
+ * The tool showcase — the tools band, drawn as an instrument.
+ *
+ * Same idea as the deck at the top of the page: a roster you aim at, and a
+ * screen that plays what you picked. Prefixed `kit-`; nothing outside
+ * `components/tools/ToolShowcase.tsx` should use these names.
+ *
+ * The two panels share one border on desktop (the list drops its right edge and
+ * the screen keeps its left), so the pair reads as a single object rather than
+ * as two boxes that happen to be adjacent.
+ */
+
+@layer components {
+  .kit-list {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  @media (min-width: 40rem) {
+    .kit-list {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+  }
+  @media (min-width: 64rem) {
+    .kit-list {
+      grid-template-columns: minmax(0, 1fr);
+      align-content: start;
+    }
+  }
+
+  .kit-item {
+    position: relative;
+    display: flex;
+    align-items: baseline;
+    gap: 0.75rem;
+    min-width: 0;
+    padding: 0.7rem 0.9rem;
+    text-align: left;
+    color: var(--c-text-muted);
+    border-bottom: var(--hairline) solid var(--c-line-faint);
+    border-right: var(--hairline) solid var(--c-line-faint);
+    transition:
+      color var(--dur-fast) var(--ease-out),
+      background-color var(--dur-fast) var(--ease-out);
+  }
+  @media (min-width: 64rem) {
+    .kit-item {
+      border-right: 0;
+      padding: 0.8rem 1.1rem;
+    }
+  }
+  .kit-item:hover {
+    color: var(--c-text);
+    background: var(--c-raised);
+  }
+  .kit-item[aria-selected='true'] {
+    color: var(--c-text);
+    background: var(--c-raised);
+  }
+
+  .kit-item-n {
+    flex: none;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.1em;
+    color: var(--c-text-faint);
+  }
+  .kit-item[aria-selected='true'] .kit-item-n {
+    color: var(--c-accent);
+  }
+
+  .kit-item-name {
+    min-width: 0;
+    font-size: 0.875rem;
+    overflow-wrap: anywhere;
+  }
+
+  /* The held row is marked on its leading edge, which survives at a glance. */
+  .kit-item-bar {
+    position: absolute;
+    inset-block: 0;
+    left: 0;
+    width: 3px;
+    background: var(--c-accent-fill);
+    transform: scaleY(0);
+    transform-origin: center;
+    transition: transform var(--dur-base) var(--ease-out);
+  }
+  .kit-item[aria-selected='true'] .kit-item-bar {
+    transform: scaleY(1);
+  }
+
+  /* A running light, so the panel reads as switched on. */
+  .kit-led {
+    width: 0.4rem;
+    height: 0.4rem;
+    border-radius: 999px;
+    background: var(--c-accent-fill);
+    animation: kit-led 2.6s var(--ease-in-out) infinite;
+  }
+
+  .kit-screen {
+    animation: kit-screen-in var(--dur-base) var(--ease-out) both;
+  }
+
+  .kit-caret {
+    display: inline-block;
+    width: 0.55em;
+    height: 1.05em;
+    margin-left: 0.1em;
+    vertical-align: text-bottom;
+    background: var(--c-accent-fill);
+    animation: kit-caret 900ms steps(2, jump-none) infinite;
+  }
+
+  .kit-row {
+    animation: kit-row-in var(--dur-base) var(--ease-out) both;
+  }
+
+  .kit-open {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.6rem;
+    height: 2.5rem;
+    padding-inline: 1.25rem;
+    border: var(--hairline) solid var(--c-text);
+    color: var(--c-text);
+    font-size: 0.8125rem;
+    font-weight: 600;
+    transition:
+      background-color var(--dur-base) var(--ease-out),
+      color var(--dur-base) var(--ease-out);
+  }
+  .kit-open:hover {
+    background: var(--c-text);
+    color: var(--c-ground);
+  }
+  .kit-open svg {
+    transition: transform var(--dur-base) var(--ease-out);
+  }
+  .kit-open:hover svg {
+    transform: translateX(3px);
+  }
+}
+
+@keyframes kit-led {
+  0%,
+  100% {
+    opacity: 0.25;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@keyframes kit-caret {
+  0% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes kit-screen-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes kit-row-in {
+  from {
+    opacity: 0;
+    transform: translateX(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/*
+ * The "Myself" band.
+ *
+ * From lg it is taller than the screen with its content pinned, so scrolling
+ * past it steps through the three capabilities. Below lg it is an ordinary
+ * block and the indicator is the only control.
+ */
+@layer components {
+  .cap-pin {
+    align-items: start;
+  }
+
+  @media (min-width: 64rem) {
+    .cap-band {
+      /* One screen per capability, plus the screen the pin itself occupies. */
+      min-height: 235vh;
+    }
+    .cap-pin {
+      position: sticky;
+      top: 0;
+      display: grid;
+      min-height: 100dvh;
+      align-content: center;
+      padding-block: 4rem;
+    }
+  }
+
+  /* Keyed on the pillar, so a change re-enters rather than swapping text. */
+  .cap-panel > * {
+    animation: cap-in var(--dur-reveal) var(--ease-out) both;
+  }
+  .cap-panel > *:nth-child(2) {
+    animation-delay: 60ms;
+  }
+  .cap-panel > *:nth-child(3) {
+    animation-delay: 120ms;
+  }
+  .cap-panel > *:nth-child(4) {
+    animation-delay: 180ms;
+  }
+
+  .cap-evidence > * {
+    animation: cap-in var(--dur-reveal) var(--ease-out) both;
+  }
+  .cap-evidence > *:nth-child(2) {
+    animation-delay: 80ms;
+  }
+  .cap-evidence > *:nth-child(3) {
+    animation-delay: 160ms;
+  }
+}
+
+@keyframes cap-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}

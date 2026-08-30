@@ -144,10 +144,11 @@ export default function Conversation({
       >
         {empty ? (
           <div className="space-y-4">
-            <p className="text-muted text-sm leading-relaxed">
-              Ask anything about this site: the projects, the stack behind them, the experience.
-              Answers come from the site&rsquo;s own pages, with links to where they came from.
-            </p>
+            {/*
+              The suggestions below say what can be asked far better than a
+              paragraph explaining it, so the paragraph is gone.
+            */}
+            <p className="eyebrow">Try one of these</p>
             <div className="flex flex-wrap gap-2">
               {suggestions.map((suggestion) => (
                 <button
@@ -215,7 +216,7 @@ export default function Conversation({
         </div>
 
         <div className="text-faint mt-2 flex items-center justify-between gap-3 font-mono text-[10px]">
-          <span>Answers are generated and can be wrong, so follow the source links.</span>
+          <span>Generated answers can be wrong. Follow the sources.</span>
           {!empty && (
             <button
               type="button"

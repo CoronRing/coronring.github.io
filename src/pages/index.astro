@@ -1,41 +1,52 @@
 ---
 /**
- * Home — a single continuous scroll flow.
+ * Home — the deck, then five quieter bands.
  *
- * The reference is one page read top to bottom, with media taking most of the
- * space and text kept to what fits in a glance. This mirrors that: five full
- * bands, each with one idea, one visual, and a way deeper.
- *
- *   #top       Hero — the interactive corona, one statement, one action
+ *   #top       The deck. Six frames, one live exhibit, edge to edge.
  *   #work      Selected work — media-led project cards
- *   #resume    Experience — condensed timeline
- *   #resources Notes and references
- *   #tools     Browser-local utilities
+ *   #resume    Myself — three capabilities and the work behind each
+ *   #tools     The dev kit, played one tool at a time
+ *   #ask       The assistant, in the page rather than on a page of its own
+ *   #resources Notes and references, last
  *
- * The rail scroll-spies these ids (see `Sidebar.astro`). Dedicated pages
- * still exist for each and hold the full lists; this page is the tour.
+ * ## Why the hero and the work section are one thing now
+ *
+ * They were two full bands saying the same thing twice. The hero showed the
+ * particle engine with no way to drive it; the work band showed the same
+ * engine again, boxed inside a console, inside a section header, and then
+ * repeated all three projects underneath as cards. A visitor met the corona,
+ * scrolled, and met it again smaller.
+ *
+ * The deck collapses that into one surface: the exhibit fills the viewport and
+ * the roster is a rail beside it, so the first screen is both the introduction
+ * and the work, and moving between projects costs one click rather than a
+ * scroll through three headers. See `components/deck/ProjectDeck.tsx`.
+ *
+ * The rail scroll-spies these ids (see `Sidebar.astro`). Dedicated pages still
+ * exist for each and hold the full lists; this page is the tour.
  */
 import { getCollection } from 'astro:content';
 import BaseLayout from '../layouts/BaseLayout.astro';
 import ParticleField from '../components/decor/ParticleField.astro';
-import HudRing from '../components/decor/HudRing.astro';
 import SectionHead from '../components/ui/SectionHead.astro';
+import ProjectDeck from '../components/deck/ProjectDeck';
 import ProjectCard from '../components/ui/ProjectCard.astro';
-import OperatorShowcase from '../components/demos/OperatorShowcase';
-import Carousel, { type CarouselItem } from '../components/ui/Carousel';
+import ChatPage from '../components/chat/ChatPage';
+import Capabilities, { type Pillar } from '../components/resume/Capabilities';
+import ToolShowcase, { type ShowcaseTool } from '../components/tools/ToolShowcase';
 import Reveal from '../components/ui/Reveal.astro';
 import Icon from '../components/ui/Icon.astro';
-import ScrollCue from '../components/ui/ScrollCue.astro';
 import { SITE } from '../data/site';
 import { TOOLS } from '../data/tools';
 import { href } from '../lib/url';
 import { monthYear } from '../lib/format';
 
-const featured = (await getCollection('projects', (p) => !p.data.draft && p.data.featured)).sort(
+const projects = (await getCollection('projects', (p) => !p.data.draft)).sort(
   (a, b) => a.data.order - b.data.order,
 );
 
-const featuredSummaries = featured.map((p) => ({
+/** Plain data for the deck island — content entries do not cross the boundary. */
+const deckProjects = projects.map((p) => ({
   id: p.id,
   title: p.data.title,
   summary: p.data.summary,
@@ -45,128 +56,125 @@ const featuredSummaries = featured.map((p) => ({
   href: href(`/projects/${p.id}`),
 }));
 
-/** Most recent roles only — the resume page carries everything. */
-const work = (await getCollection('experience', (e) => e.data.kind === 'work'))
-  .sort((a, b) => {
-    const ae = a.data.end?.getTime() ?? Number.POSITIVE_INFINITY;
-    const be = b.data.end?.getTime() ?? Number.POSITIVE_INFINITY;
-    return be - ae || b.data.start.getTime() - a.data.start.getTime();
-  })
-  .slice(0, 3);
-
 const resources = (await getCollection('resources', (r) => !r.data.draft))
   .sort((a, b) => b.data.updated.getTime() - a.data.updated.getTime())
   .slice(0, 4);
 
 const liveTools = TOOLS.filter((t) => t.status === 'live');
 
-const PILLARS: CarouselItem[] = [
+/**
+ * The three capabilities, and for each of them the work that is the evidence.
+ *
+ * `evidence` names an experience entry and which of its highlights belongs to
+ * this capability, rather than restating either. The role, the organisation and
+ * the dates come from the collection, so editing a resume entry still edits
+ * this section, and the only thing decided here is what supports what.
+ */
+interface PillarSpec {
+  id: string;
+  index: string;
+  title: string;
+  body: string;
+  tags: string[];
+  evidence: Array<{ entry: string; highlight: number }>;
+}
+
+const PILLAR_SPECS: PillarSpec[] = [
   {
     id: 'agents',
     index: '01',
     title: 'Agent systems',
-    body: 'Multi-step agents that plan, call tools, and recover from their own failures, with the orchestration and evaluation scaffolding it takes to keep them running in production. Shipped a DevOps agent that users preferred to GitHub Copilot 90% of the time.',
+    body: 'Multi-step agents that plan, call tools, and recover from their own failures, with the orchestration it takes to keep them running in production.',
     tags: ['Tool use', 'Orchestration', 'Evals'],
+    evidence: [
+      { entry: '02-railtown-mle', highlight: 0 },
+      { entry: '02-railtown-mle', highlight: 1 },
+      { entry: '04-railtown-ds', highlight: 1 },
+    ],
   },
   {
     id: 'evaluation',
     index: '02',
     title: 'Evaluation',
-    body: 'If it cannot be measured, it should not ship. I built AEval, which scores AI expert systems on accuracy, hallucination, security and fairness. It now runs inside hundreds of deployed products.',
+    body: 'If it cannot be measured, it should not ship. Benchmarks that score expert systems on accuracy, hallucination, security and fairness, and the harness that keeps the scores comparable.',
     tags: ['Benchmarks', 'Hallucination', 'Safety'],
+    evidence: [
+      { entry: '02-railtown-mle', highlight: 2 },
+      { entry: '04-railtown-ds', highlight: 0 },
+    ],
   },
   {
     id: 'systems',
     index: '03',
     title: 'Systems and hardware',
-    body: 'From GPU programming and HDL to vision-language models that read hardware schematics. Research on control-flow guided test generation lifted branch coverage from 88% to 93%.',
+    body: 'GPU programming, HDL, and vision-language models that read hardware schematics. The half of the work that runs below the model rather than on top of it.',
     tags: ['VLM', 'CUDA', 'Verilog'],
+    evidence: [
+      { entry: '03-ubc-salt', highlight: 1 },
+      { entry: '03-ubc-salt', highlight: 0 },
+    ],
   },
 ];
+
+const experience = await getCollection('experience');
+const byId = new Map(experience.map((e) => [e.id, e]));
+
+const PILLARS: Pillar[] = PILLAR_SPECS.map((spec) => ({
+  id: spec.id,
+  index: spec.index,
+  title: spec.title,
+  body: spec.body,
+  tags: spec.tags,
+  evidence: spec.evidence.flatMap((ref) => {
+    const entry = byId.get(ref.entry);
+    const note = entry?.data.highlights[ref.highlight];
+    if (!entry || !note) return [];
+    return [
+      {
+        role: entry.data.role,
+        organization: entry.data.organization,
+        period: `${monthYear(entry.data.start)} – ${
+          entry.data.end ? monthYear(entry.data.end) : 'Present'
+        }`,
+        note,
+      },
+    ];
+  }),
+}));
+
+/** Plain data for the tools island. */
+const showcaseTools: ShowcaseTool[] = liveTools.map((t) => ({
+  slug: t.slug,
+  name: t.name,
+  summary: t.summary,
+  href: href(`/tools/${t.slug}`),
+  offline: t.offline,
+}));
 ---
 
 <BaseLayout>
-  {/* ══ 00 · Hero ═════════════════════════════════════════════════ */}
-  <section
-    id="top"
-    aria-label="Introduction"
-    class="relative flex min-h-[calc(100dvh-3.5rem)] scroll-mt-0 items-center lg:min-h-dvh"
-  >
-    <div
-      class="shell relative grid w-full items-center gap-12 py-20 lg:grid-cols-[1fr_minmax(0,34rem)]"
-    >
-      {
-        /*
-        Staggered cascade rather than one block fade: the eyebrow sets the
-        frame, the headline is *set* by a wipe, then the supporting copy and
-        actions arrive. Reading order and animation order agree, which is what
-        makes a sequence feel composed rather than merely decorated.
-      */
-      }
-      <div class="relative z-10 max-w-2xl">
-        <Reveal>
-          <p class="eyebrow eyebrow-marked">{SITE.role} · {SITE.location}</p>
-        </Reveal>
+  {
+    /* ══ 00 · The deck ═════════════════════════════════════════════
+      `client:load`, not `client:visible`: this *is* the first screen, so
+      deferring it would mean deferring the page. */
+  }
+  <ProjectDeck
+    client:load
+    projects={deckProjects}
+    statement="Systems that act"
+    name="Guan Huang"
+    role={SITE.role}
+    intro="I build agent systems, the evaluation tooling that keeps them honest, and the infrastructure both run on."
+    links={SITE.social.map((s) => ({ label: s.label, href: s.href }))}
+    indexHref={href('/projects')}
+  />
 
-        <Reveal variant="wipe" delay={140}>
-          <h1 class="display mt-6 text-6xl sm:text-7xl">Systems that act</h1>
-        </Reveal>
-
-        <Reveal delay={340}>
-          <p class="text-muted prose-measure mt-7 text-lg leading-relaxed">
-            I build agent systems that hold up outside a demo, plus the evaluation and tooling it
-            takes to get them there.
-          </p>
-        </Reveal>
-
-        <Reveal delay={460} class="mt-10 flex flex-wrap items-center gap-3">
-          <a
-            href="#work"
-            class="group border-fg text-fg hover:bg-fg hover:text-ground inline-flex h-12 items-center gap-3 border px-6 text-sm font-semibold transition-colors"
-          >
-            See the work
-            <Icon
-              name="arrow-right"
-              size={16}
-              class="transition-transform duration-[var(--dur-base)] group-hover:translate-x-1"
-            />
-          </a>
-          <a
-            href={href('/resume')}
-            class="text-muted hover:text-accent inline-flex h-12 items-center gap-2 px-2 font-mono text-xs transition-colors"
-          >
-            Resume
-          </a>
-        </Reveal>
-      </div>
-
-      {
-        /*
-        The instrument. Interactive: the canvas takes pointer events so the
-        cloud repels from the cursor and clicks send waves. It sits in its own
-        grid column at lg so it never overlaps the text.
-      */
-      }
-      <div class="relative">
-        <div class="relative mx-auto aspect-square w-[min(120vw,34rem)] lg:w-full">
-          <ParticleField interactive />
-          <div class="text-fg pointer-events-none absolute inset-0 opacity-40">
-            <HudRing ticks={72} spin={140} />
-          </div>
-        </div>
-
-        <p
-          class="text-faint mt-4 text-center font-mono text-[10px] tracking-[0.2em] uppercase lg:text-right"
-        >
-          move the cursor · click to send a wave
-        </p>
-      </div>
-    </div>
-
-    <ScrollCue href="#work" class="absolute inset-x-0 bottom-8 mx-auto hidden w-fit lg:flex" />
-  </section>
-
-  {/* ══ 01 · Work ═════════════════════════════════════════════════ */}
+  {
+    /* ══ 01 · Selected work ════════════════════════════════════════
+      Cards rather than a list of names. The cover art is generated from the
+      project id, so an entry is a picture from the day it is added instead of
+      a grey box waiting on a screenshot. */
+  }
   <section
     id="work"
     aria-labelledby="work-h"
@@ -177,84 +185,171 @@ const PILLARS: CarouselItem[] = [
         <SectionHead
           index="01"
           eyebrow="Selected work"
-          title="Things you can look at"
+          title="Read the blueprints"
           headingId="work-h"
-          lede="Working interactive engines, multi-agent pipelines, and developer tooling. 80% visual, live, and driveable."
           moreHref="/projects"
           moreLabel="All projects"
         />
       </Reveal>
 
-      <div class="mt-10">
-        <Reveal>
-          <OperatorShowcase client:visible projects={featuredSummaries} />
-        </Reveal>
-      </div>
-
-      <div class="mt-14">
-        <div class="mb-6 flex items-center justify-between border-b border-line pb-3">
-          <span class="eyebrow">All Project Blueprints</span>
-          <span class="font-mono text-xs text-faint">{featured.length} live systems</span>
-        </div>
-
-        <ul class="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
-          {
-            featured.map((project, i) => (
-              <Reveal as="li" delay={(i % 3) * 90}>
-                <ProjectCard project={project} />
-              </Reveal>
-            ))
-          }
-        </ul>
-      </div>
+      <ul class="mt-12 grid gap-6 md:grid-cols-2 xl:grid-cols-3">
+        {
+          projects.map((project, i) => (
+            <Reveal as="li" class="min-w-0" delay={(i % 3) * 80}>
+              <ProjectCard project={project} />
+            </Reveal>
+          ))
+        }
+      </ul>
     </div>
   </section>
 
-  {/* ══ 02 · Capability + experience ══════════════════════════════ */}
+  {
+    /* ══ 02 · Myself ═══════════════════════════════════════════════
+      Three capabilities, and the work that is the evidence for each. The
+      panel advances as the band scrolls past, so the section reads itself out
+      to a visitor who only scrolls; the indicator scrubs it for one who
+      would rather drive. See `components/resume/Capabilities.tsx`. */
+  }
   <section
     id="resume"
     aria-labelledby="resume-h"
-    class="border-line scroll-mt-16 border-t py-24 lg:py-32"
+    class="border-line scroll-mt-16 border-t py-24 lg:pt-32 lg:pb-0"
   >
     <div class="shell">
       <Reveal>
         <SectionHead
           index="02"
           eyebrow="Experience"
-          title="What I actually do"
+          title="Myself"
           headingId="resume-h"
           moreHref="/resume"
           moreLabel="Full resume"
         />
       </Reveal>
 
-      <div class="mt-14 grid gap-14 lg:grid-cols-[minmax(0,1fr)_minmax(0,22rem)] lg:gap-20">
-        <Reveal>
-          <Carousel client:visible items={PILLARS} label="Capabilities" />
-        </Reveal>
-
-        <Reveal delay={120}>
-          <p class="eyebrow">Recent roles</p>
-          <ul class="divide-line mt-5 divide-y">
-            {
-              work.map((entry) => (
-                <li class="py-4">
-                  <p class="text-faint tabular font-mono text-[11px]">
-                    {monthYear(entry.data.start)} –{' '}
-                    {entry.data.end ? monthYear(entry.data.end) : 'Present'}
-                  </p>
-                  <p class="mt-1.5 text-sm">{entry.data.role}</p>
-                  <p class="text-accent text-sm">{entry.data.organization}</p>
-                </li>
-              ))
-            }
-          </ul>
-        </Reveal>
+      <div class="mt-14">
+        <Capabilities client:visible pillars={PILLARS} label="Capabilities" />
       </div>
     </div>
   </section>
 
-  {/* ══ 03 · Resources ════════════════════════════════════════════ */}
+  {
+    /* ══ 03 · Tools ════════════════════════════════════════════════
+      One instrument rather than ten cards: a roster, and a screen that plays
+      whichever tool is held. See `components/tools/ToolShowcase.tsx`. */
+  }
+  <section
+    id="tools"
+    aria-labelledby="tools-h"
+    class="border-line scroll-mt-16 border-t py-24 lg:py-32"
+  >
+    <div class="shell">
+      <Reveal>
+        <SectionHead
+          index="03"
+          eyebrow="Tools"
+          title="AI dev kit, on the web"
+          headingId="tools-h"
+          moreHref="/tools"
+          moreLabel="All tools"
+        />
+      </Reveal>
+
+      <div class="mt-12">
+        <ToolShowcase client:visible tools={showcaseTools} indexHref={href('/tools')} />
+      </div>
+    </div>
+  </section>
+
+  {
+    /* ══ Contact ═══════════════════════════════════════════════════
+      Bookended with the same material the page opened on: the corona, this
+      time decorative and behind the type rather than in front of it. */
+  }
+  <section
+    aria-labelledby="contact-h"
+    class="border-line relative scroll-mt-16 overflow-hidden border-t py-24 lg:py-32"
+  >
+    {
+      /*
+        Held to the right half so it sits beside the headline rather than
+        under it. Decorative and non-interactive: the driveable copy is the
+        deck at the top of the page, and a second live canvas competing for
+        the cursor down here would be noise.
+      */
+    }
+    <div
+      aria-hidden="true"
+      class="pointer-events-none absolute inset-y-0 right-0 w-[min(48rem,52%)] opacity-20"
+    >
+      <ParticleField interactive={false} />
+    </div>
+
+    <div class="shell relative">
+      <Reveal>
+        <p class="eyebrow eyebrow-marked">Contact</p>
+        <h2 id="contact-h" class="display mt-5 max-w-3xl text-4xl sm:text-5xl lg:text-6xl">
+          Building something that has to think for itself?
+        </h2>
+        <div class="mt-10 flex flex-wrap items-center gap-4">
+          <a
+            href={SITE.cta.href}
+            class="bg-accent-fill text-accent-on-fill inline-flex h-12 items-center gap-3 px-6 text-sm font-semibold transition-opacity hover:opacity-85"
+          >
+            {SITE.email}
+            <Icon name="arrow-right" size={16} />
+          </a>
+          {
+            SITE.social
+              .filter((s) => !s.href.startsWith('mailto:'))
+              .map((s) => (
+                <a
+                  href={s.href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="border-line text-muted hover:border-fg hover:text-fg bg-ground/60 inline-flex h-12 items-center gap-2 border px-5 text-sm backdrop-blur-sm transition-colors"
+                >
+                  <Icon name={s.icon} size={15} />
+                  {s.label}
+                </a>
+              ))
+          }
+        </div>
+      </Reveal>
+    </div>
+  </section>
+  {
+    /* ══ 04 · Ask ══════════════════════════════════════════════════
+      The assistant belongs in the page. It used to live only on `/chat`,
+      which meant the one part of the site that answers questions was the one
+      part you had to navigate away to reach. `client:visible`, so it costs
+      nothing until it is scrolled to. */
+  }
+  <section
+    id="ask"
+    aria-labelledby="ask-h"
+    class="border-line scroll-mt-16 border-t py-24 lg:py-32"
+  >
+    <div class="shell">
+      <Reveal>
+        <SectionHead
+          index="04"
+          eyebrow="Assistant"
+          title="Ask about any of this"
+          headingId="ask-h"
+          moreHref="/chat"
+          moreLabel="Full page"
+        />
+      </Reveal>
+
+      <div class="mt-12">
+        <ChatPage client:visible />
+      </div>
+    </div>
+  </section>
+
+  {/* ══ 05 · Resources ════════════════════════════════════════════ */}
   {
     resources.length > 0 && (
       <section
@@ -265,11 +360,10 @@ const PILLARS: CarouselItem[] = [
         <div class="shell">
           <Reveal>
             <SectionHead
-              index="03"
+              index="05"
               eyebrow="Resources"
               title="Notes and references"
               headingId="resources-h"
-              lede="Things I keep coming back to, plus notes I wrote because the reference I wanted did not exist."
               moreHref="/resources"
               moreLabel="All resources"
             />
@@ -306,87 +400,4 @@ const PILLARS: CarouselItem[] = [
       </section>
     )
   }
-
-  {/* ══ 04 · Tools ════════════════════════════════════════════════ */}
-  <section
-    id="tools"
-    aria-labelledby="tools-h"
-    class="border-line scroll-mt-16 border-t py-24 lg:py-32"
-  >
-    <div class="shell">
-      <Reveal>
-        <SectionHead
-          index="04"
-          eyebrow="Tools"
-          title="Runs in your browser"
-          headingId="tools-h"
-          lede="Nine instruments for language-model work. The work happens in the tab, and the few tools that have to reach the network say on their own page exactly what they touch."
-          moreHref="/tools"
-          moreLabel="All tools"
-        />
-      </Reveal>
-
-      <ul class="mt-12 grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-        {
-          liveTools.map((tool, i) => (
-            <Reveal as="li" delay={i * 80}>
-              <a
-                href={href(`/tools/${tool.slug}`)}
-                class="group border-line bg-surface hover:border-fg flex h-full flex-col border p-6 transition-colors"
-              >
-                <div class="flex items-start justify-between gap-3">
-                  <h3 class="group-hover:text-accent font-mono text-lg transition-colors">
-                    {tool.name}
-                  </h3>
-                  <Icon
-                    name="arrow-up-right"
-                    size={15}
-                    class="text-faint group-hover:text-accent mt-1 transition-colors"
-                  />
-                </div>
-                <p class="text-muted mt-3 flex-1 text-sm leading-relaxed">{tool.summary}</p>
-                <span class="bg-accent-fill mt-6 h-[3px] w-10 transition-[width] duration-[var(--dur-base)] group-hover:w-20" />
-              </a>
-            </Reveal>
-          ))
-        }
-      </ul>
-    </div>
-  </section>
-
-  {/* ══ Contact ═══════════════════════════════════════════════════ */}
-  <section aria-labelledby="contact-h" class="border-line scroll-mt-16 border-t py-24 lg:py-32">
-    <div class="shell">
-      <Reveal>
-        <p class="eyebrow eyebrow-marked">Contact</p>
-        <h2 id="contact-h" class="display mt-5 max-w-3xl text-4xl sm:text-5xl lg:text-6xl">
-          Building something that has to think for itself?
-        </h2>
-        <div class="mt-10 flex flex-wrap items-center gap-4">
-          <a
-            href={SITE.cta.href}
-            class="bg-accent-fill text-accent-on-fill inline-flex h-12 items-center gap-3 px-6 text-sm font-semibold transition-opacity hover:opacity-85"
-          >
-            {SITE.email}
-            <Icon name="arrow-right" size={16} />
-          </a>
-          {
-            SITE.social
-              .filter((s) => !s.href.startsWith('mailto:'))
-              .map((s) => (
-                <a
-                  href={s.href}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  class="border-line text-muted hover:border-fg hover:text-fg inline-flex h-12 items-center gap-2 border px-5 text-sm transition-colors"
-                >
-                  <Icon name={s.icon} size={15} />
-                  {s.label}
-                </a>
-              ))
-          }
-        </div>
-      </Reveal>
-    </div>
-  </section>
 </BaseLayout>

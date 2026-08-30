@@ -80,6 +80,11 @@
   --grid-alpha: 0.55;
   --noise-alpha: 0.02;
   --bloom-alpha: 0.05;
+  /*
+   * The deck's ghost type. Hatched ink on paper needs less alpha than hatched
+   * paper on ink to carry the same weight, so the two themes differ.
+   */
+  --deck-ghost-alpha: 0.1;
 
   /* ── Geometry ─────────────────────────────────────────────────────── */
   --r-sm: 2px;
@@ -170,6 +175,7 @@
     --grid-alpha: 1;
     --noise-alpha: 0.04;
     --bloom-alpha: 0.5;
+    --deck-ghost-alpha: 0.15;
   }
 }
 
@@ -214,4 +220,5 @@
   --grid-alpha: 1;
   --noise-alpha: 0.04;
   --bloom-alpha: 0.5;
+  --deck-ghost-alpha: 0.15;
 }

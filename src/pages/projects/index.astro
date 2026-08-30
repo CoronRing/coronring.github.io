@@ -1,57 +1,70 @@
 ---
 /**
- * Projects index — the demo gallery & operator deck.
+ * Projects index — the catalogue.
+ *
+ * ## Why this page no longer carries a demo console
+ *
+ * It used to open with the same interactive showcase the home page opened
+ * with, and then repeat every project underneath as a card. Two surfaces, the
+ * same three projects, twice each. The interactive surface now lives in one
+ * place — the deck on the home page — and this page does the job a catalogue
+ * should: show everything at once, including the entries the deck does not
+ * carry, and get out of the way.
+ *
+ * The action slot points back at the deck for anyone who wants to drive the
+ * demos rather than read about them.
  */
 import { getCollection } from 'astro:content';
 import PageLayout from '../../layouts/PageLayout.astro';
 import ProjectCard from '../../components/ui/ProjectCard.astro';
-import OperatorShowcase from '../../components/demos/OperatorShowcase';
 import Reveal from '../../components/ui/Reveal.astro';
+import Icon from '../../components/ui/Icon.astro';
 import { href } from '../../lib/url';
 
 const projects = (await getCollection('projects', (p) => !p.data.draft)).sort(
   (a, b) => a.data.order - b.data.order,
 );
 
-const projectSummaries = projects.map((p) => ({
-  id: p.id,
-  title: p.data.title,
-  summary: p.data.summary,
-  status: p.data.status,
-  tech: p.data.tech,
-  period: p.data.period,
-  href: href(`/projects/${p.id}`),
-}));
+const interactive = projects.filter((p) => p.data.interactive).length;
 ---
 
 <PageLayout
-  eyebrow="Interactive Showcase"
+  eyebrow="Catalogue"
   title="Things you can look at"
-  description="Operator-grade interactive demos of agent systems, physics renderers, and prompt tooling."
-  lede="Working interactive engines, multi-agent pipelines, and developer tooling. 80% visual, live, and driveable."
+  description="Interactive engines, multi-agent pipelines, and developer tooling."
+  lede="Every entry has a write-up. Most have something you can drive."
 >
+  <a
+    slot="action"
+    href={href('/#top')}
+    class="group border-fg text-fg hover:bg-fg hover:text-ground inline-flex h-12 items-center gap-3 border px-6 text-sm font-semibold transition-colors"
+  >
+    Drive the demos
+    <Icon
+      name="arrow-right"
+      size={16}
+      class="transition-transform duration-[var(--dur-base)] group-hover:translate-x-1"
+    />
+  </a>
+
   {
     projects.length > 0 ? (
-      <div class="space-y-14">
-        <Reveal>
-          <OperatorShowcase client:load projects={projectSummaries} />
-        </Reveal>
-
-        <div>
-          <div class="mb-6 flex items-center justify-between border-b border-line pb-3">
-            <span class="eyebrow">Project Blueprints & Architecture</span>
-            <span class="font-mono text-xs text-faint">{projects.length} systems online</span>
-          </div>
-
-          <ul class="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
-            {projects.map((project, i) => (
-              <Reveal as="li" delay={(i % 3) * 80}>
-                <ProjectCard project={project} />
-              </Reveal>
-            ))}
-          </ul>
+      <>
+        <div class="border-line mb-8 flex items-center justify-between border-b pb-3">
+          <span class="eyebrow">All entries</span>
+          <span class="text-faint font-mono text-xs">
+            {projects.length} projects · {interactive} driveable
+          </span>
         </div>
-      </div>
+
+        <ul class="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
+          {projects.map((project, i) => (
+            <Reveal as="li" class="min-w-0" delay={(i % 3) * 80}>
+              <ProjectCard project={project} />
+            </Reveal>
+          ))}
+        </ul>
+      </>
     ) : (
       <p class="text-muted text-sm">
         No projects published yet. Add an MDX file under{' '}

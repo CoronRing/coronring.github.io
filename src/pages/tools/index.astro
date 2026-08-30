@@ -21,7 +21,7 @@ const liveCount = TOOLS.filter((t) => t.status === 'live').length;
   eyebrow="Tools"
   title="Tools"
   description="Small, fast, browser-local utilities for working with language models."
-  lede="Small instruments for language-model work, and one that runs Python. Almost all of it happens in your browser: what you paste is not uploaded, and every tool that touches the network says on its own page exactly what it touches."
+  lede="Small instruments for language-model work, and one that runs Python. Almost all of it happens in your browser; the few that reach the network say so on their own page."
 >
   <p slot="action" class="text-faint font-mono text-[11px]">
     <span class="text-ok">{liveCount} live</span> · {TOOLS.length - liveCount} planned

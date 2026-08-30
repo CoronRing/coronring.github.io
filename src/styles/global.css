@@ -1,5 +1,7 @@
 @import 'tailwindcss';
 @import './tokens.css';
+@import './deck.css';
+@import './showcase.css';
 
 /*
  * Bridge the CSS custom properties in tokens.css into Tailwind v4's utility
@@ -283,25 +285,44 @@
     transition-delay: var(--reveal-delay, 0ms);
   }
 
-  /* `wipe`: type is swept in from the left rather than faded up. */
+  /*
+   * `wipe`: type is swept in from the left rather than faded up.
+   *
+   * The clip is on the *child*, not on the observed element. An
+   * IntersectionObserver measures a target's clipped rect, and
+   * `inset(0 100% 0 0)` collapses that rect to zero width — so an element
+   * clipped this way can never be seen by the observer that is supposed to
+   * reveal it, and every section title on the site stayed invisible. It looked
+   * fine only because the safety timeout used to reveal the whole page two
+   * seconds after load, which hid the bug and cost every below-fold entrance.
+   */
   [data-reveal='wipe'] {
     transform: none;
+    transition: opacity calc(var(--dur-reveal) * 0.4) var(--ease-out);
+    transition-delay: var(--reveal-delay, 0ms);
+  }
+
+  [data-reveal='wipe'] > * {
     clip-path: inset(0 100% 0 0);
-    transition:
-      opacity calc(var(--dur-reveal) * 0.4) var(--ease-out),
-      clip-path var(--dur-reveal) var(--ease-out);
+    transition: clip-path var(--dur-reveal) var(--ease-out);
     transition-delay: var(--reveal-delay, 0ms);
   }
 
   [data-reveal][data-shown='true'] {
     opacity: 1;
     transform: none;
+  }
+
+  [data-reveal='wipe'][data-shown='true'] > * {
     clip-path: inset(0 0 0 0);
   }
 
   .no-js [data-reveal] {
     opacity: 1;
     transform: none;
+  }
+
+  .no-js [data-reveal='wipe'] > * {
     clip-path: none;
   }
 
@@ -413,6 +434,63 @@
  * Reduced-motion is already handled globally, which flattens this to a static
  * row of dots rather than removing the affordance.
  * ─────────────────────────────────────────────────────────────────── */
+/*
+ * The nudge.
+ *
+ * The panel arrives on its own, so it announces itself with one entrance and
+ * then holds still: a suggestion that keeps pulsing reads as an advert. The
+ * question underlines itself once, left to right, which is enough to move the
+ * eye without asking for anything. All of it collapses under
+ * `prefers-reduced-motion`, and the nudge is not scheduled at all in that case
+ * — see `ChatDock.tsx`.
+ */
+@keyframes ask-panel-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes ask-underline {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+.ask-panel-nudge {
+  animation: ask-panel-in var(--dur-slow) var(--ease-out) both;
+}
+
+.ask-nudge {
+  background: var(--c-accent-soft);
+  transition: background-color var(--dur-fast) var(--ease-out);
+}
+.ask-nudge:hover {
+  background: color-mix(in srgb, var(--c-accent-fill) 22%, transparent);
+}
+
+.ask-nudge-q {
+  position: relative;
+  width: fit-content;
+}
+.ask-nudge-q::after {
+  content: '';
+  position: absolute;
+  inset-inline: 0;
+  bottom: -2px;
+  height: 2px;
+  background: var(--c-accent-fill);
+  transform-origin: left;
+  animation: ask-underline var(--dur-slow) var(--ease-out) 220ms both;
+}
+
 @keyframes chat-pulse {
   0%,
   100% {
@@ -420,5 +498,108 @@
   }
   50% {
     opacity: 1;
+  }
+}
+
+/* ── CoronChat ────────────────────────────────────────────────────── */
+
+/*
+ * The mark.
+ *
+ * Everything moves off one custom property, `--crown-energy`, which the dock
+ * sets from whichever band of the page the visitor is reading. At rest the rays
+ * barely breathe and the core turns slowly; at the assistant's own section they
+ * are at full amplitude. One property rather than a class per state, so the
+ * change is interpolated rather than switched.
+ */
+.crown {
+  --crown-energy: 0.4;
+  overflow: visible;
+}
+
+/*
+ * The rays vary in opacity and nothing else. Scaling them, as an earlier pass
+ * did, collapses a straight path to nothing under `transform-box: fill-box` —
+ * a vertical line has a zero-width fill box — and the mark spends most of its
+ * cycle missing a third of itself.
+ */
+.crown-rays path {
+  animation: crown-ray calc(2.8s - var(--crown-energy) * 1.1s) var(--ease-in-out) infinite;
+  animation-delay: calc(var(--i) * 240ms);
+}
+
+.crown-core {
+  transform-box: fill-box;
+  transform-origin: center;
+  color: var(--c-accent);
+  animation: crown-core calc(7s - var(--crown-energy) * 3.5s) var(--ease-in-out) infinite;
+}
+
+@keyframes crown-ray {
+  0%,
+  100% {
+    opacity: calc(0.42 + var(--crown-energy) * 0.18);
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@keyframes crown-core {
+  0%,
+  100% {
+    transform: rotate(0deg) scale(1);
+  }
+  50% {
+    transform: rotate(180deg) scale(0.82);
+  }
+}
+
+/* The hail: the collapsed dock. Sized to be pressed, not dismissed. */
+.ask-hail {
+  transition:
+    border-color var(--dur-base) var(--ease-out),
+    transform var(--dur-base) var(--ease-out);
+}
+.ask-hail:hover {
+  border-color: var(--c-accent);
+  transform: translateY(-2px);
+}
+
+.ask-hail-mark {
+  position: relative;
+  display: grid;
+  place-items: center;
+  color: var(--c-text);
+}
+.ask-hail:hover .ask-hail-mark {
+  color: var(--c-accent);
+}
+/* A halo that answers the hover, so the mark reads as the button's subject. */
+.ask-hail-mark::before {
+  content: '';
+  position: absolute;
+  inset: -0.45rem;
+  border-radius: 999px;
+  background: var(--c-accent-soft);
+  opacity: 0;
+  transition: opacity var(--dur-base) var(--ease-out);
+}
+.ask-hail:hover .ask-hail-mark::before {
+  opacity: 1;
+}
+
+.ask-hail-line {
+  animation: ask-hail-line var(--dur-slow) var(--ease-out) both;
+}
+
+@keyframes ask-hail-line {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
   }
 }

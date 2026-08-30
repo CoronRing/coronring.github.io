@@ -1,0 +1,986 @@
+/*
+ * The deck — the landing instrument.
+ *
+ * Kept out of global.css because it is one surface with a lot of geometry,
+ * and mixing that into the site-wide sheet buries the parts every page uses.
+ * Everything here is prefixed `deck-`; nothing outside `ProjectDeck` and its
+ * stages should reach for these names.
+ *
+ * ## Two states
+ *
+ * The section carries `data-phase="intro"` until the visitor scrolls, then
+ * `data-phase="deck"` for good. Both states share one canvas, drawn full bleed
+ * and never resized between them: the introduction, the roster and the readout
+ * all float over it. Everything that moves in the handoff is `opacity`,
+ * `transform` or `visibility`, so the exhibit underneath carries on running
+ * through it.
+ *
+ * `visibility` is what takes the inactive layer out of the tab order and the
+ * accessibility tree. `display: none` would do that too and would also cancel
+ * the transition it is meant to animate out of.
+ *
+ * ## Layout
+ *
+ * From `lg` the section is pinned: it is taller than the viewport, its inner
+ * frame is sticky, and the extra height buys a stretch of scrolling that the
+ * exhibit answers (`ParticleStage` spins the cloud up with it) before the page
+ * releases into the work below.
+ *
+ * Below `lg` there is no pin, because a long pinned section on a phone is the
+ * single most complained-about pattern on the web, and the exhibit takes the
+ * top of the screen with the roster and the readout stacked under it.
+ *
+ * ## Motion
+ *
+ * Every animation here is `opacity`, `transform`, `clip-path` or
+ * `stroke-dashoffset`, so none of them touch layout. `prefers-reduced-motion`
+ * is handled globally in global.css, which collapses all of them; the deck
+ * stays fully usable because nothing is *communicated* by motion alone — the
+ * held frame is marked by colour, weight and the counter as well.
+ */
+
+@layer components {
+  .deck {
+    --deck-rail-w: 8rem;
+    --deck-token: 3.25rem;
+    --deck-copy-w: 30rem;
+    /* Bottom of the stage the copy has to keep clear of the control row. */
+    --deck-chrome-h: 8.5rem;
+    /*
+     * The fixed mobile bar, which `BaseLayout` clears with `pt-14`. A frame
+     * asking for `100dvh` under it is a screen and a bar tall, so its last
+     * 56 pixels are below the fold — which is where the landing card's links
+     * ended up before this was subtracted.
+     */
+    --deck-bar-h: 3.5rem;
+    position: relative;
+  }
+
+  /* ── The pinned frame ───────────────────────────────────────────── */
+
+  .deck-pin {
+    position: relative;
+    display: grid;
+    min-height: 100dvh;
+    grid-template-columns: minmax(0, 1fr);
+    /* Tall enough that the control strip lying on it still leaves a cloud. */
+    grid-template-rows: minmax(54svh, 1fr) auto auto;
+    overflow: hidden;
+  }
+
+  @media (max-width: 63.999rem) {
+    .deck-pin {
+      min-height: calc(100dvh - var(--deck-bar-h));
+    }
+  }
+
+  @media (min-width: 64rem) {
+    .deck {
+      /* One screen of exhibit, then two thirds of a screen of dwell. */
+      min-height: 168vh;
+    }
+    .deck-pin {
+      position: sticky;
+      top: 0;
+      display: block;
+      height: 100dvh;
+      min-height: 0;
+    }
+  }
+
+  /* ── Stage ──────────────────────────────────────────────────────── */
+
+  /*
+   * Below lg the stage is a row in the grid, so the roster and the readout
+   * stack under it. In the intro state those are hidden, the row takes the
+   * whole frame, and the exhibit is the screen.
+   */
+  .deck-stage {
+    position: relative;
+    grid-row: 1;
+    z-index: 10;
+    overflow: hidden;
+  }
+
+  @media (min-width: 64rem) {
+    .deck-stage {
+      position: absolute;
+      inset: 0;
+    }
+  }
+
+  .deck-stage-inner {
+    position: absolute;
+    inset: 0;
+    z-index: 10;
+    animation: deck-fade var(--dur-slow) var(--ease-out) both;
+  }
+
+  /*
+   * The vignette. Lifted from the reference's own fragment shader, which
+   * centres its falloff off-axis rather than on the canvas middle: the exhibit
+   * sits right of centre here, so the clear region follows it. Painted in the
+   * page's ground colour, so it darkens on dark and lightens on light without
+   * a second token.
+   */
+  .deck-vignette {
+    position: absolute;
+    inset: 0;
+    z-index: 16;
+    pointer-events: none;
+    background: radial-gradient(
+      118% 88% at 58% 46%,
+      transparent 42%,
+      color-mix(in srgb, var(--c-ground) 62%, transparent) 100%
+    );
+  }
+
+  /*
+   * The scrim under the type.
+   *
+   * The copy has no column of its own — it sits on the canvas — so this is what
+   * makes it readable. On a phone the copy is below the exhibit and the fade
+   * runs up from the bottom; from lg it is beside it and the fade runs in from
+   * the left, over exactly the width the rail and the copy occupy.
+   */
+  .deck-scrim {
+    position: absolute;
+    inset-inline: 0;
+    bottom: 0;
+    height: 6rem;
+    z-index: 14;
+    background: linear-gradient(to top, var(--c-ground), transparent);
+    pointer-events: none;
+  }
+
+  /*
+   * On a phone the landing card has nowhere to go but on top of the cloud, so
+   * in that state the scrim covers the whole frame and holds the lower half
+   * nearly solid. Centring the type over a bright corona, as this first did,
+   * makes every line of it a light-grey word on a light-grey particle.
+   */
+  @media (max-width: 63.999rem) {
+    .deck[data-phase='intro'] .deck-scrim {
+      inset: 0;
+      height: auto;
+      background: linear-gradient(
+        to top,
+        var(--c-ground) 0 20%,
+        color-mix(in srgb, var(--c-ground) 88%, transparent) 42%,
+        transparent 74%
+      );
+    }
+  }
+
+  @media (min-width: 64rem) {
+    .deck-scrim {
+      /*
+       * Stops above the control row. The scrim paints over the stage, and the
+       * control row lives inside the stage, so a full-height scrim puts a wash
+       * of the page's own ground colour across the Subject chips and half the
+       * hint. Ending it on the control row's top border makes the seam land
+       * where there is already a line.
+       */
+      inset: 0 auto var(--deck-chrome-h) 0;
+      /*
+       * Wide enough, and held opaque long enough, that the counter at the far
+       * end of the `Building` rule is legible where the cloud's left arc
+       * crosses it. Reaching only to the edge of the copy left that one line
+       * sitting on the brightest part of the exhibit.
+       */
+      width: calc(var(--deck-rail-w) + var(--deck-copy-w) + 16rem);
+      height: auto;
+      background: linear-gradient(
+        to right,
+        var(--c-ground) 0%,
+        color-mix(in srgb, var(--c-ground) 95%, transparent) 55%,
+        color-mix(in srgb, var(--c-ground) 72%, transparent) 79%,
+        transparent 100%
+      );
+    }
+  }
+
+  /*
+   * The site's statement, set behind the exhibit.
+   *
+   * Hatched rather than solid, and clipped to the glyphs, so it reads as
+   * drafting film under the instrument instead of as a headline someone forgot
+   * to finish. It deliberately runs off the right edge; the section clips it.
+   */
+  .deck-ghost {
+    position: absolute;
+    right: -0.04em;
+    bottom: 20%;
+    max-width: 96%;
+    z-index: 0;
+    margin: 0;
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-stretch: 118%;
+    font-size: clamp(2.25rem, 7vw, 8.5rem);
+    line-height: 0.86;
+    letter-spacing: -0.01em;
+    text-align: right;
+    text-transform: uppercase;
+    text-wrap: balance;
+    color: transparent;
+    background-image: repeating-linear-gradient(-45deg, var(--c-text) 0 1px, transparent 1px 8px);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-stroke: 1px color-mix(in srgb, var(--c-text) 45%, transparent);
+    opacity: var(--deck-ghost-alpha);
+    pointer-events: none;
+    user-select: none;
+  }
+
+  /*
+   * On a phone the exhibit has no room beneath it, so the statement moves
+   * above — and to the left, because the stage readout sits top right.
+   */
+  @media (max-width: 63.999rem) {
+    .deck-ghost {
+      top: 3.5%;
+      bottom: auto;
+      right: auto;
+      left: -0.03em;
+      max-width: 68%;
+      text-align: left;
+      font-size: clamp(1.75rem, 9vw, 4rem);
+    }
+  }
+
+  /*
+   * The cut. A bright band crosses the stage once whenever the frame changes,
+   * which is what makes a swap read as a deliberate transition rather than as
+   * the page having repainted. Replays because `.deck-stage-inner` is keyed on
+   * the frame and therefore remounts.
+   */
+  .deck-scan {
+    position: absolute;
+    inset: 0;
+    z-index: 18;
+    pointer-events: none;
+    background: linear-gradient(
+      to bottom,
+      transparent 0%,
+      var(--c-accent-soft) 38%,
+      color-mix(in srgb, var(--c-text) 20%, transparent) 50%,
+      var(--c-accent-soft) 62%,
+      transparent 100%
+    );
+    animation: deck-scan 640ms var(--ease-out) both;
+  }
+
+  /* The control row rises rather than appearing, since it arrives on a handoff. */
+  .deck-controls {
+    animation: deck-chrome-up var(--dur-slow) var(--ease-out) both;
+  }
+
+  /*
+   * One strip, scrolled sideways on a phone; a wrapping row from lg.
+   *
+   * See the note in `StageShell.tsx`: the chrome lies on the exhibit, and three
+   * stacked control groups on a 390px screen is four hundred pixels of panel
+   * over the middle of the cloud.
+   */
+  .deck-ctl-row {
+    display: flex;
+    gap: 1.4rem;
+    padding: 0.75rem 1rem;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .deck-ctl-row::-webkit-scrollbar {
+    display: none;
+  }
+
+  .deck-ctl {
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: 0.6rem;
+    min-width: 0;
+  }
+
+  .deck-ctl-label {
+    flex: none;
+  }
+
+  @media (min-width: 64rem) {
+    .deck-ctl-row {
+      flex-wrap: wrap;
+      align-items: flex-end;
+      column-gap: 1.5rem;
+      row-gap: 0.9rem;
+      overflow-x: visible;
+      /* Clears the CoronChat dock, which only overlaps at this width. */
+      padding: 1rem 11rem 1rem 2rem;
+    }
+    .deck-ctl {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 0.5rem;
+    }
+  }
+
+  /* ── The landing card ───────────────────────────────────────────── */
+
+  .deck-intro {
+    position: absolute;
+    inset: 0;
+    z-index: 20;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 6rem var(--gutter) 7rem;
+    transition:
+      opacity var(--dur-slow) var(--ease-out),
+      transform var(--dur-slow) var(--ease-out),
+      visibility var(--dur-slow) step-end;
+  }
+
+  @media (min-width: 64rem) {
+    .deck-intro {
+      inset: 0 auto 0 0;
+      width: calc(var(--deck-rail-w) + var(--deck-copy-w) + 2rem);
+      padding: 6rem 3rem 7rem var(--gutter);
+    }
+  }
+
+  /*
+   * The type is transparent to the cursor.
+   *
+   * The copy has no column of its own: it is a caption lying on the exhibit.
+   * A caption that swallows the pointer means the left third of the screen is
+   * dead to an engine whose whole claim is that it answers the cursor — and,
+   * less subtly, that a full-height column parked over the control row catches
+   * every click aimed at it. Only the things that are actually controls take
+   * the pointer back.
+   *
+   * The rail is the same story for a different reason: its tokens are centred
+   * in a full-height column, so the empty half of that column was sitting on
+   * top of the Subject chips and eating every click aimed at them.
+   *
+   * Below lg none of this applies: the copy sits under the exhibit on its own
+   * ground rather than over it.
+   */
+  @media (min-width: 64rem) {
+    .deck-intro,
+    .deck-copy,
+    .deck-rail {
+      pointer-events: none;
+    }
+    .deck-intro :is(a, button, input, select, textarea, [tabindex]),
+    .deck-copy :is(a, button, input, select, textarea, [tabindex]),
+    .deck-rail :is(a, button, input, select, textarea, [tabindex]) {
+      pointer-events: auto;
+    }
+  }
+
+  /*
+   * On a phone the card sits at the foot of the frame rather than in the middle
+   * of it, so the type lands on the solid end of the scrim and the cloud keeps
+   * the top two thirds of the screen to itself.
+   *
+   * This has to come after the base rule, not with the scrim it belongs to:
+   * same specificity, so source order is what decides it, and centred wins from
+   * anywhere above.
+   */
+  @media (max-width: 63.999rem) {
+    .deck-intro {
+      justify-content: flex-end;
+      /* Clears the CoronChat dock in the corner. */
+      padding-bottom: 7rem;
+    }
+  }
+
+  .deck[data-phase='deck'] .deck-intro {
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(-1.25rem);
+  }
+
+  .deck-intro-name {
+    font-size: clamp(2.75rem, 8.5vw, 5.5rem);
+    line-height: 0.94;
+    letter-spacing: -0.015em;
+  }
+
+  .deck-intro > * {
+    animation: deck-rise var(--dur-reveal) var(--ease-out) both;
+  }
+  .deck-intro > *:nth-child(2) {
+    animation-delay: 90ms;
+  }
+  .deck-intro > *:nth-child(3) {
+    animation-delay: 170ms;
+  }
+  .deck-intro > *:nth-child(4) {
+    animation-delay: 250ms;
+  }
+
+  .deck-intro-link {
+    position: relative;
+  }
+  .deck-intro-link::after {
+    content: '';
+    position: absolute;
+    inset-inline: 0;
+    bottom: -0.35em;
+    height: 1px;
+    background: currentColor;
+    transform: scaleX(0);
+    transform-origin: left;
+    transition: transform var(--dur-base) var(--ease-out);
+  }
+  .deck-intro-link:hover::after {
+    transform: scaleX(1);
+  }
+
+  /* ── Rail ───────────────────────────────────────────────────────── */
+
+  .deck-rail {
+    grid-row: 2;
+    z-index: 22;
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    gap: 0.75rem;
+    padding: 1.25rem var(--gutter);
+    border-block: var(--hairline) solid var(--c-line);
+    background: var(--c-ground);
+  }
+
+  @media (min-width: 64rem) {
+    .deck-rail {
+      position: absolute;
+      inset: 0 auto 0 0;
+      width: var(--deck-rail-w);
+      flex-direction: column;
+      justify-content: center;
+      gap: 0.875rem;
+      padding: 2rem 0;
+      border-block: 0;
+      border-right: var(--hairline) solid var(--c-line);
+      background: transparent;
+    }
+  }
+
+  .deck-tokens {
+    display: flex;
+    align-items: flex-start;
+    gap: 1.25rem;
+    min-width: 0;
+    overflow-x: auto;
+    /* The dotted halo on the active token overflows its box; give it room. */
+    padding: 0.6rem 0.25rem;
+    scrollbar-width: none;
+  }
+  .deck-tokens::-webkit-scrollbar {
+    display: none;
+  }
+
+  @media (min-width: 64rem) {
+    .deck-tokens {
+      width: 100%;
+      flex-direction: column;
+      gap: 1.15rem;
+      overflow-x: visible;
+      padding: 0.6rem 0.4rem;
+    }
+  }
+
+  .deck-arrow {
+    display: grid;
+    place-items: center;
+    flex: none;
+    margin-top: 0.6rem;
+    width: 2rem;
+    height: 2rem;
+    border: var(--hairline) solid var(--c-line);
+    border-radius: 999px;
+    color: var(--c-text-faint);
+    transition:
+      color var(--dur-fast) var(--ease-out),
+      border-color var(--dur-fast) var(--ease-out);
+  }
+  .deck-arrow:hover {
+    color: var(--c-text);
+    border-color: var(--c-line-strong);
+  }
+  /* The chevrons point along the rail, and the rail turns at lg. */
+  .deck-arrow svg {
+    transform: rotate(-90deg);
+  }
+  @media (min-width: 64rem) {
+    .deck-arrow {
+      margin-top: 0;
+    }
+    .deck-arrow svg {
+      transform: none;
+    }
+  }
+
+  /* ── Token ──────────────────────────────────────────────────────── */
+
+  /*
+   * A disc and a name.
+   *
+   * The reference identifies each operator by a portrait, and a portrait is
+   * self-explanatory in a way a project mark is not: nobody reads a sigil and
+   * thinks "prompt templating library". So the mark orients and the name
+   * identifies, and the rail is wide enough to carry both rather than hiding
+   * the name behind a hover.
+   */
+  .deck-token {
+    position: relative;
+    flex: none;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
+    width: 100%;
+    color: var(--c-text-faint);
+    transition: color var(--dur-base) var(--ease-out);
+  }
+  .deck-token:hover {
+    color: var(--c-text);
+  }
+  .deck-token[aria-selected='true'] {
+    color: var(--c-text);
+  }
+
+  .deck-token-disc {
+    position: relative;
+    display: grid;
+    place-items: center;
+    width: var(--deck-token);
+    height: var(--deck-token);
+    border: var(--hairline) solid var(--c-line);
+    border-radius: 999px;
+    background: var(--c-surface);
+    transition:
+      border-color var(--dur-base) var(--ease-out),
+      transform var(--dur-base) var(--ease-out);
+  }
+  .deck-token:hover .deck-token-disc {
+    border-color: var(--c-line-strong);
+  }
+  /* A reserved slot is marked on the token, not only on the stage. */
+  .deck-token[data-reserved] .deck-token-disc {
+    border-style: dashed;
+  }
+  .deck-token[aria-selected='true'] .deck-token-disc {
+    border-color: var(--c-accent);
+    transform: scale(1.08);
+  }
+
+  /*
+   * The dotted halo around the held token, lifted from the reference. It is
+   * what stops the rail reading as six equal buttons: the ring is legible from
+   * the far side of the page, where a 1px border change is not.
+   */
+  .deck-token-disc::before {
+    content: '';
+    position: absolute;
+    inset: -0.5rem;
+    border-radius: inherit;
+    background-image: radial-gradient(currentColor 1px, transparent 1.2px);
+    background-size: 5px 5px;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity var(--dur-base) var(--ease-out);
+    -webkit-mask-image: radial-gradient(closest-side, transparent 68%, #000 72%);
+    mask-image: radial-gradient(closest-side, transparent 68%, #000 72%);
+  }
+  .deck-token[aria-selected='true'] .deck-token-disc::before {
+    opacity: 0.6;
+  }
+
+  .deck-token-art {
+    width: 1.75rem;
+    height: 1.75rem;
+  }
+
+  @media (max-width: 63.999rem) {
+    /* Wide enough that the longest project name stays on one line. */
+    .deck-token {
+      width: 6.75rem;
+    }
+    .deck-token-name {
+      font-size: 8.5px;
+      letter-spacing: 0.06em;
+    }
+  }
+
+  .deck-token-name {
+    max-width: 100%;
+    font-family: var(--font-mono);
+    font-size: 9px;
+    line-height: 1.35;
+    letter-spacing: 0.08em;
+    text-align: center;
+    text-transform: uppercase;
+    /* Package names are one long token; break them rather than overflow. */
+    overflow-wrap: anywhere;
+  }
+
+  /* ── Copy ───────────────────────────────────────────────────────── */
+
+  .deck-copy {
+    grid-row: 3;
+    z-index: 22;
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    gap: 1.5rem;
+    padding: 2rem var(--gutter) 3rem;
+    background: var(--c-ground);
+  }
+
+  @media (min-width: 64rem) {
+    .deck-copy {
+      position: absolute;
+      /* Stops above the control row rather than reaching past it. */
+      inset: 0 auto var(--deck-chrome-h) var(--deck-rail-w);
+      width: var(--deck-copy-w);
+      gap: 2rem;
+      padding: 3.5rem 2.75rem 1.5rem var(--gutter);
+      background: transparent;
+    }
+  }
+
+  /* The masthead, folded to two lines once the introduction has been read. */
+  .deck-fold {
+    animation: deck-fold-in var(--dur-slow) var(--ease-out) both;
+  }
+
+  .deck-name {
+    font-size: clamp(1.5rem, 2.2vw, 2.15rem);
+    line-height: 1;
+  }
+
+  .deck-title {
+    /* Set rather than faded: the frame name is the one line that should land. */
+    animation: deck-wipe var(--dur-reveal) var(--ease-out) both;
+  }
+
+  .deck-bracket {
+    color: var(--c-accent);
+    font-weight: 400;
+    margin-inline: 0.14em;
+  }
+
+  /*
+   * Three segments, one rule. The reference runs a magenta/yellow/teal bar
+   * under every operator name; this is the same device in a palette that only
+   * owns one hue, so the segments are accent, ink, and line instead.
+   */
+  .deck-rule {
+    height: 3px;
+    width: 14rem;
+    max-width: 100%;
+    background: linear-gradient(
+      to right,
+      var(--c-accent-fill) 0 34%,
+      var(--c-text) 34% 62%,
+      var(--c-line-strong) 62% 100%
+    );
+  }
+
+  .deck-cta {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.75rem;
+    height: 2.75rem;
+    padding-inline: 1.5rem;
+    border: var(--hairline) solid var(--c-text);
+    color: var(--c-text);
+    font-size: 0.875rem;
+    font-weight: 600;
+    transition:
+      background-color var(--dur-base) var(--ease-out),
+      color var(--dur-base) var(--ease-out);
+  }
+  .deck-cta:hover {
+    background: var(--c-text);
+    color: var(--c-ground);
+  }
+  .deck-cta svg {
+    transition: transform var(--dur-base) var(--ease-out);
+  }
+  .deck-cta:hover svg {
+    transform: translateX(3px);
+  }
+
+  /* ── The handoff ────────────────────────────────────────────────── */
+
+  /*
+   * The roster and the readout are absent until the visitor has scrolled. They
+   * are not merely faded: `visibility` and `display` together keep them out of
+   * the tab order and off the phone layout, so the landing card really is the
+   * only thing on the screen rather than the only thing visible on it.
+   */
+  .deck[data-phase='intro'] .deck-rail,
+  .deck[data-phase='intro'] .deck-copy {
+    display: none;
+  }
+
+  .deck[data-phase='deck'] .deck-rail {
+    animation: deck-rail-in var(--dur-slow) var(--ease-out) both;
+  }
+
+  /* Each token arrives a beat after the one before it, so the rail assembles. */
+  .deck[data-phase='deck'] .deck-token {
+    animation: deck-token-in var(--dur-reveal) var(--ease-out) both;
+    animation-delay: calc(120ms + var(--deck-token-i, 0) * 55ms);
+  }
+
+  /* ── Scroll cue ─────────────────────────────────────────────────── */
+
+  .deck-cue {
+    display: none;
+  }
+  @media (min-width: 64rem) {
+    .deck-cue {
+      position: absolute;
+      left: var(--gutter);
+      bottom: 1.75rem;
+      z-index: 24;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      color: var(--c-text-faint);
+      transition:
+        color var(--dur-fast) var(--ease-out),
+        opacity var(--dur-base) var(--ease-out);
+    }
+    .deck-cue:hover {
+      color: var(--c-text);
+    }
+    /* In the deck state the control row owns the bottom of the screen. */
+    .deck[data-phase='deck'] .deck-cue {
+      display: none;
+    }
+    .deck-cue-line {
+      display: block;
+      width: 3.5rem;
+      height: 1px;
+      background: currentColor;
+      transform-origin: left;
+      animation: deck-cue 2.4s var(--ease-in-out) infinite;
+    }
+  }
+
+  /* ── Staged entrance for the readout ────────────────────────────── */
+
+  .deck-enter > * {
+    animation: deck-rise var(--dur-reveal) var(--ease-out) both;
+  }
+  .deck-enter > *:nth-child(1) {
+    animation-delay: 0ms;
+  }
+  .deck-enter > *:nth-child(2) {
+    animation-delay: 80ms;
+  }
+  .deck-enter > *:nth-child(3) {
+    animation-delay: 140ms;
+  }
+  .deck-enter > *:nth-child(4) {
+    animation-delay: 200ms;
+  }
+  .deck-enter > *:nth-child(5) {
+    animation-delay: 260ms;
+  }
+
+  /* ── Stage internals ────────────────────────────────────────────── */
+
+  /*
+   * AgentStage — the graph.
+   *
+   * Inset from the stage so the run does not touch the viewport edges, and cut
+   * short at the bottom so the step readout has a clear band to sit in.
+   */
+  .deck-graph {
+    position: absolute;
+    inset: 6% 7% 50% 7%;
+  }
+  @media (min-width: 64rem) {
+    .deck-graph {
+      inset: 11% 14% 36% 11%;
+    }
+  }
+
+  .deck-edge {
+    stroke: var(--c-line-strong);
+    stroke-width: 1;
+    opacity: 0.55;
+  }
+  .deck-edge-done {
+    stroke: var(--c-text);
+    opacity: 0.55;
+  }
+  .deck-edge-live {
+    stroke: var(--c-accent);
+    stroke-width: 1.5;
+    opacity: 1;
+    stroke-dasharray: 5 5;
+    animation: deck-flow 700ms linear infinite;
+  }
+  .deck-ping {
+    animation: deck-ping 2.2s var(--ease-out) infinite;
+  }
+
+  /* ReservedStage — the idle bench. */
+  .deck-spin-slow {
+    animation: deck-rotate 90s linear infinite;
+  }
+  .deck-spin-rev {
+    animation: deck-rotate 64s linear infinite reverse;
+  }
+  .deck-sweep {
+    animation: deck-rotate 7s linear infinite;
+  }
+  .deck-breathe {
+    animation: deck-breathe 4.5s var(--ease-in-out) infinite;
+  }
+  .deck-parallax-layer {
+    transform: translate3d(calc(var(--px, 0) * -20px), calc(var(--py, 0) * -20px), 0);
+    transition: transform 420ms var(--ease-out);
+  }
+}
+
+/* ── Keyframes ────────────────────────────────────────────────────── */
+
+@keyframes deck-rise {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes deck-wipe {
+  from {
+    opacity: 0;
+    clip-path: inset(0 100% 0 0);
+  }
+  to {
+    opacity: 1;
+    clip-path: inset(0 0 0 0);
+  }
+}
+
+@keyframes deck-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* The masthead lands where the landing card's name was leaving from. */
+@keyframes deck-fold-in {
+  from {
+    opacity: 0;
+    transform: translateY(-1.5rem) scale(1.12);
+    transform-origin: left top;
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes deck-rail-in {
+  from {
+    opacity: 0;
+    transform: translateX(-1.5rem);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes deck-token-in {
+  from {
+    opacity: 0;
+    transform: translateX(-0.75rem) scale(0.8);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes deck-chrome-up {
+  from {
+    opacity: 0;
+    transform: translateY(100%);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes deck-scan {
+  from {
+    opacity: 1;
+    transform: translateY(-100%);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(100%);
+  }
+}
+
+@keyframes deck-flow {
+  to {
+    stroke-dashoffset: -20;
+  }
+}
+
+@keyframes deck-ping {
+  from {
+    transform: scale(0.5);
+    opacity: 0.75;
+  }
+  to {
+    transform: scale(1.55);
+    opacity: 0;
+  }
+}
+
+@keyframes deck-rotate {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes deck-breathe {
+  0%,
+  100% {
+    opacity: 0.5;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@keyframes deck-cue {
+  0%,
+  100% {
+    transform: scaleX(0.3);
+    opacity: 0.5;
+  }
+  50% {
+    transform: scaleX(1);
+    opacity: 1;
+  }
+}

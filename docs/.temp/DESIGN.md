@@ -1,13 +1,65 @@
 # coronring.github.io — Design Document
 
-**Version:** 0.8.0
-**Status:** Complete — Rest Reminder tool with tactical HUD clock dial, OS notifications, Web Audio synth, and box-breathing pacer
-**Last updated:** 2026-08-27
+**Version:** 0.11.0
+**Status:** Complete — the deck opens as a title card and unfolds on the first scroll; the cloud morphs between subjects
+**Last updated:** 2026-08-29
 **Owner:** Guan Zheng Huang (`CoronRing`)
 
 > This document covers the Astro site only. The site is now one of three
 > deployables in this repository, and anything crossing the boundary between
 > them belongs in [`../SYSTEM.md`](../SYSTEM.md).
+>
+> **v0.11.0** — the landing page becomes two states, and three things that
+> only looked like they worked stop pretending.
+>
+> The deck opens as a **title card**: a name, a job, one line, three links, and
+> the exhibit edge to edge behind all of it. The first scroll of any size folds
+> the introduction into two lines, slides the roster in from the left and raises
+> the control strip from the bottom (§6.1). The canvas is full-bleed in both
+> states and is never resized between them, so the handoff costs the engine
+> nothing and the exhibit is as large as the screen allows.
+>
+> Changing subject is now a **morph**: the particles are paired with the points
+> of the new cloud and travel there, rather than one picture being replaced by
+> another. That needed new engine work, shipped as ParticleWave 1.5.0 (§7).
+> `restSpin` also tracks scroll speed, so the cloud answers a visitor who never
+> touches it.
+>
+> Three bugs, all of which the old code hid rather than fixed. **Every section
+> title on the site was invisible to its own scroll observer** — `clip-path:
+inset(0 100% 0 0)` collapses an element's intersection rect to zero width, and
+> the 2-second "reveal everything" safety net was covering for it while also
+> cancelling every below-fold entrance on the page. The **ambient dust** in all
+> three clouds was sampled over a square, and the renderer spins the cloud, so
+> what a visitor saw was a rotating rectangle of noise; it is a soft-edged disc
+> now, which has no orientation. And the deck's copy column, lying on the
+> canvas, was **swallowing every click** aimed at the controls underneath it.
+>
+> The tools band stops being ten identical cards and becomes an instrument with
+> a roster and a screen that plays the selected tool (§12.2). "What I actually
+> do" becomes **Myself**: three capabilities that advance as the band scrolls
+> past, each showing the roles that are the evidence for it. And the corner
+> assistant becomes **CoronChat** — the site's own mark, animated, with a line
+> under it naming the band the visitor is reading and a question to match
+> (§6.2).
+>
+> **v0.10.0** — a text cut and a performance fix. The deck's readout loses
+> everything that was not a name, a project or a link. Rail tokens gain the
+> project's name, because a sigil orients but does not identify. The Look
+> presets drop trails (§6.1), which is what made the Fire preset lag: the
+> engine submits `particles x trailLength` antialiased segments per frame and
+> rasterising them dominated. The assistant becomes a band on the home page
+> rather than only a page of its own, and nudges once per session. Resources
+> moves last. `Read the blueprints` goes back to cards.
+>
+> **v0.9.0** — the home page becomes **the deck**: one full-height instrument
+> that cuts between six frames, replacing both the hero and the "Selected work"
+> band. The three demo islands are rewritten as _stages_ with at most three
+> controls each, the twenty-slider Particle Wave panel moves to the project
+> page, and the deck's roster is extended to six with three reserved slots. Two
+> new parametric point clouds ship so the particle stage has something to cut
+> to. §6.1 is new and covers the whole surface; §3, §6 and §7.2 are rewritten;
+> `OperatorShowcase` is deleted.
 >
 > **v0.8.0** — adds the **Rest Reminder** tool (`/tools/rest-reminder`). Introduces
 > a drift-free epoch timestamp engine (`Date.now() + remainingMs`), cross-platform
@@ -153,7 +205,7 @@ No CMS, no backend, no analytics, no client-side routing framework.
 Five routes. Each nav entry carries a two-digit index as a HUD motif.
 
 ```
-/                    00  Index      Hero instrument, capabilities, selected work
+/                    00  Index      The deck, then four quieter bands
 /projects            01  Projects   Card gallery with generated cover art
 /projects/[slug]         Detail: live demo above the write-up
 /resume              02  Resume     One timeline, four sections
@@ -162,6 +214,25 @@ Five routes. Each nav entry carries a two-digit index as a HUD motif.
 /tools/[slug]            Individual tool: instrument above, write-up below
 /404                     Not found
 ```
+
+The home page flow, as of v0.11.0:
+
+```
+#top        The deck — a title card, then six frames over one exhibit  (§6.1)
+#work       Selected work — the card gallery
+#resume     Myself — three capabilities, scroll-advanced, with evidence
+#tools      The dev kit — a roster and a screen that plays one tool    (§12.2)
+            Contact, over a decorative instance of the corona
+#ask        The assistant                                             (§6.2)
+#resources  Notes and references, last
+```
+
+`#top` is both the introduction and the work. The band that used to sit between
+them is gone.
+
+`#ask` exists because the one part of the site that answers questions was the
+one part a visitor had to navigate away to reach. `/chat` still exists for
+direct links and renders the same component.
 
 ---
 
@@ -271,20 +342,362 @@ cards, and a contact panel.
 
 Rules now:
 
-| Surface           | Budget                                                         |
-| ----------------- | -------------------------------------------------------------- |
-| Hero              | Eyebrow, one display title, one sentence, **one** button       |
-| Capabilities      | A **carousel** — one pillar visible at a time                  |
-| Selected work     | **Two** cards; the projects page holds the rest                |
-| Interior masthead | Eyebrow, title, one sentence                                   |
-| Footer            | A build stamp. The rail already carries sitemap, socials, CTA. |
-| Contact section   | **Removed** — the rail's CTA is always on screen               |
+| Surface           | Budget                                                           |
+| ----------------- | ---------------------------------------------------------------- |
+| Deck masthead     | A name and a job title. Nothing else                             |
+| Deck readout      | Per frame: title, **one** metadata pair, one paragraph, one link |
+| Deck stage        | At most **three** control groups (§6.1)                          |
+| Project index     | One row per project: number, name, one line, stack, arrow        |
+| Capabilities      | A **carousel** — one pillar visible at a time                    |
+| Interior masthead | Eyebrow, title, one sentence                                     |
+| Footer            | A build stamp. The rail already carries sitemap, socials, CTA.   |
 
 Long-form measure is `--prose-max: 36rem`, deliberately narrow.
 
 The carousel is paged rather than stacked because three side-by-side prose
 cards is three blocks competing for one glance. It does not auto-advance;
 inactive panels are `hidden`, so they leave the tab order entirely.
+
+---
+
+## 6.1 The deck
+
+`src/components/deck/`, and it is the home page.
+
+### Two states, one canvas
+
+**Intro.** A name, what the name does, one line, three links, and the exhibit
+running edge to edge behind them. No roster, no controls, no counter. Someone
+who has been here for one second is not choosing between six projects; they are
+deciding whether to stay.
+
+**Deck.** The first scroll of any size — plus a wheel or a swipe that has not
+moved the page yet, because the section is pinned and the first notch of a
+gesture should be answered — folds the introduction into two lines, slides the
+roster in from the left, and raises the control strip from the bottom. It does
+not go back: a page that returns to its title card when you scroll up is a page
+that has lost your place.
+
+From `lg` the section is 168vh with the frame sticky, so that first scroll buys
+the transition instead of scrolling the introduction off the top. What is left
+of the pinned range is dwell, and the cloud spins up with it.
+
+The canvas is full bleed in **both** states and is never resized between them.
+Everything else floats over it, held legible by a scrim rather than by being
+given a column of its own. That is the largest the exhibit can be, and it means
+the handoff costs the engine nothing.
+
+Two consequences that had to be handled rather than admired:
+
+- **The type is transparent to the cursor.** A caption lying on an exhibit that
+  answers the cursor cannot also swallow it, and a full-height copy column
+  parked over the control row catches every click aimed at it. `pointer-events`
+  is off on the copy, the intro and the rail; only real controls take it back.
+- **The scrim stops above the control row.** It paints over the stage, and the
+  controls live inside the stage, so a full-height scrim washes out half of
+  them.
+
+Below `lg` there is no pin — a long pinned section on a phone is the pattern
+people complain about most. The exhibit takes the top of the screen, the control
+row becomes one thumb-height strip that scrolls sideways (three stacked groups
+was four hundred pixels of panel over the middle of the cloud), the hint is
+dropped entirely because it is about a cursor and a right-click, and the landing
+card sits at the foot of the frame on the solid end of its scrim.
+
+### What it replaced
+
+Two full-height bands that said the same thing twice. The hero showed the
+particle engine with no way to drive it. The "Selected work" band below it
+showed the same engine again, wrapped in a console frame, wrapped in a section
+header, and then listed all three projects underneath a second time as cards.
+A visitor met the corona, scrolled, and met it again smaller.
+
+Underneath that, each demo carried its own control bar, its own telemetry
+footer, and — for Particle Wave — sixteen sliders and six selects under a
+420px canvas. Twenty-two controls is a parameter reference sheet. Someone who
+has never seen the engine cannot tell which of twenty-two numbers is the
+interesting one, so they move none of them.
+
+### The shape
+
+One `min-h-dvh` section, three grid areas, exhibit-first when they stack:
+
+```
+lg and up:   [ rail 5.25rem ][ copy 20–33rem ][ stage 1fr → viewport edge ]
+below lg:    stage / rail / copy
+```
+
+The stage bleeds off three edges. It is sized in viewport units rather than
+rems, so it grows with the screen instead of sitting in a box in the middle of
+one. `grid-template-columns: minmax(0, 1fr)` on the stacked layout, not `1fr`:
+a grid track's default minimum is its widest child, so the control row would
+otherwise set the column width and push the deck past a phone's viewport.
+
+### The six frames
+
+Three come from the projects collection, merged with a small presentation
+table in `frames.ts` that adds the two things frontmatter has no business
+carrying — a stage key and a two-letter code. Three are **reserved slots**:
+areas of real work with no write-up yet. They are on the deck rather than
+hidden because a roster of three reads as the whole of the work and it is not;
+they are marked `reserved` on the token, on the stage and in the metadata, and
+none of them links anywhere.
+
+Adding a project to the deck is still an MDX file plus one line in the table.
+
+### Switching
+
+Six tokens are on screen at all times, each carrying a hand-set stroke sigil
+rather than a number, so a visitor aims rather than reads. The rail is a
+`tablist` and the stage its `tabpanel`, which is where the arrow keys, the
+roving `tabindex` and `aria-selected` come from. Prev/next arrows and the
+chevron strip do the same job for a pointer.
+
+Only the active stage is mounted. Six live exhibits stacked behind one another
+is six animation loops for one visible picture; a re-mount costs one cached
+fetch. Every stage takes an `active` prop and pauses when the deck scrolls
+away or the tab is hidden.
+
+The cut is covered by `.deck-scan`, a bright band that crosses the stage once,
+and the readout re-enters on a staggered wipe. Both replay because the elements
+are keyed on the frame id.
+
+### What the readout says, and what it stopped saying
+
+v0.9.0's readout carried a byline with a location, a sentence of positioning, a
+status block naming the deck's own mechanics (`LIVE · SIX FRAMES · ONE EXHIBIT
+EACH`), a kicker, a title, two metadata pairs, a paragraph and two links. All of
+it sat in front of the one thing on the screen worth looking at.
+
+What is left:
+
+```
+GUAN HUANG
+Applied ML Engineer
+
+Building ───────────────── 01 / 06
+[ PARTICLE WAVE ]
+▬▬▬
+[STACK] TypeScript · Canvas · Python
+one sentence
+→ Open blueprint   All projects
+```
+
+The status pair went because "In progress · 2026 – present" is already on the
+card in `#work` and on the project page, and neither of those is competing with
+a live canvas for attention.
+
+### Names on the rail
+
+The reference identifies each operator by a portrait, and a portrait is
+self-explanatory in a way a project mark is not: nobody reads a stroke glyph and
+thinks "prompt templating library". So the token carries the sigil _and_ the
+name, and the rail is wide enough (`8rem`) to hold both. The hover tooltip that
+used to carry the name is gone — a label you have to hover for is a label most
+visitors never see.
+
+### Three controls, maximum
+
+Enforced by convention, argued for in `StageShell.tsx`. Two shapes only —
+`Segment` for a setting, `Chips` for a choice of material — so every exhibit
+reads the same way although no two do the same thing.
+
+| Stage    | Controls                                   |
+| -------- | ------------------------------------------ |
+| Particle | Subject (3 clouds + upload) · Field · Look |
+| Agent    | Pipeline · Run                             |
+| Prompt   | Template · View                            |
+| Reserved | None. It is a bench with nothing on it.    |
+
+`Look` is a **preset**, not a parameter: colour mode, palette and trail length
+move together, because "aurora with no trails" is not a distinction anyone
+standing in front of the page for four seconds cares about.
+
+The full Particle Wave parameter panel is unchanged and still lives on
+`/projects/particle-wave` (§7.5). This is the trailer; that is the manual.
+
+### Why no preset uses trails
+
+Reported as "when I switch to fire, it lags a lot", and it did: 133 ms per frame
+against 24 ms for the same cloud on the plain preset, measured in a real browser
+with the conditions interleaved so drift cancelled.
+
+The cause is not the palette. The engine's trail pass submits
+`particleCount x trailLength` antialiased line segments every frame — 29,155 of
+them for the 5,831-point corona at `trailLength: 5` — and rasterising them is
+the frame. A CPU profile puts 82% of the time outside JavaScript, and
+instrumenting the canvas confirms the segment count tracks the frame time across
+presets.
+
+Almost none of that geometry is visible. A cloud turning at rest moves each
+particle a fraction of a pixel per frame, so its "tail" is shorter than the
+particle is wide.
+
+Both halves are fixed in ParticleWave 1.5.0 — the draw calls are batched, and
+trails are gated on real movement and held to a budget — and 1.5.0 also batches
+the _head_ pass the same way, which is where a palette cloud spent 6,000 string
+allocations and 6,000 fills a frame. The presets here stay built from what is
+free at this cloud size regardless: the ramp, what it is mapped to, and the
+radius. `charge` maps the ramp to _speed_, so the cloud changes colour under the
+cursor. All four presets run at 60 fps in both themes.
+
+### Changing subject is a morph
+
+As of ParticleWave 1.5.0 the stage no longer tears the instance down and builds
+another one. `morphTo` pairs the live particles with the points of the new cloud
+along a shared Hilbert curve and interpolates their rest positions across; the
+spring they are already under chases the result, and the lag of that chase is
+what makes the corona look like it is being pulled into the orrery rather than
+crossfaded into it.
+
+The instance is built with `capacity: 8200`, which covers the largest of the
+three clouds (7,815) and leaves room for an upload. Spare slots are real
+particles at zero alpha parked inside the cloud, so growing into a denser subject
+has them emerging from the visible material instead of flying in from a corner;
+shrinking lets the surplus dissolve in flight. Verified by walking the full cycle
+and reading the point count back: 6,191 → 7,815 → 7,093 → 6,191.
+
+One trap worth recording. The effect that fires the morph originally skipped
+whenever the new subject matched the _initial_ key, which quietly made every
+return to the corona a no-op. It has to compare against what the engine is
+holding **now**, not what it was built on.
+
+### The cloud answers the scroll
+
+`restSpin` tracks how fast the page is moving: a decaying accumulator read once
+a frame, so a wheel notch spins the cloud up and it coasts back down. The loop
+only runs while there is something left to decay, so a page nobody is scrolling
+costs nothing, and `prefers-reduced-motion` suppresses it entirely.
+
+### The dust is a disc, not a square
+
+All three clouds sampled their ambient dust over the unit square. The renderer
+spins the cloud, a square has corners, and the corners sweep — so what a visitor
+actually saw was a rotating rectangle of noise with a logo inside it.
+
+`scripts/generate-cloud.mjs` now has one `dust()` helper for all three shapes:
+uniform by area over a disc, with the point weight tapered to zero across the
+outer band so the disc's own rim is invisible too. A rotationally symmetric field
+looks identical at every angle, which leaves the individual particles as the only
+thing moving — which is the only thing that should be. `padding` also drops from
+0.08 to 0.015, so the cloud reaches the top and bottom of the frame.
+
+### The ghost type
+
+The site's statement is the `h1`, set behind the exhibit at `clamp(2.25rem,
+7vw, 8.5rem)` with a hatched fill clipped to the glyphs and a faint outline
+stroke. It is real text at a real size, not a decorative image — it just is not
+competing with the frame title for the same slot. `--deck-ghost-alpha` differs
+per theme: hatched ink on paper carries more weight than hatched paper on ink.
+
+### Motion
+
+`opacity`, `transform`, `clip-path` and `stroke-dashoffset` only, so nothing
+touches layout. The agent graph's flow is `stroke-dashoffset` and its node
+rings are `transform`; the only stateful thing in that stage is the step
+pointer, which moves every 2.6 s. The version this replaced drove a 32-bar
+visualiser from `requestAnimationFrame` through `setState`, re-rendering the
+island sixty times a second to animate noise.
+
+Nothing is communicated by motion alone: the held frame is marked by colour,
+weight and the counter as well, so `prefers-reduced-motion` costs nothing.
+
+---
+
+## 6.2 The assistant, in the page
+
+The assistant was only ever a corner dock and a page at `/chat`. That put the
+one surface on the site that answers questions behind a navigation, and left the
+dock — a small button labelled "Ask" — as the only invitation.
+
+Two changes.
+
+**A band on the home page.** `#ask` renders the same `ChatPage` component as
+`/chat`, so there is one assistant with two mounts rather than two variants.
+`client:visible`, so it costs nothing until it is scrolled to.
+
+**The dock nudges, once.** After 14 s the dock opens itself and puts a real
+question on screen — not "how can I help", an actual question about this site,
+one click from being sent. Three rules keep that from being the thing everyone
+hates:
+
+1. **Once a session.** A `sessionStorage` flag, set the moment it fires, so it
+   does not reappear on the next page of an MPA.
+2. **It leaves on its own.** Fifteen seconds with no interaction and it
+   withdraws. Only when it opened itself; a panel the visitor opened stays open.
+3. **Never over the real thing.** While `#ask` is on screen the dock hides
+   entirely rather than floating a second copy of itself over the first.
+
+`prefers-reduced-motion` suppresses the nudge altogether: an interface that
+moves on its own is exactly what that setting is asking us not to do.
+
+The page's own prose was cut with it. Two paragraphs explaining that the corpus
+is small enough to answer without retrieval were true, interesting to the person
+who built it, and in front of the box the visitor came to type in.
+
+---
+
+## 6.2.1 CoronChat
+
+The corner dock is `src/components/chat/ChatDock.tsx`, and as of v0.11.0 it has
+a name, a mark and a subject.
+
+A round icon in the corner reads as "contact us", and nobody presses it. This
+one is a panel carrying the site's own logo, the name **CoronChat**, and a line
+saying what it is currently looking at — which changes as the visitor scrolls,
+because the assistant answers from the pages and therefore knows which one is on
+screen. The question it offers when it nudges changes with it, so pressing it at
+the tools band asks about tools. That is the difference between a widget and a
+guide, and it is the half of this site that is about the work rather than a
+record of it.
+
+`components/chat/mood.ts` holds the mapping, keyed by the same section ids the
+rail scroll-spies; a page with none of them falls back. One
+`IntersectionObserver` over all of them picks the section nearest the middle of
+the viewport, so a short band between two long ones still gets its turn.
+
+`components/chat/Crown.tsx` draws the mark: the ring broken on the right with
+the bar through the gap (§5), plus three rays that make the corona a corona
+rather than a letter. Everything moves off one custom property, `--crown-energy`,
+which the dock sets from the current band, so the change is interpolated rather
+than switched.
+
+**The mark has to be a mark on every frame.** The first pass scaled the rays and
+drew the bar on a dash offset, which meant that at most moments a third of the
+logo was missing and what was left read as a squiggle — and `transform-box:
+fill-box` on a straight path is degenerate, because a vertical line has a
+zero-width fill box. So the ring and the bar are always fully drawn, the rays
+vary in opacity but never below half, and the only thing that actually moves is
+the core.
+
+The nudge itself is unchanged from v0.10.0 and still verified end to end: no
+panel at 3 s, opens itself at 16 s with the band's own question, withdrawn by
+33 s, no second nudge after a reload in the same session, and stood down
+entirely while `#ask` is on screen.
+
+---
+
+## 6.3 Myself
+
+`src/components/resume/Capabilities.tsx`. Three things I do, and for each of
+them the work that is the evidence for it.
+
+It is one island rather than two because the panel and the column beside it are
+the same selection: picking "agent systems" has to change both, or the column is
+a static list of jobs sitting next to a claim it does not support. The evidence
+names an experience entry and which of its highlights belongs to this
+capability — the role, the organisation and the dates come from the collection,
+so editing a resume entry still edits this section and the only thing decided in
+the page is what supports what.
+
+From `lg` the band is 235vh with its content pinned, and the panel advances one
+capability per third of the pinned range, so the section reads itself out to
+someone who only scrolls. The indicator is still a control, and clicking it
+**scrolls** rather than setting state: setting state directly would be undone by
+the scroll handler on the next frame, and scrolling makes the two agree by
+construction. Below `lg` there is no pin and the indicator is the only control.
+
+The heading is "Myself".
 
 ---
 
@@ -333,9 +746,41 @@ Upstream had already diverged from the vendored copy by Prettier formatting
 only — no semantic drift — so the port applied the semantic hunks alone rather
 than imposing this repo's formatting on SenseRing.
 
-### 7.2 The cloud
+### 7.2 The clouds
 
-`scripts/generate-cloud.mjs` emits `public/clouds/corona.pwcloud` — **the
+`scripts/generate-cloud.mjs` emits three shapes as of v0.9.0. One subject makes
+the deck's particle stage read as a logo that wobbles; three let it _cut_
+between shapes, which is what makes the engine legible as an engine — same
+physics, same controls, different material.
+
+| File             | Shape                                        | Points | Raw    |
+| ---------------- | -------------------------------------------- | ------ | ------ |
+| `corona.pwcloud` | The CoronRing mark                           | 5,831  | 106 kB |
+| `orbit.pwcloud`  | An orrery: three tilted tracks, three bodies | 7,353  | 135 kB |
+| `wave.pwcloud`   | A two-source interference field              | 6,624  | 121 kB |
+
+Each shape owns its own seed, so adding one cannot perturb another; `corona`'s
+sequence of draws is unchanged from the single-shape version of the script and
+its geometry is byte-identical to what shipped before.
+
+Group numbering is shared across all three and is load-bearing — `0,1,2` is
+structure (held upright by `spinWeightByGroup`), `3` is orbiting material, `4`
+is ambient dust at 0.55. Both consumers (`ParticleField.astro` and the deck's
+`ParticleStage`) rely on it.
+
+`wave` draws its fringes in _density_ rather than in brightness: a point
+survives rejection sampling in proportion to the constructive part of
+`cos(k·d₁) + cos(k·d₂)`. That matters because the renderer varies point size and
+alpha by weight, and a field whose structure lives only in alpha washes out on
+the light theme.
+
+`orbit` puts the tracks in the structure group and the bodies in the orbiting
+one, so under spin the bodies sweep along tracks that stay put. That is the
+whole point of an orrery and is impossible if everything rotates together.
+
+#### corona, in detail
+
+**The
 CoronRing mark as particles**: a ring broken 18° either side of centre-right, a
 bar from the core out through the gap, a dense core, plus an orbiting corona of
 30 flares and ambient dust (the dust exists so the cursor gets a response in the
@@ -354,7 +799,7 @@ Parametric rather than traced from an image: no source bitmap to ship, no Python
 step in CI, and density is one number. **Seeded PRNG** — an unseeded generator
 would emit a different asset every run, showing a spurious diff and busting the
 CDN cache. 5,831 points across five groups, 106 kB raw, verified byte-identical
-across runs.
+across runs and across the v0.9.0 refactor.
 
 ### 7.3 Integration
 
@@ -528,6 +973,35 @@ are held to a lower bar.
 ---
 
 ## 12.2 The tools
+
+### On the home page: one instrument, not ten cards
+
+`src/components/tools/ToolShowcase.tsx`. The band used to be a grid of ten
+boxes, each holding a name, a sentence and an arrow. Ten identical rectangles is
+not a menu, it is a wall, and nothing in it moved or showed what any of the tools
+actually did — a visitor scanning it learned that there were ten of something.
+
+It is now the same shape as the deck at the top of the page: a roster on the
+left, and on the right a screen that plays the selected tool, its input typed out
+and its output arriving row by row, on a loop. The site has one way of showing
+you a thing that runs.
+
+The screens are data (`components/tools/showcase.ts`), kept out of the registry
+for the reason `deck/frames.ts` is kept out of the projects collection: the
+registry describes the tool, this describes one way of drawing it. They are
+samples and are labelled as samples — where the output is arithmetic the numbers
+are the right arithmetic for the input shown, and where it is structure the rows
+name the fields the tool reports rather than a measurement it did not take.
+
+The selection does **not** advance on its own. The screen animates and loops, but
+a carousel that changes what you are reading while you are reading it is the
+commonest way this pattern fails, and there is no case for it when every option
+is already on screen. `prefers-reduced-motion` shows the finished screen.
+
+The heading is "AI dev kit, on the web" — what the collection is, rather than
+where it happens to execute.
+
+### The registry
 
 Ten live, registered in `src/data/tools.ts`. The index and `ToolLayout` both
 render from that registry, so a tool cannot disagree with the index about its
@@ -769,7 +1243,8 @@ after either one changes; `../SYSTEM.md` §4 has the check.
 - **Phase 2 — Content.** Replace every placeholder. Real projects, resume, resources. Add `public/resume.pdf`.
 - **Phase 3 — Demos.** Replace `PlaceholderDemo` with real artifacts.
 - **Phase 4 — Tools.** Nine shipped as of v0.6.0 (§12.2); Context Budgeter and JSON Schema Forge remain. Still open: a WASM tokenizer to replace the token counter's estimator with an exact count; per-tool state in the URL so a configuration can be linked; `pyPreset` on the remaining project pages once those packages are published; and revisiting the `railtracks` preset when its transitive wheels reach WebAssembly (§12.4).
-- **Phase 5 — Polish.** Per-page OG images, Lighthouse pass, screen-reader testing, more `.pwcloud` shapes per section.
+- **Phase 5 — Polish.** Per-page OG images, Lighthouse pass, screen-reader testing.
+- **Phase 6 — Fill the deck.** The three reserved slots (§6.1) need write-ups and real stages. Until they do, they carry the idle-bench instrument and say so.
 
 ---
 
@@ -811,6 +1286,23 @@ after either one changes; `../SYSTEM.md` §4 has the check.
 | Provenance labelled in the UI rather than hidden                      | The quality gap between the two tracers is the demonstration, not an implementation detail                                                     |
 | Backend and infra excluded from the Pages workflow                    | A service that cannot build must not be able to block a content deploy                                                                         |
 | No em dashes in visitor-facing copy                                   | The strongest single tell of machine-written prose on a page employers read                                                                    |
+| Hero and "Selected work" merged into one deck                         | They showed the same engine twice, the second time inside three nested frames; one full-height surface is both the introduction and the work   |
+| At most three controls per stage                                      | Twenty-two controls under a small canvas is a parameter sheet; a visitor cannot tell which number is the interesting one, so they move none    |
+| `Look` as a preset rather than three parameters                       | Colour mode, palette and trail length only make sense together at this altitude; the separable version lives on the project page               |
+| Only the active stage mounted                                         | Six live exhibits behind one another is six animation loops for one visible picture; a re-mount costs one cached fetch                         |
+| Three reserved frames rather than a roster of three                   | A deck of three implies that is all the work there is; the slots are marked reserved and link nowhere, which is honest and fills the rail      |
+| The site statement as ghost type behind the exhibit                   | It stays the loudest thing on the first screen without competing with the frame title for the heading slot; it is real text, not an image      |
+| Hand-set sigils rather than hash-generated ones                       | A hash-driven mark is noise at 56px; six drawn glyphs let a visitor aim at a frame instead of reading a list                                   |
+| Rail as a `tablist`, stage as its `tabpanel`                          | Arrow keys, roving `tabindex` and `aria-selected` come from the pattern rather than from bespoke handlers                                      |
+| Agent pipeline drawn as a graph, not a log                            | The shape is what a visitor understands in four seconds; the timestamped transcript is what an operator reads on their fourth day              |
+| `minmax(0, 1fr)` on the stacked deck grid                             | A track's default minimum is its widest child, so the control row sized the column and pushed the whole deck off a phone                       |
+| Deck presets carry no trails                                          | `particles x trailLength` antialiased segments per frame is the frame: 133 ms against 24 ms, and almost none of the geometry is visible        |
+| A `charge` preset mapping colour to speed                             | The cheapest interactive thing the engine can do — the cloud changes colour under the cursor without drawing anything extra                    |
+| Project names on the rail, not just sigils                            | A portrait identifies an operator; a stroke glyph does not identify a library. The mark orients, the name identifies                           |
+| Masthead cut to a name and a job title                                | Location, a positioning sentence and a status block naming the deck's own mechanics were all text in front of the exhibit                      |
+| The assistant as a band on the home page                              | The one surface that answers questions should not be the one you have to navigate away to reach                                                |
+| The dock nudges once, then withdraws                                  | Nobody clicks a button labelled "Ask". Once a session, gone in 15 s if ignored, and never over the in-page assistant                           |
+| Cards restored for `#work`                                            | The manifest was faster to skim and duller to look at; the cover art is generated, so an entry is a picture from the day it is added           |
 
 ---
 

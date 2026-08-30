@@ -12,8 +12,11 @@ MDX content collections · GitHub Pages via Actions.
 Zero JavaScript ships by default. Only components that need interactivity
 hydrate, and most wait until they scroll into view.
 
-The hero runs an interactive particle corona on `<canvas>`, powered by the
-[SenseRing](../SenseRing) `particle_wave` engine (vendored in `src/vendor/`).
+The home page is **the deck**: one full-height instrument that cuts between six
+frames, each with a live exhibit filling the viewport and at most three
+controls. The particle frame runs the published `@npmring/particle-wave`
+engine, built from [ParticleWave](../ParticleWave).
+
 Dual theme throughout. Dark is the instrument panel, light the printed spec
 sheet, and each opens through a loading veil in the _opposite_ tone.
 
@@ -59,15 +62,14 @@ npm run dev        # http://localhost:4321
 docs/            Design docs (start with docs/SYSTEM.md)
 public/          Static assets served from the root
 src/
-├── components/  ui/ · layout/ · decor/ · demos/ · tools/
+├── components/  ui/ · layout/ · decor/ · deck/ · demos/ · tools/
 ├── content/     Schema-validated projects, resources, experience
 ├── data/        site.ts · tools.ts · models.ts
 ├── layouts/     BaseLayout · PageLayout · ToolLayout
 ├── lib/         url · theme · tokens · format · image-to-cloud · particle-wave-api
 ├── pages/       Routes
-├── styles/      tokens.css · global.css
-└── vendor/      particle-wave (from SenseRing) + local .d.ts
-scripts/         generate-cloud.mjs → public/clouds/corona.pwcloud
+└── styles/      tokens.css · global.css · deck.css
+scripts/         generate-cloud.mjs → public/clouds/{corona,orbit,wave}.pwcloud
 backend/         FastAPI service (own README, own tests, own design doc)
 infra/           Oracle provisioning and deploy scripts (own README)
 ```
@@ -79,7 +81,11 @@ Zod-validated in `src/content.config.ts`, so a bad field fails the build.
 
 **An interactive demo.** Build the island in `src/components/demos/`, register
 it in `registry.ts`, then set `interactive: true` and `demo: "<key>"` in the
-project's frontmatter.
+project's frontmatter. That is the full-parameter demo on the project page.
+
+**A deck frame.** Build the stage in `src/components/deck/stages/` — at most
+three controls, see `StageShell.tsx` — then add one entry to `DECK_META` in
+`src/components/deck/frames.ts`, keyed by the project's id.
 
 **A tool.** Build the island in `src/components/tools/`, add a route under
 `src/pages/tools/` using `ToolLayout`, and add one entry to `src/data/tools.ts`.
@@ -88,8 +94,11 @@ project's frontmatter.
 set to `work`, `education`, `award`, or `certification`. Omit `end` for a
 current role.
 
-**A particle shape.** Edit `scripts/generate-cloud.mjs` and re-run it. The seed
-is fixed so rebuilds are byte-identical; change it only to reshape the art.
+**A particle shape.** Add a builder to `SHAPES` in
+`scripts/generate-cloud.mjs`, give it its own seed, and re-run the script. Each
+shape's seed is fixed so rebuilds stay byte-identical; change one only to
+reshape that art. Then register the file in `SUBJECTS` in
+`src/components/deck/stages/ParticleStage.tsx`.
 
 ## Design system
 
