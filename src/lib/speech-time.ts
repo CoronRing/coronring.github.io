@@ -342,9 +342,8 @@ export interface MeasureOptions {
   readonly text: string;
   readonly voiceName: string;
   /**
-   * Playback rate for the probe. Higher finishes sooner and drifts further from
-   * the natural rate; 2.5 is the highest that stayed within a few percent of the
-   * linear model on the voices this was checked against.
+   * Playback rate for the probe. Leave this at 1 unless you have measured the
+   * engine yourself: see {@link DEFAULT_MEASURE} for why nothing else is safe.
    */
   readonly rate: number;
   /** Give up after this long, whatever has arrived. */
@@ -370,8 +369,35 @@ export interface Measurement {
   readonly complete: boolean;
 }
 
+/**
+ * Probe at natural speed.
+ *
+ * Speaking the probe faster and dividing the rate back out finishes sooner, and
+ * it is wrong. Sweeping rate 1 to 4 against ground truth (the wall-clock time to
+ * actually speak the whole text at rate 1) over the five local English voices on
+ * Windows SAPI, two texts each, 160 runs:
+ *
+ * | rate | mean abs error | worst | probe |
+ * | ---- | -------------- | ----- | ----- |
+ * | 1    | 3.9%           | 8.7%  | 2.6 s |
+ * | 1.5  | 9.8%           | 22.6% | 2.3 s |
+ * | 2    | 6.4%           | 14.7% | 1.7 s |
+ * | 2.5  | 7.7%           | 16.5% | 1.4 s |
+ * | 3    | 5.1%           | 12.4% | 1.0 s |
+ * | 4    | 27.5%          | 34.5% | 1.0 s |
+ *
+ * Every rate above 1 skews the estimate long, because engines do not speed up
+ * by exactly the factor asked for and the fixed start-up latency does not scale
+ * at all. The error is not monotonic either, which is the tell that SAPI is
+ * quantising the multiplier onto its own coarse rate scale, so a value tuned
+ * here would not carry to another engine. Rate 1 is the one setting that never
+ * invokes the assumption, and it was the most accurate on every voice tested.
+ *
+ * The price is a probe of about 2.6 s rather than 1.4 s, and hitting `budgetMs`
+ * on roughly half of runs, which costs coverage but not much accuracy.
+ */
 export const DEFAULT_MEASURE: Omit<MeasureOptions, 'text' | 'voiceName'> = {
-  rate: 2.5,
+  rate: 1,
   budgetMs: 3_000,
   minBoundaries: 6,
 };
@@ -443,8 +469,10 @@ export function measureSpeech(options: MeasureOptions): Promise<Measurement> {
         return;
       }
 
-      // Divide out the probe rate to get the natural rate. Linear in rate is an
-      // approximation; it held to within a few percent up to 2.5x in testing.
+      // Divide out the probe rate to get the natural rate. This is a no-op at
+      // the default rate of 1, which is the point: measured against ground
+      // truth the division is only good to about 8% even at 2.5x, and 28% at
+      // 4x. See DEFAULT_MEASURE.
       const charsPerSecond = lastIndex / spokenSeconds / utterance.rate;
       const seconds = charsPerSecond > 0 ? text.length / charsPerSecond : 0;
       const words = count(text).words;

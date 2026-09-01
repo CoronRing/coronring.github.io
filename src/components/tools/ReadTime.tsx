@@ -222,7 +222,6 @@ function Measured({
 }): React.ReactElement {
   const [voices, setVoices] = useState<readonly Voice[] | null>(null);
   const [voiceName, setVoiceName] = useState('');
-  const [rate, setRate] = useState(DEFAULT_MEASURE.rate);
   const [playRate, setPlayRate] = useState(1);
   const [measurement, setMeasurement] = useState<Measurement | null>(null);
   const [busy, setBusy] = useState(false);
@@ -279,7 +278,7 @@ function Measured({
     setError(null);
     setMeasurement(null);
     try {
-      setMeasurement(await measureSpeech({ ...DEFAULT_MEASURE, rate, text, voiceName }));
+      setMeasurement(await measureSpeech({ ...DEFAULT_MEASURE, text, voiceName }));
     } catch (thrown) {
       setError(
         thrown instanceof MeasureError
@@ -289,7 +288,7 @@ function Measured({
     } finally {
       setBusy(false);
     }
-  }, [rate, text, voiceName]);
+  }, [text, voiceName]);
 
   const play = useCallback(() => {
     playback.current?.stop();
@@ -342,13 +341,15 @@ function Measured({
     >
       <div className="space-y-3 p-4">
         <p className="text-[12.5px] leading-relaxed text-[var(--c-text-muted)]">
-          Speaks the opening at an elevated rate, watches the engine&rsquo;s own word-boundary
-          events, and fits a characters-per-second rate from them. It cancels as soon as the fit is
-          good, so the probe takes a couple of seconds whether the text is 50 words or 5,000. Volume
-          is zero during the probe: nothing is audible until you press Play.
+          Speaks the opening at normal speed, watches the engine&rsquo;s own word-boundary events,
+          and fits a characters-per-second rate from them. It cancels as soon as the fit is good, so
+          the probe takes two to three seconds whether the text is 50 words or 5,000. Speeding the
+          probe up would finish sooner and skew the answer long, by 8% at 2.5x and 28% at 4x against
+          a stopwatch, so it does not. Volume is zero during the probe: nothing is audible until you
+          press Play.
         </p>
 
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-4 sm:grid-cols-2">
           <Field
             label="Voice"
             htmlFor="rt-voice"
@@ -370,17 +371,6 @@ function Measured({
               }))}
             />
           </Field>
-
-          <Slider
-            id="rt-probe-rate"
-            label="Probe rate"
-            value={rate}
-            min={1}
-            max={4}
-            step={0.5}
-            suffix="x"
-            onChange={setRate}
-          />
 
           <div className="flex items-end">
             <Toolbar>
@@ -468,7 +458,7 @@ function Measured({
             <p className="text-[12px] leading-relaxed text-[var(--c-text-muted)]">
               {measurement.complete
                 ? 'The whole text was spoken, so this is a measurement rather than a projection.'
-                : `Fitted from the first ${(measurement.covered * 100).toFixed(0)}% and scaled to the full length. It assumes the rest speaks at the same rate, which is wrong wherever the register changes, and that rate scaling is linear, which is close but not exact.`}
+                : `Fitted from the first ${(measurement.covered * 100).toFixed(0)}% and scaled to the full length. It assumes the rest speaks at the same rate, which is wrong wherever the register changes: a passage thick with numbers and acronyms takes far longer per character than prose.`}
               {drift !== null && Math.abs(drift) > 25 && (
                 <>
                   {' '}
