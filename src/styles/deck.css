@@ -1,58 +1,91 @@
 /*
  * The deck — the landing instrument.
  *
- * Kept out of global.css because it is one surface with a lot of geometry,
- * and mixing that into the site-wide sheet buries the parts every page uses.
  * Everything here is prefixed `deck-`; nothing outside `ProjectDeck` and its
  * stages should reach for these names.
  *
- * ## Two states
+ * ## One continuous handoff
  *
- * The section carries `data-phase="intro"` until the visitor scrolls, then
- * `data-phase="deck"` for good. Both states share one canvas, drawn full bleed
- * and never resized between them: the introduction, the roster and the readout
- * all float over it. Everything that moves in the handoff is `opacity`,
- * `transform` or `visibility`, so the exhibit underneath carries on running
- * through it.
- *
- * `visibility` is what takes the inactive layer out of the tab order and the
- * accessibility tree. `display: none` would do that too and would also cancel
- * the transition it is meant to animate out of.
+ * `--deck-t` runs 0 (landing card) to 1 (deck), set by `ProjectDeck` from the
+ * scroll position over the pinned range. Every difference between the two
+ * states is interpolated off it, so the handoff runs forward as the visitor
+ * scrolls down and backwards as they scroll up. `data-phase` carries the same
+ * value coarsely — `intro`, `moving`, `deck` — and is used only where a
+ * property cannot be interpolated: `display`, `visibility`, and therefore the
+ * tab order.
  *
  * ## Layout
  *
  * From `lg` the section is pinned: it is taller than the viewport, its inner
- * frame is sticky, and the extra height buys a stretch of scrolling that the
- * exhibit answers (`ParticleStage` spins the cloud up with it) before the page
- * releases into the work below.
+ * frame is sticky, and the extra height is the scroll distance the handoff
+ * spends itself over.
  *
- * Below `lg` there is no pin, because a long pinned section on a phone is the
- * single most complained-about pattern on the web, and the exhibit takes the
- * top of the screen with the roster and the readout stacked under it.
+ * The copy owns a fixed column on the left and the exhibit is inset to sit
+ * beside it, overlapping by `--deck-art-cover` so the two read as one
+ * composition rather than two panels with a seam between them.
+ *
+ * Below `lg` there is no pin: the exhibit takes the top of the screen with the
+ * roster and the readout stacked under it, and the handoff is a single step
+ * that `--deck-t` transitions through.
  *
  * ## Motion
  *
  * Every animation here is `opacity`, `transform`, `clip-path` or
  * `stroke-dashoffset`, so none of them touch layout. `prefers-reduced-motion`
- * is handled globally in global.css, which collapses all of them; the deck
- * stays fully usable because nothing is *communicated* by motion alone — the
- * held frame is marked by colour, weight and the counter as well.
+ * is handled globally in global.css; the deck stays usable because nothing is
+ * communicated by motion alone — the held frame is marked by colour, weight
+ * and the counter as well.
  */
+
+/*
+ * Registered so it can be transitioned below `lg`, where the handoff is a
+ * step rather than a scroll position, and so `calc()` can rely on its type.
+ */
+@property --deck-t {
+  syntax: '<number>';
+  inherits: true;
+  initial-value: 0;
+}
 
 @layer components {
   .deck {
+    --deck-t: 0;
+
+    /* Wide enough for the longest project name to set on one line. */
     --deck-rail-w: 8rem;
+    --deck-copy-w: clamp(21rem, 30vw, 28rem);
+    --deck-copy-col: calc(var(--deck-rail-w) + var(--deck-copy-w));
     --deck-token: 3.25rem;
-    --deck-copy-w: 30rem;
+
+    /*
+     * How far the exhibit runs under the copy column. Held at a few percent
+     * of the cloud: enough that the two overlap rather than sitting either
+     * side of a gap, little enough that nothing legible is behind type.
+     */
+    --deck-art-cover: 5vw;
+    /* Breathing room between the exhibit and the right edge of the frame. */
+    --deck-art-gap: 1.5rem;
+    --deck-art-left: calc(var(--deck-copy-col) - var(--deck-art-cover));
+
     /* Bottom of the stage the copy has to keep clear of the control row. */
     --deck-chrome-h: 8.5rem;
     /*
      * The fixed mobile bar, which `BaseLayout` clears with `pt-14`. A frame
-     * asking for `100dvh` under it is a screen and a bar tall, so its last
-     * 56 pixels are below the fold — which is where the landing card's links
-     * ended up before this was subtracted.
+     * asking for `100dvh` under it is a screen and a bar tall.
      */
     --deck-bar-h: 3.5rem;
+
+    /* Set size of the masthead, and how much larger it is on the landing card. */
+    --deck-mast-size: 1.4rem;
+    --deck-mast-grow: 2;
+    --deck-mast-big: calc(var(--deck-mast-size) * var(--deck-mast-grow));
+    /*
+     * Vertical space the enlarged name takes that the set size does not. The
+     * 0.92 is `.display`'s line height.
+     */
+    --deck-mast-drop: calc(var(--deck-mast-size) * 0.92 * (var(--deck-mast-grow) - 1));
+    --deck-mast-travel: 0px;
+
     position: relative;
   }
 
@@ -63,14 +96,36 @@
     display: grid;
     min-height: 100dvh;
     grid-template-columns: minmax(0, 1fr);
-    /* Tall enough that the control strip lying on it still leaves a cloud. */
-    grid-template-rows: minmax(54svh, 1fr) auto auto;
+    /*
+     * Exhibit, masthead, roster, readout. The exhibit takes what is left after
+     * the other three, with a floor that keeps a cloud on the screen even when
+     * the control strip is lying on it.
+     */
+    grid-template-rows: minmax(46svh, 1fr) auto auto auto;
     overflow: hidden;
+  }
+
+  /*
+   * Every child names its column as well as its row. An item with a definite
+   * row and an automatic column is placed by the auto-placement algorithm,
+   * which will not stack two of them in one cell: it opens an implicit second
+   * column instead, and the whole frame is cut in half.
+   */
+  .deck-stage,
+  .deck-scrim,
+  .deck-mast,
+  .deck-rail,
+  .deck-copy {
+    grid-column: 1;
   }
 
   @media (max-width: 63.999rem) {
     .deck-pin {
       min-height: calc(100dvh - var(--deck-bar-h));
+    }
+    /* No pin to scrub, so the step is transitioned instead. */
+    .deck {
+      transition: --deck-t var(--dur-slow) var(--ease-out);
     }
   }
 
@@ -78,6 +133,14 @@
     .deck {
       /* One screen of exhibit, then two thirds of a screen of dwell. */
       min-height: 168vh;
+      /*
+       * Sized so the landing name stays inside the copy column. Anything
+       * larger and it sets across the exhibit, which is the thing this
+       * layout exists to stop.
+       */
+      --deck-mast-size: clamp(1.45rem, 2.2vw, 2.15rem);
+      --deck-mast-grow: 1.9;
+      --deck-mast-travel: calc(50dvh - 13rem);
     }
     .deck-pin {
       position: sticky;
@@ -92,8 +155,8 @@
 
   /*
    * Below lg the stage is a row in the grid, so the roster and the readout
-   * stack under it. In the intro state those are hidden, the row takes the
-   * whole frame, and the exhibit is the screen.
+   * stack under it. From lg it fills the frame and everything else floats
+   * over it.
    */
   .deck-stage {
     position: relative;
@@ -117,11 +180,33 @@
   }
 
   /*
-   * The vignette. Lifted from the reference's own fragment shader, which
-   * centres its falloff off-axis rather than on the canvas middle: the exhibit
-   * sits right of centre here, so the clear region follows it. Painted in the
-   * page's ground colour, so it darkens on dark and lightens on light without
-   * a second token.
+   * The exhibit's own box, inside the stage but not the same as it: the
+   * chrome — control row, readout, ghost type — stays full bleed while the
+   * artwork is held to the right of the copy column.
+   *
+   * The clouds are square and drawn `fit`, so the drawn square is the shorter
+   * side of this box centred in it. Capping the width at the height keeps the
+   * box square or narrower, which pins the drawn square to the left edge and
+   * therefore makes the overlap with the copy column `--deck-art-cover` minus
+   * the engine's own padding, at every viewport size.
+   */
+  .deck-stage-art {
+    position: absolute;
+    inset: 0;
+  }
+
+  @media (min-width: 64rem) {
+    .deck-stage-art {
+      inset: 0 auto 0 var(--deck-art-left);
+      width: min(calc(100% - var(--deck-art-left) - var(--deck-art-gap)), 100dvh);
+    }
+  }
+
+  /*
+   * The vignette, lifted from the reference's own fragment shader: its falloff
+   * is centred off-axis so the clear region follows the exhibit. Painted in
+   * the page's ground colour, so it darkens on dark and lightens on light
+   * without a second token.
    */
   .deck-vignette {
     position: absolute;
@@ -129,8 +214,8 @@
     z-index: 16;
     pointer-events: none;
     background: radial-gradient(
-      118% 88% at 58% 46%,
-      transparent 42%,
+      118% 88% at 62% 46%,
+      transparent 44%,
       color-mix(in srgb, var(--c-ground) 62%, transparent) 100%
     );
   }
@@ -138,10 +223,9 @@
   /*
    * The scrim under the type.
    *
-   * The copy has no column of its own — it sits on the canvas — so this is what
-   * makes it readable. On a phone the copy is below the exhibit and the fade
-   * runs up from the bottom; from lg it is beside it and the fade runs in from
-   * the left, over exactly the width the rail and the copy occupy.
+   * On a phone the copy sits on the cloud and the fade runs up from the
+   * bottom; from lg only the overlap needs covering, so it is a short fade
+   * out of the left edge that dies just past the exhibit's left margin.
    */
   .deck-scrim {
     position: absolute;
@@ -154,20 +238,31 @@
   }
 
   /*
-   * On a phone the landing card has nowhere to go but on top of the cloud, so
-   * in that state the scrim covers the whole frame and holds the lower half
-   * nearly solid. Centring the type over a bright corona, as this first did,
-   * makes every line of it a light-grey word on a light-grey particle.
+   * Below lg nothing is set over the cloud — the masthead has a band of its
+   * own — so the scrim only has to stop the exhibit ending on a hard edge. It
+   * takes the exhibit row as a grid item so the fade is measured against that
+   * row rather than against the whole frame, which is three times as tall once
+   * the deck is out.
    */
   @media (max-width: 63.999rem) {
-    .deck[data-phase='intro'] .deck-scrim {
-      inset: 0;
+    .deck-scrim {
+      position: relative;
+      display: block;
+      inset: auto;
+      grid-row: 1;
       height: auto;
+      /*
+       * Stops on the control strip once that is out. The strip lives inside
+       * the stage's own stacking context, so a scrim painted over the stage
+       * covers it however the two are ordered; the only way past that is not
+       * to reach it.
+       */
+      margin-bottom: calc(var(--deck-t) * 3.5rem);
       background: linear-gradient(
         to top,
-        var(--c-ground) 0 20%,
-        color-mix(in srgb, var(--c-ground) 88%, transparent) 42%,
-        transparent 74%
+        var(--c-ground) 0 6%,
+        color-mix(in srgb, var(--c-ground) 55%, transparent) 20%,
+        transparent 42%
       );
     }
   }
@@ -175,37 +270,26 @@
   @media (min-width: 64rem) {
     .deck-scrim {
       /*
-       * Stops above the control row. The scrim paints over the stage, and the
-       * control row lives inside the stage, so a full-height scrim puts a wash
-       * of the page's own ground colour across the Subject chips and half the
-       * hint. Ending it on the control row's top border makes the seam land
-       * where there is already a line.
+       * Ends on the control row's top border, so the seam lands where there
+       * is already a line rather than across the Subject chips.
        */
       inset: 0 auto var(--deck-chrome-h) 0;
-      /*
-       * Wide enough, and held opaque long enough, that the counter at the far
-       * end of the `Building` rule is legible where the cloud's left arc
-       * crosses it. Reaching only to the edge of the copy left that one line
-       * sitting on the brightest part of the exhibit.
-       */
-      width: calc(var(--deck-rail-w) + var(--deck-copy-w) + 16rem);
+      width: calc(var(--deck-art-left) + var(--deck-art-cover) + 6rem);
       height: auto;
       background: linear-gradient(
         to right,
         var(--c-ground) 0%,
-        color-mix(in srgb, var(--c-ground) 95%, transparent) 55%,
-        color-mix(in srgb, var(--c-ground) 72%, transparent) 79%,
+        var(--c-ground) 52%,
+        color-mix(in srgb, var(--c-ground) 70%, transparent) 78%,
         transparent 100%
       );
     }
   }
 
   /*
-   * The site's statement, set behind the exhibit.
-   *
-   * Hatched rather than solid, and clipped to the glyphs, so it reads as
-   * drafting film under the instrument instead of as a headline someone forgot
-   * to finish. It deliberately runs off the right edge; the section clips it.
+   * The site's statement, set behind the exhibit. Hatched rather than solid
+   * and clipped to the glyphs, so it reads as drafting film under the
+   * instrument. It deliberately runs off the right edge; the section clips it.
    */
   .deck-ghost {
     position: absolute;
@@ -271,17 +355,21 @@
     animation: deck-scan 640ms var(--ease-out) both;
   }
 
-  /* The control row rises rather than appearing, since it arrives on a handoff. */
+  /* ── Controls ───────────────────────────────────────────────────── */
+
+  /* The control row rides in with the handoff rather than on a state change. */
   .deck-controls {
-    animation: deck-chrome-up var(--dur-slow) var(--ease-out) both;
+    opacity: var(--deck-t);
+    transform: translateY(calc((1 - var(--deck-t)) * 100%));
+  }
+  .deck[data-phase='intro'] .deck-controls {
+    visibility: hidden;
   }
 
   /*
-   * One strip, scrolled sideways on a phone; a wrapping row from lg.
-   *
-   * See the note in `StageShell.tsx`: the chrome lies on the exhibit, and three
-   * stacked control groups on a 390px screen is four hundred pixels of panel
-   * over the middle of the cloud.
+   * One strip, scrolled sideways on a phone; a wrapping row from lg. The
+   * chrome lies on the exhibit, and three stacked control groups on a 390px
+   * screen is four hundred pixels of panel over the middle of the cloud.
    */
   .deck-ctl-row {
     display: flex;
@@ -323,106 +411,97 @@
     }
   }
 
-  /* ── The landing card ───────────────────────────────────────────── */
+  /* ── The masthead ───────────────────────────────────────────────── */
 
-  .deck-intro {
-    position: absolute;
-    inset: 0;
-    z-index: 20;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    padding: 6rem var(--gutter) 7rem;
-    transition:
-      opacity var(--dur-slow) var(--ease-out),
-      transform var(--dur-slow) var(--ease-out),
-      visibility var(--dur-slow) step-end;
+  /*
+   * One element in both states. It is laid out where it ends up — top of the
+   * copy column — and the landing position is a transform off `--deck-t`, so
+   * the name travels and shrinks into place instead of being two elements
+   * that cross-fade.
+   *
+   * The name is scaled rather than resized so the motion composites; the
+   * lines under it are pushed down by exactly the height the scaled name
+   * takes and the set name does not.
+   */
+  /*
+   * Below lg it takes a band of its own under the exhibit, in both states:
+   * a phone has no room to set a name over a cloud and keep either legible.
+   * From lg it is absolute and travels.
+   */
+  .deck-mast {
+    position: relative;
+    grid-row: 2;
+    z-index: 24;
+    /*
+     * On the landing card this is the last thing on the screen and has to
+     * clear the CoronChat dock; once the deck is out the roster follows it.
+     */
+    padding: 0 var(--gutter) calc(7rem - var(--deck-t) * 5.5rem);
+    pointer-events: none;
+  }
+  .deck-mast :is(a, button) {
+    pointer-events: auto;
   }
 
   @media (min-width: 64rem) {
-    .deck-intro {
-      inset: 0 auto 0 0;
-      width: calc(var(--deck-rail-w) + var(--deck-copy-w) + 2rem);
-      padding: 6rem 3rem 7rem var(--gutter);
+    .deck-mast {
+      position: absolute;
+      top: 3.5rem;
+      left: var(--gutter);
+      width: min(var(--prose-max), calc(100% - 2 * var(--gutter)));
+      padding: 0;
+      transform: translate(
+        calc(var(--deck-t) * var(--deck-rail-w)),
+        calc((1 - var(--deck-t)) * var(--deck-mast-travel))
+      );
     }
   }
 
   /*
-   * The type is transparent to the cursor.
+   * Line height and tracking come from `.display`; only the size is ours.
    *
-   * The copy has no column of its own: it is a caption lying on the exhibit.
-   * A caption that swallows the pointer means the left third of the screen is
-   * dead to an engine whose whole claim is that it answers the cursor — and,
-   * less subtly, that a full-height column parked over the control row catches
-   * every click aimed at it. Only the things that are actually controls take
-   * the pointer back.
-   *
-   * The rail is the same story for a different reason: its tokens are centred
-   * in a full-height column, so the empty half of that column was sitting on
-   * top of the Subject chips and eating every click aimed at them.
-   *
-   * Below lg none of this applies: the copy sits under the exhibit on its own
-   * ground rather than over it.
+   * Below lg the size itself is interpolated, so the name wraps the way any
+   * heading would — a phone has no room for a name that cannot break. That
+   * costs a layout pass per frame, which is affordable because the handoff
+   * there is a single transition rather than a scroll position. From lg the
+   * name is scaled by a transform, which composites, and the lines under it
+   * are pushed down by hand since a scaled box never grows.
    */
+  .deck-mast-name {
+    font-size: calc(
+      var(--deck-mast-big) + (var(--deck-mast-size) - var(--deck-mast-big)) * var(--deck-t)
+    );
+  }
+
   @media (min-width: 64rem) {
-    .deck-intro,
-    .deck-copy,
-    .deck-rail {
-      pointer-events: none;
+    .deck-mast-name {
+      font-size: var(--deck-mast-size);
+      transform-origin: left top;
+      transform: scale(calc(1 + (var(--deck-mast-grow) - 1) * (1 - var(--deck-t))));
     }
-    .deck-intro :is(a, button, input, select, textarea, [tabindex]),
-    .deck-copy :is(a, button, input, select, textarea, [tabindex]),
-    .deck-rail :is(a, button, input, select, textarea, [tabindex]) {
-      pointer-events: auto;
+
+    .deck-mast-under {
+      transform: translateY(calc((1 - var(--deck-t)) * var(--deck-mast-drop)));
     }
   }
 
-  /*
-   * On a phone the card sits at the foot of the frame rather than in the middle
-   * of it, so the type lands on the solid end of the scrim and the cloud keeps
-   * the top two thirds of the screen to itself.
-   *
-   * This has to come after the base rule, not with the scrim it belongs to:
-   * same specificity, so source order is what decides it, and centred wins from
-   * anywhere above.
-   */
-  @media (max-width: 63.999rem) {
-    .deck-intro {
-      justify-content: flex-end;
-      /* Clears the CoronChat dock in the corner. */
-      padding-bottom: 7rem;
-    }
+  /* The sentence and the links, which belong to the landing card alone. */
+  .deck-lede {
+    opacity: max(0, calc(1 - var(--deck-t) * 1.8));
   }
-
-  .deck[data-phase='deck'] .deck-intro {
-    opacity: 0;
+  .deck[data-phase='deck'] .deck-lede {
     visibility: hidden;
-    transform: translateY(-1.25rem);
+  }
+  @media (max-width: 63.999rem) {
+    .deck[data-phase='deck'] .deck-lede {
+      display: none;
+    }
   }
 
-  .deck-intro-name {
-    font-size: clamp(2.75rem, 8.5vw, 5.5rem);
-    line-height: 0.94;
-    letter-spacing: -0.015em;
-  }
-
-  .deck-intro > * {
-    animation: deck-rise var(--dur-reveal) var(--ease-out) both;
-  }
-  .deck-intro > *:nth-child(2) {
-    animation-delay: 90ms;
-  }
-  .deck-intro > *:nth-child(3) {
-    animation-delay: 170ms;
-  }
-  .deck-intro > *:nth-child(4) {
-    animation-delay: 250ms;
-  }
-
-  .deck-intro-link {
+  .deck-lede-link {
     position: relative;
   }
-  .deck-intro-link::after {
+  .deck-lede-link::after {
     content: '';
     position: absolute;
     inset-inline: 0;
@@ -433,14 +512,14 @@
     transform-origin: left;
     transition: transform var(--dur-base) var(--ease-out);
   }
-  .deck-intro-link:hover::after {
+  .deck-lede-link:hover::after {
     transform: scaleX(1);
   }
 
   /* ── Rail ───────────────────────────────────────────────────────── */
 
   .deck-rail {
-    grid-row: 2;
+    grid-row: 3;
     z-index: 22;
     display: flex;
     align-items: flex-start;
@@ -454,7 +533,8 @@
   @media (min-width: 64rem) {
     .deck-rail {
       position: absolute;
-      inset: 0 auto 0 0;
+      /* Stops on the control row, so the arrows never land on the chips. */
+      inset: 0 auto var(--deck-chrome-h) 0;
       width: var(--deck-rail-w);
       flex-direction: column;
       justify-content: center;
@@ -463,6 +543,8 @@
       border-block: 0;
       border-right: var(--hairline) solid var(--c-line);
       background: transparent;
+      opacity: var(--deck-t);
+      transform: translateX(calc((var(--deck-t) - 1) * 1.25rem));
     }
   }
 
@@ -524,13 +606,9 @@
   /* ── Token ──────────────────────────────────────────────────────── */
 
   /*
-   * A disc and a name.
-   *
-   * The reference identifies each operator by a portrait, and a portrait is
-   * self-explanatory in a way a project mark is not: nobody reads a sigil and
-   * thinks "prompt templating library". So the mark orients and the name
-   * identifies, and the rail is wide enough to carry both rather than hiding
-   * the name behind a hover.
+   * A disc and a name. The mark orients and the name identifies — nobody
+   * reads a sigil and thinks "prompt templating library" — so the rail is
+   * wide enough to carry both rather than hiding the name behind a hover.
    */
   .deck-token {
     position: relative;
@@ -576,9 +654,9 @@
   }
 
   /*
-   * The dotted halo around the held token, lifted from the reference. It is
-   * what stops the rail reading as six equal buttons: the ring is legible from
-   * the far side of the page, where a 1px border change is not.
+   * The dotted halo around the held token. It is what stops the rail reading
+   * as six equal buttons: the ring is legible from the far side of the page,
+   * where a 1px border change is not.
    */
   .deck-token-disc::before {
     content: '';
@@ -628,7 +706,7 @@
   /* ── Copy ───────────────────────────────────────────────────────── */
 
   .deck-copy {
-    grid-row: 3;
+    grid-row: 4;
     z-index: 22;
     display: flex;
     min-width: 0;
@@ -641,23 +719,35 @@
   @media (min-width: 64rem) {
     .deck-copy {
       position: absolute;
-      /* Stops above the control row rather than reaching past it. */
-      inset: 0 auto var(--deck-chrome-h) var(--deck-rail-w);
+      /* Starts under the masthead and stops above the control row. */
+      inset: 8.5rem auto var(--deck-chrome-h) var(--deck-rail-w);
       width: var(--deck-copy-w);
       gap: 2rem;
-      padding: 3.5rem 2.75rem 1.5rem var(--gutter);
+      padding: 0 2.75rem 1.5rem var(--gutter);
       background: transparent;
+      opacity: var(--deck-t);
+      transform: translateY(calc((1 - var(--deck-t)) * 1rem));
     }
   }
 
-  /* The masthead, folded to two lines once the introduction has been read. */
-  .deck-fold {
-    animation: deck-fold-in var(--dur-slow) var(--ease-out) both;
-  }
-
-  .deck-name {
-    font-size: clamp(1.5rem, 2.2vw, 2.15rem);
-    line-height: 1;
+  /*
+   * The type is transparent to the cursor.
+   *
+   * The copy is a caption lying beside the exhibit, and the rail's tokens are
+   * centred in a full-height column. Either one taking the pointer means a
+   * band of the screen is dead to an engine whose whole claim is that it
+   * answers the cursor, and that a column parked over the control row catches
+   * every click aimed at it. Only the controls themselves take it back.
+   */
+  @media (min-width: 64rem) {
+    .deck-copy,
+    .deck-rail {
+      pointer-events: none;
+    }
+    .deck-copy :is(a, button, input, select, textarea, [tabindex]),
+    .deck-rail :is(a, button, input, select, textarea, [tabindex]) {
+      pointer-events: auto;
+    }
   }
 
   .deck-title {
@@ -672,9 +762,8 @@
   }
 
   /*
-   * Three segments, one rule. The reference runs a magenta/yellow/teal bar
-   * under every operator name; this is the same device in a palette that only
-   * owns one hue, so the segments are accent, ink, and line instead.
+   * Three segments, one rule — the reference's magenta/yellow/teal bar in a
+   * palette that only owns one hue, so the segments are accent, ink and line.
    */
   .deck-rule {
     height: 3px;
@@ -716,24 +805,26 @@
   /* ── The handoff ────────────────────────────────────────────────── */
 
   /*
-   * The roster and the readout are absent until the visitor has scrolled. They
-   * are not merely faded: `visibility` and `display` together keep them out of
-   * the tab order and off the phone layout, so the landing card really is the
-   * only thing on the screen rather than the only thing visible on it.
+   * At the landing end the roster and the readout are out of the tab order
+   * as well as invisible. Below lg they are rows in the grid, so they have to
+   * leave the layout entirely or the landing card is not a full screen.
    */
-  .deck[data-phase='intro'] .deck-rail,
-  .deck[data-phase='intro'] .deck-copy {
-    display: none;
+  .deck[data-phase='intro'] :is(.deck-rail, .deck-copy) {
+    visibility: hidden;
   }
 
-  .deck[data-phase='deck'] .deck-rail {
-    animation: deck-rail-in var(--dur-slow) var(--ease-out) both;
-  }
-
-  /* Each token arrives a beat after the one before it, so the rail assembles. */
-  .deck[data-phase='deck'] .deck-token {
-    animation: deck-token-in var(--dur-reveal) var(--ease-out) both;
-    animation-delay: calc(120ms + var(--deck-token-i, 0) * 55ms);
+  @media (max-width: 63.999rem) {
+    .deck[data-phase='intro'] :is(.deck-rail, .deck-copy) {
+      display: none;
+    }
+    /* No scroll to scrub, so the roster assembles on its own timing. */
+    .deck:not([data-phase='intro']) .deck-rail {
+      animation: deck-rail-in var(--dur-slow) var(--ease-out) both;
+    }
+    .deck:not([data-phase='intro']) .deck-token {
+      animation: deck-token-in var(--dur-reveal) var(--ease-out) both;
+      animation-delay: calc(120ms + var(--deck-token-i, 0) * 55ms);
+    }
   }
 
   /* ── Scroll cue ─────────────────────────────────────────────────── */
@@ -751,16 +842,14 @@
       align-items: center;
       gap: 0.75rem;
       color: var(--c-text-faint);
-      transition:
-        color var(--dur-fast) var(--ease-out),
-        opacity var(--dur-base) var(--ease-out);
+      opacity: max(0, calc(1 - var(--deck-t) * 2));
+      transition: color var(--dur-fast) var(--ease-out);
     }
     .deck-cue:hover {
       color: var(--c-text);
     }
-    /* In the deck state the control row owns the bottom of the screen. */
     .deck[data-phase='deck'] .deck-cue {
-      display: none;
+      visibility: hidden;
     }
     .deck-cue-line {
       display: block;
@@ -796,10 +885,9 @@
   /* ── Stage internals ────────────────────────────────────────────── */
 
   /*
-   * AgentStage — the graph.
-   *
-   * Inset from the stage so the run does not touch the viewport edges, and cut
-   * short at the bottom so the step readout has a clear band to sit in.
+   * AgentStage — the graph. Inset from the exhibit box so the run does not
+   * touch its edges, and cut short at the bottom so the step readout has a
+   * clear band to sit in.
    */
   .deck-graph {
     position: absolute;
@@ -807,7 +895,7 @@
   }
   @media (min-width: 64rem) {
     .deck-graph {
-      inset: 11% 14% 36% 11%;
+      inset: 11% 10% 36% 10%;
     }
   }
 
@@ -883,19 +971,6 @@
   }
 }
 
-/* The masthead lands where the landing card's name was leaving from. */
-@keyframes deck-fold-in {
-  from {
-    opacity: 0;
-    transform: translateY(-1.5rem) scale(1.12);
-    transform-origin: left top;
-  }
-  to {
-    opacity: 1;
-    transform: none;
-  }
-}
-
 @keyframes deck-rail-in {
   from {
     opacity: 0;
@@ -911,17 +986,6 @@
   from {
     opacity: 0;
     transform: translateX(-0.75rem) scale(0.8);
-  }
-  to {
-    opacity: 1;
-    transform: none;
-  }
-}
-
-@keyframes deck-chrome-up {
-  from {
-    opacity: 0;
-    transform: translateY(100%);
   }
   to {
     opacity: 1;

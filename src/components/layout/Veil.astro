@@ -1,5 +1,16 @@
 ---
 import Mark from '../ui/Mark.astro';
+
+interface Props {
+  /**
+   * Hold the veil until the page's exhibit reports in, rather than lifting on
+   * `load`. Only for a page that mounts something heavy above the fold; see the
+   * note below.
+   */
+  hold?: boolean;
+}
+
+const { hold = false } = Astro.props;
 /**
  * Veil — the contrast-wipe loading screen.
  *
@@ -8,22 +19,52 @@ import Mark from '../ui/Mark.astro';
  * with the palette in tokens.css). The reveal reads as a deliberate curtain
  * rather than a fade-in from the page's own background.
  *
- * Three behaviours that keep it from becoming an annoyance:
+ * ## What it waits for
+ *
+ * `load` is not enough on its own. It fires when the document's subresources
+ * are done, which on the home page is well before the deck island has
+ * hydrated, fetched its point cloud and started the engine — so the veil lifted
+ * onto a bare "Starting engine…" line, which is the opposite of what a loading
+ * screen is for.
+ *
+ * So a page that owns something slow passes `hold`, and the veil additionally
+ * waits for a `coronring:exhibit-ready` event on `window`. `ParticleStage`
+ * fires it on failure as well as on success: a veil that outlives a broken
+ * engine is worse than no veil.
+ *
+ * `hold` is a prop rather than something the script looks for in the document,
+ * because the decision has to be made **synchronously**, when the script runs.
+ * A slow load is exactly the case this exists for, and on a slow load nothing
+ * below this point in the body has been parsed yet — so a version that read the
+ * page hit its own ceiling before it ever discovered it should have been
+ * waiting.
+ *
+ * Four behaviours that keep it from becoming an annoyance:
  *
  *  1. **Fails open.** The element is `hidden` in the markup and only unhidden
  *     by the inline pre-paint script. No JS, no veil, content visible.
  *  2. **Once per session.** This is a multi-page app — veiling on every
  *     internal navigation would be intolerable. A sessionStorage flag limits
- *     it to the first page view of a visit.
- *  3. **Floor and ceiling.** A ~500ms floor stops it strobing on a warm cache;
- *     a 2.5s ceiling guarantees it lifts even if `load` never fires.
- *
- * `prefers-reduced-motion` skips it entirely — a full-screen wipe is exactly
- * the kind of motion that setting is asking us not to do.
+ *     it to the first page view of a visit. `?veil` on the URL overrides that,
+ *     which is the only way to see it twice without a new tab.
+ *  3. **Floor and ceiling.** A ~500ms floor stops it strobing on a warm cache.
+ *     A 2.5s ceiling guarantees it lifts even if `load` never fires, raised to
+ *     7s while waiting on an exhibit so a slow connection is covered and a hung
+ *     one is still bounded.
+ *  4. **Reduced motion skips it entirely** — a full-screen wipe is exactly the
+ *     kind of motion that setting is asking us not to do.
  */
 ---
 
-<div id="veil" class="veil" role="status" aria-live="polite" aria-label="Loading" hidden>
+<div
+  id="veil"
+  class="veil"
+  role="status"
+  aria-live="polite"
+  aria-label="Loading"
+  data-hold={hold ? '' : undefined}
+  hidden
+>
   <div class="veil-inner flex flex-col items-center gap-6">
     <Mark size={44} spinning weight={1.5} />
 
@@ -40,6 +81,7 @@ import Mark from '../ui/Mark.astro';
 
     // Respect reduced-motion, and only veil the first view of a session.
     var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    var forced = /(^|[?&])veil($|[=&])/.test(location.search);
     var seen = false;
     try {
       seen = sessionStorage.getItem(KEY) === '1';
@@ -47,7 +89,7 @@ import Mark from '../ui/Mark.astro';
       /* Private mode: treat as unseen; the floor/ceiling still bound it. */
     }
 
-    if (reduce || seen) {
+    if (reduce || (seen && !forced)) {
       el.remove();
       return;
     }
@@ -58,11 +100,21 @@ import Mark from '../ui/Mark.astro';
     var start = Date.now();
     var MIN = 500;
     var MAX = 2500;
+    /* Long enough to cover a cold engine on a slow line, short enough that a
+       hung one still lets the page go. */
+    var MAX_HELD = 7000;
+
     var lifted = false;
+    var loaded = false;
+    var exhibitReady = false;
+    /* Read from our own element, so the ceiling is right from the first tick. */
+    var held = el.hasAttribute('data-hold');
+    var ceiling = setTimeout(lift, held ? MAX_HELD : MAX);
 
     function lift() {
       if (lifted) return;
       lifted = true;
+      clearTimeout(ceiling);
       try {
         sessionStorage.setItem(KEY, '1');
       } catch (e) {
@@ -76,13 +128,23 @@ import Mark from '../ui/Mark.astro';
       }, 1000);
     }
 
-    function scheduleLift() {
+    /** Lift once everything being waited on has arrived, no sooner than MIN. */
+    function settle() {
+      if (!loaded || (held && !exhibitReady)) return;
       setTimeout(lift, Math.max(0, MIN - (Date.now() - start)));
     }
 
-    if (document.readyState === 'complete') scheduleLift();
-    else window.addEventListener('load', scheduleLift, { once: true });
+    window.addEventListener('coronring:exhibit-ready', function () {
+      exhibitReady = true;
+      settle();
+    });
 
-    setTimeout(lift, MAX);
+    function onLoad() {
+      loaded = true;
+      settle();
+    }
+
+    if (document.readyState === 'complete') onLoad();
+    else window.addEventListener('load', onLoad, { once: true });
   })();
 </script>

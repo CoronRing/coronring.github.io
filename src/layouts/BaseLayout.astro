@@ -36,6 +36,12 @@ interface Props {
    * floating copy of it over its own page is clutter, not a second door in.
    */
   hideChatDock?: boolean;
+  /**
+   * Keep the loading veil up until this page's exhibit reports in, rather than
+   * lifting it on `load`. For a page that mounts something heavy above the
+   * fold; see `components/layout/Veil.astro`.
+   */
+  holdVeil?: boolean;
 }
 
 const {
@@ -44,6 +50,7 @@ const {
   image = '/og-default.png',
   noindex = false,
   hideChatDock = false,
+  holdVeil = false,
 } = Astro.props;
 
 const pageTitle = title ? `${title} · ${SITE.handle}` : SITE.title;
@@ -99,7 +106,7 @@ const ogImage = absolute(image, SITE.url);
   </head>
 
   <body class="min-h-dvh">
-    <Veil />
+    <Veil hold={holdVeil} />
     <Backdrop />
     <Sidebar />
 

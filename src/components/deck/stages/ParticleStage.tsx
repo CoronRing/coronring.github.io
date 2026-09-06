@@ -7,21 +7,13 @@ import ParticleWave, {
 import { imageToCloud, type PwCloud } from '../../../lib/image-to-cloud';
 import { API_BASE, convertViaApi } from '../../../lib/particle-wave-api';
 import { href } from '../../../lib/url';
+import { readToken, waveFrontConfig } from '../../../lib/particle-theme';
 import { Chips, Segment, StageShell } from '../StageShell';
 
 /**
- * ParticleStage — the published engine, running edge to edge, with three knobs.
+ * ParticleStage — the published engine, running at size, with three knobs.
  *
- * ## What changed, and why
- *
- * This replaces a 420px canvas under twenty sliders. The canvas is now the
- * frame: it fills the deck's stage column and bleeds off three sides, because
- * the engine's whole claim is that it holds up at size and under a cursor.
- * The parameter sheet moved to the project page, where a reader who wants it
- * has already asked for it.
- *
- * What is left is the three decisions that change the picture in under a
- * second:
+ * ## Three controls
  *
  *   SUBJECT  which cloud is on the table — and the upload path, which is the
  *            half of the project that is not JavaScript
@@ -30,13 +22,12 @@ import { Chips, Segment, StageShell } from '../StageShell';
  *            because "aurora with no trails" is a distinction nobody standing
  *            in front of it for four seconds cares about
  *
- * ## Why a subject change is a morph rather than a rebuild
+ * ## A subject change is a morph, not a rebuild
  *
- * Switching subject used to tear the instance down and build another one, so
- * one picture was replaced by a different picture and the interesting part —
- * that this is a physical system holding a shape — went past unstated. The
- * engine now pairs the live particles with the points of the new cloud and
- * moves them there, so the corona comes apart and reassembles as the orrery.
+ * The engine pairs the live particles with the points of the new cloud and
+ * moves them there, so the corona comes apart and reassembles as the orrery —
+ * which is the interesting claim, that this is a physical system holding a
+ * shape rather than a picture being replaced.
  *
  * That needs the buffers sized for the largest cloud up front, which is what
  * `capacity` is for: the biggest of the three is 7,815 points, so 8,200 covers
@@ -96,11 +87,8 @@ const FIELDS: ReadonlyArray<{ value: MouseMode; label: string }> = [
  * visible, because a cloud turning at rest moves each particle a fraction of a
  * pixel per frame, so the "tail" is shorter than the particle is wide.
  *
- * That is fixed in the engine (see ParticleWave's changelog: trail draws are
- * batched, and gated on real movement), but the fix has not been published
- * yet, and the deck is the first screen of the site. So the presets here are
- * built out of things that are free at this cloud size: the colour ramp, what
- * it is mapped to, and the particle radius.
+ * So the presets are built out of things that are free at this cloud size: the
+ * colour ramp, what it is mapped to, and the particle radius.
  *
  * `ink` follows the page's own particle token, so it is the look the hero and
  * the deck agree on and the default. `charge` maps the ramp to *speed*, which
@@ -176,9 +164,9 @@ const SPIN_DECAY = 0.9;
 
 const BASE: Partial<ParticleWaveConfig> = {
   /*
-   * Nearly none. The stage is the whole first screen, so the cloud should reach
-   * the top and bottom of it; the vignette and the copy scrim are what keep the
-   * edges from feeling cut, not empty canvas.
+   * Nearly none. The exhibit box is a full-height column, so the cloud should
+   * reach the top and bottom of it; the vignette is what keeps the edges from
+   * feeling cut, not empty canvas.
    */
   padding: 0.015,
   scaleMode: 'fit',
@@ -207,12 +195,6 @@ const BASE: Partial<ParticleWaveConfig> = {
 interface Props {
   /** True while this frame is the one on the deck. Drives pause/resume. */
   active: boolean;
-  /**
-   * Whether to show the control row. False on the landing card, where the
-   * canvas is the only thing on screen and a panel of settings under a name is
-   * the opposite of an introduction.
-   */
-  chrome?: boolean;
 }
 
 interface Source {
@@ -231,7 +213,22 @@ interface Source {
  */
 const INITIAL_SOURCE: Source = { key: 'corona', src: '', label: 'Corona' };
 
-export default function ParticleStage({ active, chrome = true }: Props): React.ReactElement {
+/**
+ * Tell the loading veil the exhibit has settled, either way.
+ *
+ * The veil is inline in `BaseLayout` and would otherwise lift on `load`, which
+ * fires before this island has hydrated, fetched its cloud and started the
+ * engine. That handed a visitor from a designed loading screen to a bare
+ * "Starting engine…" line. See `components/layout/Veil.astro`.
+ *
+ * The failure path fires it too: a veil that outlives a broken engine is worse
+ * than no veil, and the message underneath says what went wrong.
+ */
+function settle(): void {
+  window.dispatchEvent(new Event('coronring:exhibit-ready'));
+}
+
+export default function ParticleStage({ active }: Props): React.ReactElement {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const instanceRef = useRef<ParticleWaveInstance | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -299,6 +296,7 @@ export default function ParticleStage({ active, chrome = true }: Props): React.R
 
         instanceRef.current = instance;
         setStatus('ready');
+        settle();
         setReadout({ points: instance.stats.particleCount, fps: 0 });
 
         /*
@@ -314,6 +312,7 @@ export default function ParticleStage({ active, chrome = true }: Props): React.R
       } catch (err) {
         if (disposed) return;
         setStatus('error');
+        settle();
         setMessage(err instanceof Error ? err.message : 'The engine failed to start.');
       }
     })();
@@ -524,37 +523,37 @@ export default function ParticleStage({ active, chrome = true }: Props): React.R
           )}
         </span>
       }
-      hint={
-        chrome
-          ? 'Cursor pushes the field · click sends a wave · right-click pulls it in'
-          : undefined
-      }
+      hint="Cursor pushes the field · click sends a wave · right-click pulls it in"
       controls={
-        chrome ? (
-          <>
-            <Chips
-              label="Subject"
-              value={subject}
-              options={SUBJECTS.map((s) => ({ value: s.key, label: s.label }))}
-              onChange={pickSubject}
-              disabled={status !== 'ready'}
-            />
-            <Segment label="Field" value={field} options={FIELDS} onChange={setField} />
-            <Chips
-              label="Look"
-              value={look}
-              options={LOOKS.map((l) => ({ value: l.value, label: l.label, swatch: l.swatch }))}
-              onChange={setLook}
-            />
-          </>
-        ) : undefined
+        <>
+          <Chips
+            label="Subject"
+            value={subject}
+            options={SUBJECTS.map((s) => ({ value: s.key, label: s.label }))}
+            onChange={pickSubject}
+            disabled={status !== 'ready'}
+          />
+          <Segment label="Field" value={field} options={FIELDS} onChange={setField} />
+          <Chips
+            label="Look"
+            value={look}
+            options={LOOKS.map((l) => ({ value: l.value, label: l.label, swatch: l.swatch }))}
+            onChange={setLook}
+          />
+        </>
       }
     >
+      {/*
+        `touch-action: pan-y` rather than `none`: the field still follows a
+        finger, but a vertical drag over the exhibit scrolls the page. With
+        `none` the canvas covers most of the first screen on a phone and there
+        is nothing left to swipe on.
+      */}
       <canvas
         ref={canvasRef}
         aria-label="Particle Wave, an interactive point cloud"
         role="img"
-        className="block size-full cursor-crosshair touch-none"
+        className="block size-full cursor-crosshair touch-pan-y"
       />
 
       <input
@@ -586,39 +585,5 @@ function lookConfig(look: LookKey): Partial<ParticleWaveConfig> {
     ...preset.config,
     particleColor: readToken('--c-particle', '#ffffff'),
     particleOpacity: Number(readToken('--particle-opacity', '0.85')),
-  };
-}
-
-/** Current value of a CSS custom property on :root. */
-function readToken(name: string, fallback: string): string {
-  if (typeof window === 'undefined') return fallback;
-  const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
-  return v || fallback;
-}
-
-/** Whether the page is currently rendering dark, explicit choice or system. */
-function isDarkTheme(): boolean {
-  if (typeof window === 'undefined') return true;
-  const chosen = document.documentElement.dataset.theme;
-  if (chosen === 'dark') return true;
-  if (chosen === 'light') return false;
-  return window.matchMedia('(prefers-color-scheme: dark)').matches;
-}
-
-/**
- * How the travelling wave front should be drawn for the current theme.
- *
- * The front's glow is an *additive* band: it brightens whatever it crosses.
- * Over the dark theme's near-black ground that is exactly right and is what
- * makes a click read as a wave. Over the light theme's near-white ground it is
- * very nearly a no-op — adding white to white — so light gets the ink colour
- * with the glow off, which draws the core line with normal blending and is
- * legible for the opposite reason.
- */
-function waveFrontConfig(): Partial<ParticleWaveConfig> {
-  const dark = isDarkTheme();
-  return {
-    clickWaveVisualColor: readToken('--c-text', dark ? '#f5f5f5' : '#191919'),
-    clickWaveVisualGlow: dark,
   };
 }

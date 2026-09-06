@@ -4,36 +4,26 @@
  *
  * ## The three-control rule
  *
- * The surface this replaced offered twenty-odd sliders and selects under a
- * 420px canvas, which is a parameter reference sheet, not an exhibit. A
- * visitor who has never seen the engine cannot tell which of twenty numbers is
- * the interesting one, so they move none of them.
- *
- * A stage therefore gets **at most three** control groups, and each one has to
- * change the picture in a way that is obvious within a second. The full
- * parameter set still exists, on the project page, for the reader who wants
- * it. This is the trailer, not the manual.
+ * A stage gets **at most three** control groups, and each one has to change
+ * the picture in a way that is obvious within a second. A visitor who has
+ * never seen the engine cannot tell which of twenty numbers is the interesting
+ * one, so they move none of them; the full parameter set lives on the project
+ * page, for the reader who has asked for it. This is the trailer, not the
+ * manual.
  *
  * `Segment` and `Chips` are the only two shapes offered, deliberately: with
  * one row of controls per stage and two possible shapes, every exhibit reads
- * the same way even though no two do the same thing.
- *
- * The shell fills the deck's whole first screen, so this row is the bottom of
- * the viewport rather than the bottom of a box. Passing no controls at all is a
- * supported state: the landing card shows the exhibit with nothing on it.
+ * the same way even though no two do the same thing. Passing no controls at
+ * all is supported.
  *
  * ## Why the row scrolls sideways on a phone
  *
- * The chrome lies *on* the exhibit rather than under it, which is what lets the
- * canvas stay the same size in both of the deck's states. That is free on a
- * desktop, where three control groups are one row of about fifty pixels. On a
- * 390px screen the same three groups stacked into nearly four hundred pixels of
- * panel sitting over the middle of the cloud.
- *
- * So below `lg` the row keeps its shape and scrolls: labels move inline, the
- * groups sit end to end, and the whole thing is one thumb-height strip along
- * the bottom of the exhibit. Everything is still reachable, and the exhibit is
- * still the screen.
+ * The chrome lies *on* the exhibit rather than under it, which is what lets
+ * the canvas stay the same size through the deck's handoff. On a 390px screen
+ * three stacked control groups are nearly four hundred pixels of panel over
+ * the middle of the cloud, so below `lg` the row keeps its shape and scrolls:
+ * labels move inline, the groups sit end to end, and the whole thing is one
+ * thumb-height strip along the bottom of the exhibit.
  */
 
 interface ShellProps {
@@ -50,13 +40,13 @@ export function StageShell({ controls, readout, hint, children }: ShellProps): R
   return (
     <div className="absolute inset-0">
       {/*
-        The exhibit fills the shell, and the chrome floats over it rather than
-        taking a row of its own. That is not only a bigger canvas: it means
-        showing or hiding the controls does not resize it, so the deck's
-        landing card can hand over to its instrument without the engine having
-        to re-lay out the cloud underneath.
+        The artwork gets its own box, held to the right of the copy column at
+        desktop widths (see `.deck-stage-art`). The chrome floats over the
+        whole shell rather than taking a row of its own, so showing or hiding
+        the controls never resizes the exhibit and the engine never has to
+        re-lay out the cloud underneath.
       */}
-      <div className="absolute inset-0">{children}</div>
+      <div className="deck-stage-art">{children}</div>
 
       {readout && (
         <div className="text-faint pointer-events-none absolute top-4 right-4 z-20 font-mono text-[10px] tracking-[0.14em] tabular-nums lg:top-6 lg:right-8">

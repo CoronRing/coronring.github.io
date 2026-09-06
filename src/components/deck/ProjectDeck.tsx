@@ -9,31 +9,35 @@ import ReservedStage from './stages/ReservedStage';
 /**
  * ProjectDeck — the landing page.
  *
- * ## Two states, one screen
+ * ## Two states on one continuum
  *
- * **Intro.** A name, what the name does, one line, and the exhibit running
- * edge to edge behind all of it. Nothing else: no rail, no controls, no
- * counter. A visitor who has been here for one second is not choosing between
- * six projects, they are deciding whether to stay.
+ * **Landing.** A name, what the name does, one line, and the exhibit running
+ * beside all of it. Nothing else: no rail, no controls, no counter. A visitor
+ * who has been here for one second is not choosing between six projects, they
+ * are deciding whether to stay.
  *
- * **Deck.** The moment they scroll — any amount — the introduction folds up
- * into two lines at the top, the roster slides in from the left, and the
- * controls rise from the bottom. Same canvas, same instance, no reload: the
- * page turns from a title card into an instrument while the exhibit carries on
- * running through both.
+ * **Deck.** The introduction folds up into two lines at the top, the roster
+ * slides in from the left, and the controls rise from the bottom. Same canvas,
+ * same instance, no reload.
+ *
+ * The handoff is a scroll position, not a switch. `--deck-t` runs 0 to 1 over
+ * the first part of the pinned range and every difference between the two
+ * states is interpolated off it in CSS, so scrolling back up runs the whole
+ * thing in reverse and the name travels between its two homes rather than
+ * being two elements that cross-fade. `phase` carries the same value coarsely,
+ * for the things CSS cannot interpolate — `visibility`, `display`, and so the
+ * tab order.
  *
  * The section is taller than the viewport with the whole of it pinned, so the
- * first scroll buys the transition rather than scrolling the introduction off
- * the top. What is left of the pinned range is dwell: the cloud spins up with
- * the scroll (see `ParticleStage`), so the extra distance pays for itself
- * before the page releases into the work below.
+ * scroll that buys the handoff does not also scroll the introduction off the
+ * top. What is left of the pinned range is dwell: the cloud spins up with the
+ * scroll (see `ParticleStage`) before the page releases into the work below.
  *
- * ## The exhibit is the page
+ * ## The exhibit sits beside the copy, not under it
  *
- * The canvas is full-bleed in both states and never resized between them —
- * everything else floats over it, held legible by a scrim rather than by being
- * given a column of its own. That is the largest the exhibit can be, and it
- * means the transition costs the engine nothing.
+ * The canvas is inset to the right of the copy column and overlaps it by
+ * `--deck-art-cover` (see deck.css), so the two read as one composition and
+ * nothing legible is ever behind type.
  *
  * ## Semantics
  *
@@ -60,22 +64,33 @@ interface Props {
   indexHref: string;
 }
 
-/** Anything past this and the visitor has decided to look at the page. */
+/** Coarse read of `--deck-t`, for the properties that cannot be interpolated. */
+type Phase = 'intro' | 'moving' | 'deck';
+
+/** Share of the pinned range the handoff spends itself over; the rest is dwell. */
+const HANDOFF_SHARE = 0.55;
+
+/** Unpinned, the handoff is a step. Anything past this and the visitor has scrolled. */
 const HANDOFF_PX = 24;
+
+/** Where the deck is pinned and the handoff can be scrubbed. Matches deck.css. */
+const PINNED = '(min-width: 64rem)';
+
+function clamp01(value: number): number {
+  return value < 0 ? 0 : value > 1 ? 1 : value;
+}
 
 /**
  * Display size for a frame title, stepped by length.
  *
  * The measure is fixed and the display face is wide, so one size cannot hold
  * both `Evaluation` and `gs_prompt_manager`. Setting long names smaller is the
- * ordinary typographic answer and what the reference does with its own longer
- * operator names; the alternative is a hyphenless mid-word break, which is
- * what `GS_PROMPT_M / ANAGER` looked like.
+ * ordinary typographic answer; the alternative is a hyphenless mid-word break.
  */
 function titleSize(title: string): string {
-  if (title.length > 15) return 'text-[clamp(1.35rem,1.9vw,1.9rem)]';
-  if (title.length > 12) return 'text-[clamp(1.6rem,2.2vw,2.3rem)]';
-  return 'text-[clamp(1.85rem,2.6vw,2.75rem)]';
+  if (title.length > 15) return 'text-[clamp(1.25rem,1.6vw,1.6rem)]';
+  if (title.length > 12) return 'text-[clamp(1.45rem,1.9vw,1.95rem)]';
+  return 'text-[clamp(1.7rem,2.3vw,2.35rem)]';
 }
 
 /** The reference's black-label / light-value metadata pair. */
@@ -104,7 +119,7 @@ export default function ProjectDeck({
   const frames = useMemo(() => buildFrames(projects), [projects]);
   const uid = useId();
   const [index, setIndex] = useState(0);
-  const [phase, setPhase] = useState<'intro' | 'deck'>('intro');
+  const [phase, setPhase] = useState<Phase>('intro');
   /** False while the deck is scrolled away — stages pause rather than run blind. */
   const [onScreen, setOnScreen] = useState(true);
   const sectionRef = useRef<HTMLElement | null>(null);
@@ -125,37 +140,59 @@ export default function ProjectDeck({
   /*
    * The handoff.
    *
-   * Any scroll at all, and a wheel or a swipe that has not moved the page yet,
-   * because the section is pinned and the first notch of a trackpad gesture
-   * should be answered by something. Once made, it does not go back: a page
-   * that returns to its title card when the visitor scrolls up is a page that
-   * has lost their place.
+   * `--deck-t` is written straight to the element rather than held in state:
+   * it changes every frame the page is moving, and re-rendering six tokens and
+   * a readout at 60Hz to move one number is not a trade worth making. The
+   * three-valued `phase` does go through state, and changes at most twice per
+   * pass.
    */
   useEffect(() => {
-    if (phase === 'deck') return;
+    const section = sectionRef.current;
+    if (!section) return;
 
-    const advance = (): void => setPhase('deck');
-    const onScroll = (): void => {
-      if (window.scrollY > HANDOFF_PX) advance();
-    };
-    const onKey = (event: KeyboardEvent): void => {
-      if (['ArrowDown', 'PageDown', 'End', ' ', 'Tab'].includes(event.key)) advance();
+    const pinned = window.matchMedia(PINNED);
+    let frameId = 0;
+
+    const read = (): void => {
+      frameId = 0;
+      const travelled = window.scrollY - section.offsetTop;
+      let t: number;
+
+      if (pinned.matches) {
+        const range = (section.offsetHeight - window.innerHeight) * HANDOFF_SHARE;
+        t = range > 0 ? clamp01(travelled / range) : travelled > HANDOFF_PX ? 1 : 0;
+      } else {
+        t = travelled > HANDOFF_PX ? 1 : 0;
+      }
+
+      section.style.setProperty('--deck-t', t.toFixed(4));
+      setPhase(t < 0.02 ? 'intro' : t > 0.98 ? 'deck' : 'moving');
     };
 
-    window.addEventListener('scroll', onScroll, { passive: true });
-    window.addEventListener('wheel', advance, { passive: true, once: true });
-    window.addEventListener('touchmove', advance, { passive: true, once: true });
-    window.addEventListener('keydown', onKey);
-    // A reload part-way down the page starts where the visitor left off.
-    onScroll();
+    const schedule = (): void => {
+      if (!frameId) frameId = requestAnimationFrame(read);
+    };
+
+    read();
+    window.addEventListener('scroll', schedule, { passive: true });
+    window.addEventListener('resize', schedule);
+    pinned.addEventListener('change', schedule);
 
     return () => {
-      window.removeEventListener('scroll', onScroll);
-      window.removeEventListener('wheel', advance);
-      window.removeEventListener('touchmove', advance);
-      window.removeEventListener('keydown', onKey);
+      if (frameId) cancelAnimationFrame(frameId);
+      window.removeEventListener('scroll', schedule);
+      window.removeEventListener('resize', schedule);
+      pinned.removeEventListener('change', schedule);
     };
-  }, [phase]);
+  }, []);
+
+  /** The cue does what the scroll it stands in for would do. */
+  const advance = useCallback(() => {
+    const section = sectionRef.current;
+    if (!section) return;
+    const range = Math.max(section.offsetHeight - window.innerHeight, window.innerHeight * 0.6);
+    window.scrollTo({ top: section.offsetTop + range * HANDOFF_SHARE });
+  }, []);
 
   // Pause every stage while the deck is off screen or the tab is hidden.
   useEffect(() => {
@@ -213,14 +250,7 @@ export default function ProjectDeck({
     [go, index, total],
   );
 
-  const deck = phase === 'deck';
-
-  /*
-   * The layer that is not in play is hidden with `visibility`, set in CSS off
-   * `data-phase`. That is what takes it out of the tab order and the
-   * accessibility tree; `aria-hidden` alone would leave it focusable, and
-   * `display: none` would kill the transition it is supposed to animate out of.
-   */
+  const landed = phase === 'deck';
 
   return (
     <section
@@ -231,7 +261,7 @@ export default function ProjectDeck({
       className="deck border-line relative border-b"
     >
       <div className="deck-pin">
-        {/* ── The exhibit, full bleed, in both states ─────────────── */}
+        {/* ── The exhibit ─────────────────────────────────────────── */}
         <div className="deck-stage">
           {/*
             The site's statement, set behind the exhibit. The stages draw on a
@@ -244,19 +274,17 @@ export default function ProjectDeck({
           <h1 className="deck-ghost">{statement}</h1>
 
           <div
-            key={deck ? frame.id : frames[0]!.id}
+            key={frame.id}
             id={`${uid}-panel`}
             role="tabpanel"
             aria-labelledby={`${uid}-tab-${frame.id}`}
             tabIndex={-1}
             className="deck-stage-inner"
           >
-            {(!deck || frame.stage === 'particle') && (
-              <ParticleStage active={onScreen} chrome={deck} />
-            )}
-            {deck && frame.stage === 'agent' && <AgentStage active={onScreen} />}
-            {deck && frame.stage === 'prompt' && <PromptStage active={onScreen} />}
-            {deck && frame.stage === 'reserved' && (
+            {frame.stage === 'particle' && <ParticleStage active={onScreen} />}
+            {frame.stage === 'agent' && <AgentStage active={onScreen} />}
+            {frame.stage === 'prompt' && <PromptStage active={onScreen} />}
+            {frame.stage === 'reserved' && (
               <ReservedStage sigil={frame.sigil} title={frame.title} active={onScreen} />
             )}
             <span aria-hidden="true" className="deck-scan" />
@@ -265,32 +293,36 @@ export default function ProjectDeck({
           <span aria-hidden="true" className="deck-vignette" />
         </div>
 
-        {/* Holds the type legible over the canvas, in whichever direction the
-            copy sits from it at this width. */}
+        {/* Holds the type legible where it crosses the exhibit. */}
         <span aria-hidden="true" className="deck-scrim" />
 
-        {/* ── The landing card ────────────────────────────────────── */}
-        <div className="deck-intro" aria-hidden={deck}>
-          <p className="deck-intro-name display">{name}</p>
-          <p className="eyebrow eyebrow-marked mt-4">{role}</p>
-          <p className="text-muted prose-measure mt-6 text-base leading-relaxed sm:text-lg">
-            {intro}
-          </p>
-          <div className="mt-8 flex flex-wrap items-center gap-x-6 gap-y-3">
-            {links.map((link) => (
-              <a
-                key={link.label}
-                href={link.href}
-                className="deck-intro-link text-muted hover:text-accent font-mono text-xs tracking-wide uppercase transition-colors"
-              >
-                {link.label}
-              </a>
-            ))}
+        {/* ── The masthead, in both states ────────────────────────── */}
+        <div className="deck-mast">
+          <p className="deck-mast-name display">{name}</p>
+          <div className="deck-mast-under">
+            <p className="eyebrow eyebrow-marked mt-3">{role}</p>
+            <div className="deck-lede" aria-hidden={landed}>
+              <p className="text-muted prose-measure mt-6 text-base leading-relaxed sm:text-lg">
+                {intro}
+              </p>
+              <div className="mt-8 flex flex-wrap items-center gap-x-6 gap-y-3">
+                {links.map((link) => (
+                  <a
+                    key={link.label}
+                    href={link.href}
+                    tabIndex={landed ? -1 : undefined}
+                    className="deck-lede-link text-muted hover:text-accent font-mono text-xs tracking-wide uppercase transition-colors"
+                  >
+                    {link.label}
+                  </a>
+                ))}
+              </div>
+            </div>
           </div>
         </div>
 
         {/* ── The roster ──────────────────────────────────────────── */}
-        <div className="deck-rail" aria-hidden={!deck}>
+        <div className="deck-rail" aria-hidden={phase === 'intro'}>
           <button
             type="button"
             onClick={() => go(index - 1)}
@@ -365,17 +397,7 @@ export default function ProjectDeck({
         </div>
 
         {/* ── The readout ─────────────────────────────────────────── */}
-        <div className="deck-copy" aria-hidden={!deck}>
-          {/*
-            The masthead, folded to two lines. Everything the landing card said
-            at full size is either here in miniature or gone: what a visitor
-            needs at this point is which project they are looking at.
-          */}
-          <div className="deck-fold">
-            <p className="deck-name display">{name}</p>
-            <p className="eyebrow mt-1.5">{role}</p>
-          </div>
-
+        <div className="deck-copy" aria-hidden={phase === 'intro'}>
           <div className="mt-auto">
             <div className="border-line flex items-baseline gap-4 border-t pt-4">
               <span className="eyebrow">Building</span>
@@ -441,16 +463,12 @@ export default function ProjectDeck({
           </div>
         </div>
 
-        {/*
-          A button rather than a link. In the intro state there is nowhere to
-          go: what the visitor wants is the deck, and that is a state change on
-          this section, not a destination.
-        */}
         <button
           type="button"
           className="deck-cue"
           aria-label="Show the projects"
-          onClick={() => setPhase('deck')}
+          tabIndex={landed ? -1 : undefined}
+          onClick={advance}
         >
           <span className="eyebrow">Scroll</span>
           <span aria-hidden="true" className="deck-cue-line" />

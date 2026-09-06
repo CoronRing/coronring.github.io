@@ -257,7 +257,6 @@ export default function ChunkVisualizer(): React.ReactElement {
               text={text}
               onChange={setText}
               painted={painted}
-              chunks={chunks}
               focus={focus}
             />
           )}
@@ -520,13 +519,11 @@ function LiveHighlightedEditor({
   text,
   onChange,
   painted,
-  chunks,
   focus,
 }: {
   text: string;
   onChange: (value: string) => void;
   painted: ReturnType<typeof paintChunks>;
-  chunks: readonly Chunk[];
   focus: number | null;
 }): React.ReactElement {
   const textareaRef = useRef<HTMLTextAreaElement>(null);

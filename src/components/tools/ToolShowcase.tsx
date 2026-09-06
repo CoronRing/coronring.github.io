@@ -4,17 +4,15 @@ import { screenFor, type Tone } from './showcase';
 /**
  * ToolShowcase — the tools band, as one instrument instead of ten cards.
  *
- * ## What this replaces
+ * ## The shape
  *
- * A grid of ten boxes, each holding a name, a sentence and an arrow. Ten
- * identical rectangles is not a menu, it is a wall, and nothing in it moves or
- * shows what any of the tools actually do. A visitor scanning it learns that
- * there are ten of something.
+ * A roster on the left, and on the right a screen that plays the selected tool:
+ * its input typed out, then its output arriving row by row. Ten identical
+ * rectangles holding a name, a sentence and an arrow is not a menu, it is a
+ * wall, and a visitor scanning it learns only that there are ten of something.
  *
- * So: a roster on the left, and on the right a screen that plays the selected
- * tool — its input typed out, then its output arriving row by row. The same
- * shape as the project deck at the top of the page, which is the point: the
- * site has one way of showing you a thing that runs.
+ * It is the same shape as the project deck at the top of the page, which is the
+ * point: the site has one way of showing you a thing that runs.
  *
  * ## What does not move
  *

@@ -124,12 +124,11 @@ export default function Conversation({
   /**
    * Only an in-flight answer blocks sending.
    *
-   * A failed health probe used to disable the composer outright, which turned
-   * one transient check — a cold container, a dropped request — into a dead UI
-   * for the rest of the page load, with no way for the visitor to retry. The
-   * banner below still says what the probe found; the attempt is allowed
-   * anyway, and a genuine outage surfaces as a real error in the transcript
-   * rather than as a permanently greyed-out box.
+   * A failed health probe does not. One transient check — a cold container, a
+   * dropped request — would otherwise mean a dead UI for the rest of the page
+   * load with no way to retry. The banner below says what the probe found, the
+   * attempt is allowed anyway, and a genuine outage surfaces as a real error in
+   * the transcript rather than as a permanently greyed-out box.
    */
   const disabled = busy;
   const empty = messages.length === 0;

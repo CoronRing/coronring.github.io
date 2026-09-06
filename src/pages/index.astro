@@ -9,18 +9,10 @@
  *   #ask       The assistant, in the page rather than on a page of its own
  *   #resources Notes and references, last
  *
- * ## Why the hero and the work section are one thing now
- *
- * They were two full bands saying the same thing twice. The hero showed the
- * particle engine with no way to drive it; the work band showed the same
- * engine again, boxed inside a console, inside a section header, and then
- * repeated all three projects underneath as cards. A visitor met the corona,
- * scrolled, and met it again smaller.
- *
- * The deck collapses that into one surface: the exhibit fills the viewport and
- * the roster is a rail beside it, so the first screen is both the introduction
- * and the work, and moving between projects costs one click rather than a
- * scroll through three headers. See `components/deck/ProjectDeck.tsx`.
+ * The deck is both the introduction and the work: the exhibit takes the first
+ * screen and the roster is a rail beside it, so moving between projects costs
+ * one click rather than a scroll through three headers. See
+ * `components/deck/ProjectDeck.tsx`.
  *
  * The rail scroll-spies these ids (see `Sidebar.astro`). Dedicated pages still
  * exist for each and hold the full lists; this page is the tour.
@@ -152,7 +144,7 @@ const showcaseTools: ShowcaseTool[] = liveTools.map((t) => ({
 }));
 ---
 
-<BaseLayout>
+<BaseLayout holdVeil>
   {
     /* ══ 00 · The deck ═════════════════════════════════════════════
       `client:load`, not `client:visible`: this *is* the first screen, so
@@ -321,10 +313,10 @@ const showcaseTools: ShowcaseTool[] = liveTools.map((t) => ({
   </section>
   {
     /* ══ 04 · Ask ══════════════════════════════════════════════════
-      The assistant belongs in the page. It used to live only on `/chat`,
-      which meant the one part of the site that answers questions was the one
-      part you had to navigate away to reach. `client:visible`, so it costs
-      nothing until it is scrolled to. */
+      The assistant belongs in the page: the one part of the site that
+      answers questions should not be the one part you have to navigate away
+      to reach. `client:visible`, so it costs nothing until it is scrolled
+      to. `/chat` still exists for a full-page conversation. */
   }
   <section
     id="ask"

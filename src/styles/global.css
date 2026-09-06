@@ -290,11 +290,9 @@
    *
    * The clip is on the *child*, not on the observed element. An
    * IntersectionObserver measures a target's clipped rect, and
-   * `inset(0 100% 0 0)` collapses that rect to zero width — so an element
-   * clipped this way can never be seen by the observer that is supposed to
-   * reveal it, and every section title on the site stayed invisible. It looked
-   * fine only because the safety timeout used to reveal the whole page two
-   * seconds after load, which hid the bug and cost every below-fold entrance.
+   * `inset(0 100% 0 0)` collapses that rect to zero width, so an element
+   * clipped that way can never be seen by the observer that is supposed to
+   * reveal it.
    */
   [data-reveal='wipe'] {
     transform: none;
@@ -518,10 +516,10 @@
 }
 
 /*
- * The rays vary in opacity and nothing else. Scaling them, as an earlier pass
- * did, collapses a straight path to nothing under `transform-box: fill-box` —
- * a vertical line has a zero-width fill box — and the mark spends most of its
- * cycle missing a third of itself.
+ * The rays vary in opacity and nothing else. Scaling them collapses a straight
+ * path to nothing under `transform-box: fill-box` — a vertical line has a
+ * zero-width fill box — and the mark spends most of its cycle missing a third
+ * of itself.
  */
 .crown-rays path {
   animation: crown-ray calc(2.8s - var(--crown-energy) * 1.1s) var(--ease-in-out) infinite;

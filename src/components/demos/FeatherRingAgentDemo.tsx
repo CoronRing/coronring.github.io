@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import type { DemoProps } from './registry';
 
 type TaskMode = 'music' | 'sandbox' | 'context';
