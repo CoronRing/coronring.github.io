@@ -14,12 +14,12 @@ The system pipeline orchestrates document ingestion, semantic retrieval, tool ex
 
 ### Component Specifications
 
-| Subsystem | Technology Stack | Latency SLA | Resilience Target |
-| :--- | :--- | :--- | :--- |
-| **Ingestion Engine** | DOMParser + Markdown Extract | `< 45ms` | 99.95% |
-| **Vector DB** | ChromaDB / HNSW Index | `< 18ms` | 99.99% |
-| **Tool Calling Orchestrator** | ReAct Execution Loop | `< 250ms` | Fallback retry on `-32601` |
-| **Verification Guardrails** | Hallucination Check & Safety | `< 80ms` | Zero tolerance on PII leak |
+| Subsystem                     | Technology Stack             | Latency SLA | Resilience Target          |
+| :---------------------------- | :--------------------------- | :---------- | :------------------------- |
+| **Ingestion Engine**          | DOMParser + Markdown Extract | `< 45ms`    | 99.95%                     |
+| **Vector DB**                 | ChromaDB / HNSW Index        | `< 18ms`    | 99.99%                     |
+| **Tool Calling Orchestrator** | ReAct Execution Loop         | `< 250ms`   | Fallback retry on `-32601` |
+| **Verification Guardrails**   | Hallucination Check & Safety | `< 80ms`    | Zero tolerance on PII leak |
 
 ---
 

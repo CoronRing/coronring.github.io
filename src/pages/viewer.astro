@@ -15,12 +15,7 @@ const title = 'Document Viewer';
 const description = 'Unlisted document and media reader for GitHub and web sources.';
 ---
 
-<BaseLayout
-  title={title}
-  description={description}
-  noindex={true}
-  hideChatDock={true}
->
+<BaseLayout title={title} description={description} noindex={true} hideChatDock={true}>
   <main class="shell-content pt-4 pb-16">
     <div class="mb-3 flex items-center justify-between">
       <a
@@ -29,9 +24,7 @@ const description = 'Unlisted document and media reader for GitHub and web sourc
       >
         ← Home
       </a>
-      <span class="font-mono text-[11px] text-faint uppercase tracking-wider">
-        Viewer
-      </span>
+      <span class="text-faint font-mono text-[11px] tracking-wider uppercase"> Viewer </span>
     </div>
 
     <DocViewer client:only="react" initialDoc={docFromUrl} />

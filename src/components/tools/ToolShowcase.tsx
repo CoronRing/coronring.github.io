@@ -1,29 +1,9 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { screenFor, type Tone } from './showcase';
-
-/**
- * ToolShowcase — the tools band, as one instrument instead of ten cards.
- *
- * ## The shape
- *
- * A roster on the left, and on the right a screen that plays the selected tool:
- * its input typed out, then its output arriving row by row. Ten identical
- * rectangles holding a name, a sentence and an arrow is not a menu, it is a
- * wall, and a visitor scanning it learns only that there are ten of something.
- *
- * It is the same shape as the project deck at the top of the page, which is the
- * point: the site has one way of showing you a thing that runs.
- *
- * ## What does not move
- *
- * The selection. The screen animates, and it loops, but nothing advances the
- * roster on its own. A carousel that changes what you are reading while you are
- * reading it is the single most common way this pattern fails, and there is no
- * case for it when every option is already on screen.
- *
- * `prefers-reduced-motion` drops the typing and the stagger and shows the
- * finished screen, which is the same information without the theatre.
- */
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import TokenStage from './stages/TokenStage';
+import McpStage from './stages/McpStage';
+import StringStage from './stages/StringStage';
+import RestStage from './stages/RestStage';
+import OtherStage from './stages/OtherStage';
 
 export interface ShowcaseTool {
   readonly slug: string;
@@ -34,92 +14,133 @@ export interface ShowcaseTool {
 }
 
 interface Props {
-  tools: readonly ShowcaseTool[];
-  /** Where "all tools" goes. */
+  tools?: readonly ShowcaseTool[];
   indexHref: string;
 }
 
-/** Milliseconds per character while the input types itself in. */
-const TYPE_MS = 26;
-/** Gap between output rows. */
-const ROW_MS = 130;
-/** How long the finished screen holds before it plays again. */
-const HOLD_MS = 4200;
+interface CuratedTool {
+  id: string;
+  index: string;
+  name: string;
+  tag: string;
+  slug: string;
+  href: string;
+  offline: boolean;
+  statusLabel: string;
+}
 
-const TONE: Record<Tone, string> = {
-  plain: 'text-fg',
-  accent: 'text-accent',
-  plus: 'text-[var(--c-ok)]',
-  minus: 'text-alert',
-  faint: 'text-faint',
-};
+const CURATED_TOOLS: CuratedTool[] = [
+  {
+    id: 'token-counter',
+    index: '01',
+    name: 'Token Counter',
+    tag: 'Context budget & 2,400 models',
+    slug: 'token-counter',
+    href: '/tools/token-counter',
+    offline: false,
+    statusLabel: 'Static Pricing DB',
+  },
+  {
+    id: 'mcp-tester',
+    index: '02',
+    name: 'MCP Tester',
+    tag: 'Protocol handshake & inspector',
+    slug: 'mcp-tester',
+    href: '/tools/mcp-tester',
+    offline: false,
+    statusLabel: 'JSON-RPC 2.0 stdio / SSE',
+  },
+  {
+    id: 'string-kit',
+    index: '03',
+    name: 'String Kit',
+    tag: 'HTML to Markdown & 30+ transforms',
+    slug: 'string-kit',
+    href: '/tools/string-kit',
+    offline: true,
+    statusLabel: 'Runs 100% Offline',
+  },
+  {
+    id: 'rest-reminder',
+    index: '04',
+    name: 'Rest Reminder',
+    tag: 'Unthrottled ergonomic break clock',
+    slug: 'rest-reminder',
+    href: '/tools/rest-reminder',
+    offline: true,
+    statusLabel: 'Web Worker Resilient',
+  },
+  {
+    id: 'other',
+    index: '05',
+    name: 'Other Instruments',
+    tag: 'Diff, Chunking, WASM & 7 more',
+    slug: 'all-tools',
+    href: '/tools',
+    offline: true,
+    statusLabel: '11 Live Instruments',
+  },
+];
 
-export default function ToolShowcase({ tools, indexHref }: Props): React.ReactElement | null {
-  const [index, setIndex] = useState(0);
-  const listRef = useRef<HTMLDivElement>(null);
+export default function ToolShowcase({ indexHref }: Props): React.ReactElement {
+  const [active, setActive] = useState(0);
+  const bandRef = useRef<HTMLDivElement>(null);
   const itemRefs = useRef<Array<HTMLButtonElement | null>>([]);
-
-  const tool = tools[index];
-  const screen = useMemo(() => (tool ? screenFor(tool.slug) : undefined), [tool]);
-
-  const reduced =
-    typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-
-  /** How much of the input has been typed, and how many rows have landed. */
-  const [typed, setTyped] = useState(0);
-  const [rows, setRows] = useState(0);
-
-  const total = screen?.input.length ?? 0;
-  const rowCount = screen?.rows.length ?? 0;
+  const count = CURATED_TOOLS.length;
 
   /*
-   * One timer chain per play, restarted whenever the tool changes. Written as a
-   * chain of timeouts rather than a rAF loop because it is a sequence of
-   * discrete beats, not a continuous curve, and a chain expresses that without
-   * a per-frame callback running for the life of the page.
+   * Scroll drives the selection while the band is pinned on desktop.
+   * Progress is measured from the point the band's top passes the top of the
+   * viewport to the point its bottom does.
    */
   useEffect(() => {
-    if (!screen) return;
+    const band = bandRef.current;
+    if (!band) return;
+    if (!window.matchMedia('(min-width: 64rem)').matches) return;
 
-    if (reduced) {
-      setTyped(total);
-      setRows(rowCount);
-      return;
-    }
-
-    let cancelled = false;
-    const timers: number[] = [];
-    const after = (ms: number, fn: () => void): void => {
-      timers.push(window.setTimeout(fn, ms));
+    let raf = 0;
+    const measure = (): void => {
+      raf = 0;
+      const rect = band.getBoundingClientRect();
+      const span = rect.height - window.innerHeight;
+      if (span <= 0) return;
+      const progress = Math.min(0.999, Math.max(0, -rect.top / span));
+      setActive(Math.min(count - 1, Math.floor(progress * count)));
     };
 
-    const play = (): void => {
-      if (cancelled) return;
-      setTyped(0);
-      setRows(0);
-
-      for (let i = 1; i <= total; i++) after(i * TYPE_MS, () => setTyped(i));
-      const typeEnd = total * TYPE_MS + 220;
-      for (let r = 1; r <= rowCount; r++) after(typeEnd + r * ROW_MS, () => setRows(r));
-
-      after(typeEnd + rowCount * ROW_MS + HOLD_MS, play);
+    const onScroll = (): void => {
+      if (!raf) raf = requestAnimationFrame(measure);
     };
 
-    play();
+    measure();
+    window.addEventListener('scroll', onScroll, { passive: true });
+    window.addEventListener('resize', onScroll);
     return () => {
-      cancelled = true;
-      timers.forEach(window.clearTimeout);
+      window.removeEventListener('scroll', onScroll);
+      window.removeEventListener('resize', onScroll);
+      if (raf) cancelAnimationFrame(raf);
     };
-  }, [screen, total, rowCount, reduced]);
+  }, [count]);
 
+  /** Click on indicator or item: smooth scroll to frame or switch on mobile */
   const go = useCallback(
     (next: number, focus = false) => {
-      const n = tools.length;
-      const wrapped = ((next % n) + n) % n;
-      setIndex(wrapped);
-      if (focus) itemRefs.current[wrapped]?.focus();
+      const i = ((next % count) + count) % count;
+      const band = bandRef.current;
+
+      if (!band || !window.matchMedia('(min-width: 64rem)').matches) {
+        setActive(i);
+        if (focus) itemRefs.current[i]?.focus();
+        return;
+      }
+
+      const rect = band.getBoundingClientRect();
+      const span = rect.height - window.innerHeight;
+      const top = window.scrollY + rect.top + span * ((i + 0.5) / count);
+      window.scrollTo({ top, behavior: 'smooth' });
+      if (focus) itemRefs.current[i]?.focus();
     },
-    [tools.length],
+    [count],
   );
 
   const onKeyDown = useCallback(
@@ -133,7 +154,7 @@ export default function ToolShowcase({ tools, indexHref }: Props): React.ReactEl
       const delta = moves[event.key];
       if (delta) {
         event.preventDefault();
-        go(index + delta, true);
+        go(active + delta, true);
         return;
       }
       if (event.key === 'Home') {
@@ -142,108 +163,133 @@ export default function ToolShowcase({ tools, indexHref }: Props): React.ReactEl
       }
       if (event.key === 'End') {
         event.preventDefault();
-        go(tools.length - 1, true);
+        go(count - 1, true);
       }
     },
-    [go, index, tools.length],
+    [active, count, go],
   );
 
-  if (!tool || !screen) return null;
+  const currentTool = CURATED_TOOLS[active] ?? CURATED_TOOLS[0]!;
 
   return (
-    <div className="kit grid gap-0 lg:grid-cols-[minmax(0,17rem)_minmax(0,1fr)]">
-      {/* ── Roster ───────────────────────────────────────────────── */}
-      <div
-        ref={listRef}
-        role="tablist"
-        aria-label="Tools"
-        aria-orientation="vertical"
-        onKeyDown={onKeyDown}
-        className="border-line kit-list border lg:border-r-0"
-      >
-        {tools.map((entry, i) => {
-          const on = i === index;
-          return (
-            <button
-              key={entry.slug}
-              ref={(el) => {
-                itemRefs.current[i] = el;
-              }}
-              type="button"
-              role="tab"
-              aria-selected={on}
-              tabIndex={on ? 0 : -1}
-              onClick={() => go(i)}
-              className="kit-item group"
-            >
-              <span className="kit-item-n">{String(i + 1).padStart(2, '0')}</span>
-              <span className="kit-item-name">{entry.name}</span>
-              <span aria-hidden="true" className="kit-item-bar" />
-            </button>
-          );
-        })}
-      </div>
+    <div ref={bandRef} className="tools-band">
+      <div className="tools-pin w-full">
+        <div className="kit shadow-panel border-line grid gap-0 border lg:grid-cols-[minmax(0,19rem)_minmax(0,1fr)]">
+          {/* ── Left Rail / Roster ────────────────────────────────────── */}
+          <div
+            role="tablist"
+            aria-label="Developer Tools"
+            aria-orientation="vertical"
+            onKeyDown={onKeyDown}
+            className="border-line bg-surface/90 flex flex-col justify-between border-b lg:border-r lg:border-b-0"
+          >
+            <div className="divide-line/60 divide-y">
+              {CURATED_TOOLS.map((item, i) => {
+                const on = i === active;
+                return (
+                  <button
+                    key={item.id}
+                    ref={(el) => {
+                      itemRefs.current[i] = el;
+                    }}
+                    type="button"
+                    role="tab"
+                    aria-selected={on}
+                    tabIndex={on ? 0 : -1}
+                    onClick={() => go(i)}
+                    className={`kit-item group relative flex w-full items-start gap-3 p-4 text-left transition-colors sm:p-5 ${
+                      on ? 'bg-raised/70' : 'hover:bg-raised/30'
+                    }`}
+                  >
+                    {/* Leading indicator bar */}
+                    <span
+                      aria-hidden="true"
+                      className={`bg-accent-fill absolute inset-y-0 left-0 w-1 transition-transform duration-300 ${
+                        on ? 'scale-y-100' : 'scale-y-0'
+                      }`}
+                    />
 
-      {/* ── Screen ───────────────────────────────────────────────── */}
-      <div className="border-line bg-surface relative flex min-w-0 flex-col border">
-        <div className="border-line flex items-center gap-3 border-b px-4 py-2.5 lg:px-5">
-          <span aria-hidden="true" className="kit-led" />
-          <span className="text-faint font-mono text-[10px] tracking-[0.14em] uppercase">
-            {tool.slug}
-          </span>
-          <span className="text-faint ml-auto font-mono text-[10px] tracking-[0.14em] uppercase">
-            {tool.offline ? 'runs offline' : 'sample'}
-          </span>
-        </div>
+                    <span
+                      className={`pt-0.5 font-mono text-xs tracking-wider tabular-nums transition-colors ${
+                        on ? 'text-accent font-semibold' : 'text-faint group-hover:text-fg'
+                      }`}
+                    >
+                      {item.index}
+                    </span>
 
-        {/*
-          The screen replays from the top on every change, so it is keyed on the
-          tool: React remounts it, the entrance animation runs again, and the
-          cut reads as a channel change rather than as text being swapped.
-        */}
-        <div key={tool.slug} className="kit-screen min-w-0 flex-1 px-4 py-5 lg:px-6 lg:py-7">
-          <p className="eyebrow">{screen.inputLabel}</p>
-          <p className="text-fg mt-2 font-mono text-[13px] break-words sm:text-sm">
-            <span className="text-accent mr-2">›</span>
-            {screen.input.slice(0, typed)}
-            {typed < total && <span aria-hidden="true" className="kit-caret" />}
-          </p>
+                    <div className="min-w-0 flex-1">
+                      <p
+                        className={`font-mono text-sm font-medium transition-colors sm:text-base ${
+                          on ? 'text-fg font-semibold' : 'text-muted group-hover:text-fg'
+                        }`}
+                      >
+                        {item.name}
+                      </p>
+                      <p className="text-faint mt-0.5 truncate text-xs">{item.tag}</p>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
 
-          <dl className="mt-6 space-y-2.5" aria-live="off">
-            {screen.rows.slice(0, rows).map((row, i) => (
-              <div
-                key={`${row.label}-${i}`}
-                className="kit-row flex flex-wrap items-baseline gap-x-4 gap-y-1 font-mono text-[12px] sm:text-[13px]"
-              >
-                <dt className="text-faint w-[9.5rem] shrink-0 tracking-wide">{row.label}</dt>
-                <dd className={`min-w-0 break-words ${TONE[row.tone ?? 'plain']}`}>{row.value}</dd>
+            {/* Scrub Indicator & Step Counter */}
+            <div className="border-line/80 bg-surface flex items-center justify-between border-t px-4 py-3">
+              <div className="flex gap-1.5">
+                {CURATED_TOOLS.map((item, i) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => go(i)}
+                    aria-label={`Switch to ${item.name}`}
+                    className="py-1"
+                  >
+                    <span
+                      className={`block h-1 w-6 rounded-full transition-colors sm:w-7 ${
+                        i === active ? 'bg-accent-fill' : 'bg-sunken hover:bg-muted'
+                      }`}
+                    />
+                  </button>
+                ))}
               </div>
-            ))}
-          </dl>
-        </div>
 
-        <div className="border-line flex flex-wrap items-center justify-between gap-x-6 gap-y-3 border-t px-4 py-4 lg:px-6">
-          <p className="text-muted prose-measure text-sm leading-relaxed">{tool.summary}</p>
-          <div className="flex items-center gap-5">
-            <a href={tool.href} className="kit-open group">
-              Open
-              <svg viewBox="0 0 16 16" aria-hidden="true" className="size-3.5">
-                <path
-                  d="M3 8 H13 M9 4 L13 8 L9 12"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.6"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
+              <span className="text-faint font-mono text-[11px] tabular-nums">
+                {String(active + 1).padStart(2, '0')} / {String(count).padStart(2, '0')}
+              </span>
+            </div>
+          </div>
+
+          {/* ── Right Stage / Screen ─────────────────────────────────── */}
+          <div className="bg-surface relative flex min-w-0 flex-col">
+            {/* Screen Top Header */}
+            <div className="border-line bg-surface/80 flex items-center justify-between border-b px-4 py-3 backdrop-blur-xs sm:px-6">
+              <div className="flex items-center gap-3">
+                <span aria-hidden="true" className="kit-led" />
+                <span className="text-fg font-mono text-xs font-semibold tracking-wider uppercase">
+                  {currentTool.name}
+                </span>
+                <span className="text-faint hidden font-mono text-[11px] sm:inline">
+                  [{currentTool.slug}]
+                </span>
+              </div>
+
+              <div className="text-faint flex items-center gap-2 font-mono text-[11px]">
+                <span
+                  className={`size-1.5 rounded-full ${
+                    currentTool.offline ? 'bg-[var(--c-ok)]' : 'bg-accent'
+                  }`}
                 />
-              </svg>
-            </a>
-            <a
-              href={indexHref}
-              className="text-muted hover:text-accent font-mono text-xs whitespace-nowrap transition-colors"
-            >
-              All tools
-            </a>
+                <span>{currentTool.statusLabel}</span>
+              </div>
+            </div>
+
+            {/* Dynamic Stage Body */}
+            <div key={currentTool.id} className="tool-stage-panel min-w-0 flex-1 p-4 sm:p-6 lg:p-7">
+              {active === 0 && <TokenStage href={currentTool.href} />}
+              {active === 1 && <McpStage href={currentTool.href} />}
+              {active === 2 && <StringStage href={currentTool.href} />}
+              {active === 3 && <RestStage href={currentTool.href} />}
+              {active === 4 && <OtherStage indexHref={indexHref} />}
+            </div>
           </div>
         </div>
       </div>

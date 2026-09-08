@@ -246,3 +246,44 @@
     transform: none;
   }
 }
+
+/*
+ * The Scroll-Pinned Tools Band.
+ *
+ * Sticky pin on desktop, stepping through the 5 curated tool stages as you scroll.
+ */
+@layer components {
+  .tools-pin {
+    align-items: start;
+  }
+
+  @media (min-width: 64rem) {
+    .tools-band {
+      min-height: 290vh;
+    }
+    .tools-pin {
+      position: sticky;
+      top: 0;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      min-height: 100dvh;
+      padding-block: 2.5rem;
+    }
+  }
+
+  .tool-stage-panel {
+    animation: tool-stage-in var(--dur-reveal) var(--ease-out) both;
+  }
+}
+
+@keyframes tool-stage-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}

@@ -104,7 +104,8 @@ export const TOOLS: readonly ToolEntry[] = [
   {
     slug: 'doc-viewer',
     name: 'Document Viewer',
-    summary: 'Render Markdown, HTML, video, audio, and code from GitHub or web URLs for clean sharing.',
+    summary:
+      'Render Markdown, HTML, video, audio, and code from GitHub or web URLs for clean sharing.',
     rationale:
       'Sharing a user manual, design draft, or demo recording with a non-technical stakeholder shouldn’t require them to navigate raw GitHub trees or decipher raw markdown. Paste any GitHub URL, raw link, or shorthand repo path to render sanitized markdown with relative images, isolated HTML in a sandboxed viewport, or responsive video/audio players, and copy an unlisted link to share.',
     status: 'live',

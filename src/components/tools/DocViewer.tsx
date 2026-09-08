@@ -290,16 +290,16 @@ export default function DocViewer({
       {resolvedDoc && (
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-[var(--c-line)] bg-[var(--c-surface)] px-3.5 py-2 shadow-xs">
           {/* Document metadata info */}
-          <div className="flex items-center gap-2 min-w-0 font-mono text-xs">
-            <span className="size-2 rounded-full bg-[var(--c-ok)] shrink-0" />
+          <div className="flex min-w-0 items-center gap-2 font-mono text-xs">
+            <span className="size-2 shrink-0 rounded-full bg-[var(--c-ok)]" />
             <span
-              className="font-bold text-[var(--c-text)] truncate max-w-[180px] sm:max-w-xs md:max-w-md"
+              className="max-w-[180px] truncate font-bold text-[var(--c-text)] sm:max-w-xs md:max-w-md"
               title={resolvedDoc.fileName}
             >
               {resolvedDoc.fileName}
             </span>
             {resolvedDoc.repo && (
-              <span className="text-[var(--c-text-faint)] hidden sm:inline truncate max-w-[220px]">
+              <span className="hidden max-w-[220px] truncate text-[var(--c-text-faint)] sm:inline">
                 ({resolvedDoc.repo}@{resolvedDoc.branch})
               </span>
             )}
@@ -307,7 +307,7 @@ export default function DocViewer({
           </div>
 
           {/* Action buttons */}
-          <div className="flex flex-wrap items-center gap-1.5 shrink-0">
+          <div className="flex shrink-0 flex-wrap items-center gap-1.5">
             <Button
               variant="quiet"
               onClick={() => setShowInputBar((prev) => !prev)}
@@ -340,7 +340,7 @@ export default function DocViewer({
 
       {/* ── Collapsible URL Input & Presets Drawer ───────────────────────── */}
       {showInputBar && (
-        <div className="rounded-md border border-[var(--c-line)] bg-[var(--c-surface)] p-3.5 shadow-xs flex flex-col gap-2.5">
+        <div className="flex flex-col gap-2.5 rounded-md border border-[var(--c-line)] bg-[var(--c-surface)] p-3.5 shadow-xs">
           <form
             onSubmit={(e) => {
               e.preventDefault();
@@ -356,15 +356,11 @@ export default function DocViewer({
                 value={inputUrl}
                 onChange={(e) => setInputUrl(e.target.value)}
                 placeholder="Enter GitHub URL (blob/raw), web document, or local path..."
-                className="w-full rounded-sm border border-[var(--c-line)] bg-[var(--c-sunken)] px-3 py-1.5 font-mono text-[12px] text-[var(--c-text)] placeholder:text-[var(--c-text-faint)] focus:border-[var(--c-accent)] focus:outline-none focus:ring-1 focus:ring-[var(--c-accent)]"
+                className="w-full rounded-sm border border-[var(--c-line)] bg-[var(--c-sunken)] px-3 py-1.5 font-mono text-[12px] text-[var(--c-text)] placeholder:text-[var(--c-text-faint)] focus:border-[var(--c-accent)] focus:ring-1 focus:ring-[var(--c-accent)] focus:outline-none"
               />
             </div>
             <div className="flex gap-1.5">
-              <Button
-                type="submit"
-                variant="primary"
-                disabled={!inputUrl.trim()}
-              >
+              <Button type="submit" variant="primary" disabled={!inputUrl.trim()}>
                 Fetch & View
               </Button>
               {inputUrl && (
@@ -382,10 +378,8 @@ export default function DocViewer({
           </form>
 
           {/* Presets Strip */}
-          <div className="flex flex-wrap items-center gap-1.5 pt-2 border-t border-[var(--c-line)]">
-            <span className="eyebrow text-[10px] text-[var(--c-text-faint)]">
-              Presets:
-            </span>
+          <div className="flex flex-wrap items-center gap-1.5 border-t border-[var(--c-line)] pt-2">
+            <span className="eyebrow text-[10px] text-[var(--c-text-faint)]">Presets:</span>
             {PRESETS.map((preset) => (
               <button
                 key={preset.url}
@@ -412,17 +406,23 @@ export default function DocViewer({
         <ErrorNote>
           <div className="flex flex-col gap-2.5">
             <div className="flex items-center gap-2">
-              <span className="font-bold text-xs uppercase tracking-wide">
-                {resolvedDoc.isGitHub ? 'GitHub Document Not Found' : 'Failed to Load External Document'}
+              <span className="text-xs font-bold tracking-wide uppercase">
+                {resolvedDoc.isGitHub
+                  ? 'GitHub Document Not Found'
+                  : 'Failed to Load External Document'}
               </span>
               <Badge tone="alert">{error}</Badge>
             </div>
 
             {/* GitHub Specific Diagnosis & Links */}
             {resolvedDoc.isGitHub ? (
-              <div className="text-xs text-[var(--c-text-muted)] flex flex-col gap-2">
+              <div className="flex flex-col gap-2 text-xs text-[var(--c-text-muted)]">
                 <p>
-                  The requested file <code className="bg-[var(--c-sunken)] px-1 py-0.5 rounded">{resolvedDoc.fileName}</code> was not found at{' '}
+                  The requested file{' '}
+                  <code className="rounded bg-[var(--c-sunken)] px-1 py-0.5">
+                    {resolvedDoc.fileName}
+                  </code>{' '}
+                  was not found at{' '}
                   <span className="font-mono text-[11px] break-all">{resolvedDoc.rawUrl}</span>.
                 </p>
                 <div className="flex flex-wrap items-center gap-2 pt-1">
@@ -455,15 +455,18 @@ export default function DocViewer({
                     🔗 Try Direct Link on GitHub ↗
                   </a>
                 </div>
-                <p className="text-[11px] text-[var(--c-text-faint)] mt-1">
-                  Common reasons: file does not exist on branch <code>{resolvedDoc.branch}</code>, file was renamed/moved, or repository is private (client-side viewer cannot access private GitHub repos without auth).
+                <p className="mt-1 text-[11px] text-[var(--c-text-faint)]">
+                  Common reasons: file does not exist on branch <code>{resolvedDoc.branch}</code>,
+                  file was renamed/moved, or repository is private (client-side viewer cannot access
+                  private GitHub repos without auth).
                 </p>
               </div>
             ) : (
               /* General External URL Diagnosis & Links */
-              <div className="text-xs text-[var(--c-text-muted)] flex flex-col gap-2">
+              <div className="flex flex-col gap-2 text-xs text-[var(--c-text-muted)]">
                 <p>
-                  Could not fetch content from <span className="font-mono text-[11px] break-all">{resolvedDoc.sourceUrl}</span>.
+                  Could not fetch content from{' '}
+                  <span className="font-mono text-[11px] break-all">{resolvedDoc.sourceUrl}</span>.
                 </p>
                 <div className="flex flex-wrap items-center gap-2 pt-1">
                   <a
@@ -493,8 +496,9 @@ export default function DocViewer({
                     🌐 Try Render in Sandbox Frame
                   </Button>
                 </div>
-                <p className="text-[11px] text-[var(--c-text-faint)] mt-1">
-                  Remote servers often restrict cross-origin script fetching (CORS). Images and iframes can still be rendered directly via browser embedding.
+                <p className="mt-1 text-[11px] text-[var(--c-text-faint)]">
+                  Remote servers often restrict cross-origin script fetching (CORS). Images and
+                  iframes can still be rendered directly via browser embedding.
                 </p>
               </div>
             )}
@@ -504,8 +508,8 @@ export default function DocViewer({
 
       {/* ── Content Viewers ──────────────────────────────────────────────── */}
       {loading && (
-        <div className="flex flex-col items-center justify-center p-16 border border-[var(--c-line)] rounded-md bg-[var(--c-surface)]">
-          <span className="size-5 animate-spin rounded-full border-2 border-[var(--c-accent)] border-t-transparent mb-3" />
+        <div className="flex flex-col items-center justify-center rounded-md border border-[var(--c-line)] bg-[var(--c-surface)] p-16">
+          <span className="mb-3 size-5 animate-spin rounded-full border-2 border-[var(--c-accent)] border-t-transparent" />
           <span className="font-mono text-xs text-[var(--c-text-muted)]">
             Fetching and rendering document...
           </span>
@@ -513,10 +517,10 @@ export default function DocViewer({
       )}
 
       {!loading && !error && resolvedDoc && (
-        <div className="rounded-md border border-[var(--c-line)] bg-[var(--c-surface)] shadow-[var(--shadow-panel)] overflow-hidden">
+        <div className="overflow-hidden rounded-md border border-[var(--c-line)] bg-[var(--c-surface)] shadow-[var(--shadow-panel)]">
           {/* 1. MARKDOWN VIEWER */}
           {activeKind === 'markdown' && (
-            <div className="p-6 sm:p-10 max-w-4xl mx-auto">
+            <div className="mx-auto max-w-4xl p-6 sm:p-10">
               <article
                 className="doc-prose text-[15px] leading-relaxed text-[var(--c-text)]"
                 dangerouslySetInnerHTML={{ __html: renderedMarkdownHtml }}
@@ -545,9 +549,9 @@ export default function DocViewer({
                       key={item.width}
                       type="button"
                       onClick={() => setHtmlViewport(item.width)}
-                      className={`px-2 py-1 font-mono text-[10.5px] rounded-sm transition-colors ${
+                      className={`rounded-sm px-2 py-1 font-mono text-[10.5px] transition-colors ${
                         htmlViewport === item.width
-                          ? 'bg-[var(--c-accent-fill)] text-[var(--c-accent-on-fill)] font-bold'
+                          ? 'bg-[var(--c-accent-fill)] font-bold text-[var(--c-accent-on-fill)]'
                           : 'text-[var(--c-text-muted)] hover:bg-[var(--c-surface)]'
                       }`}
                     >
@@ -558,7 +562,7 @@ export default function DocViewer({
               </div>
 
               {/* Sandboxed iframe */}
-              <div className="flex justify-center bg-[var(--c-sunken)] p-4 overflow-x-auto min-h-[70vh]">
+              <div className="flex min-h-[70vh] justify-center overflow-x-auto bg-[var(--c-sunken)] p-4">
                 <iframe
                   title={resolvedDoc.fileName}
                   sandbox="allow-scripts allow-popups allow-forms allow-same-origin"
@@ -573,7 +577,7 @@ export default function DocViewer({
 
           {/* 3. VIDEO VIEWER */}
           {activeKind === 'video' && (
-            <div className="flex flex-col items-center justify-center p-6 sm:p-10 bg-[var(--c-sunken)]">
+            <div className="flex flex-col items-center justify-center bg-[var(--c-sunken)] p-6 sm:p-10">
               <video
                 controls
                 playsInline
@@ -600,7 +604,7 @@ export default function DocViewer({
 
           {/* 4. AUDIO VIEWER */}
           {activeKind === 'audio' && (
-            <div className="flex flex-col items-center justify-center p-12 bg-[var(--c-sunken)]">
+            <div className="flex flex-col items-center justify-center bg-[var(--c-sunken)] p-12">
               <div className="w-full max-w-lg rounded-md border border-[var(--c-line)] bg-[var(--c-surface)] p-6 shadow-md">
                 <div className="mb-4 flex items-center justify-between">
                   <span className="font-mono text-xs font-semibold text-[var(--c-text)]">
@@ -617,8 +621,8 @@ export default function DocViewer({
 
           {/* 5. IMAGE VIEWER */}
           {activeKind === 'image' && (
-            <div className="flex flex-col items-center justify-center p-6 sm:p-10 bg-[var(--c-sunken)]">
-              <div className="relative flex items-center justify-center min-w-[280px] min-h-[280px] max-w-4xl p-8 rounded-md border border-[var(--c-line)] bg-[var(--c-surface)] shadow-md overflow-hidden">
+            <div className="flex flex-col items-center justify-center bg-[var(--c-sunken)] p-6 sm:p-10">
+              <div className="relative flex min-h-[280px] max-w-4xl min-w-[280px] items-center justify-center overflow-hidden rounded-md border border-[var(--c-line)] bg-[var(--c-surface)] p-8 shadow-md">
                 <img
                   src={resolvedDoc.rawUrl}
                   alt={resolvedDoc.fileName}
@@ -637,7 +641,7 @@ export default function DocViewer({
                 <span className="font-mono text-xs font-semibold text-[var(--c-text)]">
                   {resolvedDoc.fileName}
                 </span>
-                <span className="text-[var(--c-text-faint)] font-mono text-xs">·</span>
+                <span className="font-mono text-xs text-[var(--c-text-faint)]">·</span>
                 <a
                   href={resolvedDoc.rawUrl}
                   target="_blank"
@@ -648,12 +652,12 @@ export default function DocViewer({
                 </a>
                 {resolvedDoc.sourceUrl !== resolvedDoc.rawUrl && (
                   <>
-                    <span className="text-[var(--c-text-faint)] font-mono text-xs">·</span>
+                    <span className="font-mono text-xs text-[var(--c-text-faint)]">·</span>
                     <a
                       href={resolvedDoc.sourceUrl}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="font-mono text-xs text-[var(--c-text-muted)] hover:text-[var(--c-accent)] underline underline-offset-4"
+                      className="font-mono text-xs text-[var(--c-text-muted)] underline underline-offset-4 hover:text-[var(--c-accent)]"
                     >
                       Proxy Link ↗
                     </a>
@@ -665,11 +669,11 @@ export default function DocViewer({
 
           {/* 6. PDF VIEWER */}
           {activeKind === 'pdf' && (
-            <div className="p-4 bg-[var(--c-sunken)] min-h-[75vh]">
+            <div className="min-h-[75vh] bg-[var(--c-sunken)] p-4">
               <iframe
                 title={resolvedDoc.fileName}
                 src={resolvedDoc.rawUrl}
-                className="w-full h-[80vh] rounded border border-[var(--c-line)]"
+                className="h-[80vh] w-full rounded border border-[var(--c-line)]"
               />
             </div>
           )}
@@ -679,11 +683,12 @@ export default function DocViewer({
             <div className="flex flex-col">
               <div className="flex items-center justify-between border-b border-[var(--c-line)] bg-[var(--c-raised)] px-4 py-2">
                 <span className="eyebrow text-[10px] text-[var(--c-text-faint)]">
-                  {textContent.split('\n').length} lines · {textContent.length.toLocaleString()} characters
+                  {textContent.split('\n').length} lines · {textContent.length.toLocaleString()}{' '}
+                  characters
                 </span>
                 <CopyButton text={textContent} label="Copy Source" />
               </div>
-              <pre className="overflow-x-auto bg-[var(--c-sunken)] p-4 font-mono text-[12.5px] leading-relaxed text-[var(--c-text)] whitespace-pre-wrap">
+              <pre className="overflow-x-auto bg-[var(--c-sunken)] p-4 font-mono text-[12.5px] leading-relaxed whitespace-pre-wrap text-[var(--c-text)]">
                 <code>{textContent}</code>
               </pre>
             </div>
@@ -693,12 +698,13 @@ export default function DocViewer({
 
       {/* Empty State when no document is loaded */}
       {!resolvedDoc && (
-        <div className="rounded-md border border-dashed border-[var(--c-line)] p-12 text-center bg-[var(--c-surface)]">
-          <div className="font-mono text-sm text-[var(--c-text)] font-semibold mb-2">
+        <div className="rounded-md border border-dashed border-[var(--c-line)] bg-[var(--c-surface)] p-12 text-center">
+          <div className="mb-2 font-mono text-sm font-semibold text-[var(--c-text)]">
             No document selected
           </div>
-          <p className="font-mono text-xs text-[var(--c-text-faint)] max-w-md mx-auto leading-relaxed">
-            Enter a GitHub document link, general web link, or select one of the presets above to view a document. You can share the resulting URL directly with others.
+          <p className="mx-auto max-w-md font-mono text-xs leading-relaxed text-[var(--c-text-faint)]">
+            Enter a GitHub document link, general web link, or select one of the presets above to
+            view a document. You can share the resulting URL directly with others.
           </p>
         </div>
       )}

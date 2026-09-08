@@ -6,15 +6,7 @@
  * fetch URLs and identifies content kinds.
  */
 
-export type DocKind =
-  | 'markdown'
-  | 'html'
-  | 'video'
-  | 'audio'
-  | 'image'
-  | 'pdf'
-  | 'code'
-  | 'text';
+export type DocKind = 'markdown' | 'html' | 'video' | 'audio' | 'image' | 'pdf' | 'code' | 'text';
 
 export interface ResolvedDoc {
   /** Clean URL used by the browser to fetch the raw content / media stream. */
@@ -122,9 +114,7 @@ export function decodeCamoHex(input: string): string | null {
     const match = input.match(/\/([a-fA-F0-9]{32,64})\/([a-fA-F0-9]{16,})/);
     if (!match || !match[2]) return null;
     const hex = match[2];
-    let decoded = decodeURIComponent(
-      hex.replace(/\s+/g, '').replace(/[0-9a-fA-F]{2}/g, '%$&'),
-    );
+    let decoded = decodeURIComponent(hex.replace(/\s+/g, '').replace(/[0-9a-fA-F]{2}/g, '%$&'));
     // Auto-heal typo in railtracks storage camo URLs
     if (decoded.includes('railtrcks')) {
       decoded = decoded.replace(/railtrcks/gi, 'railtracks');
@@ -360,10 +350,7 @@ export function resolveDocSource(rawInput: string, siteOrigin = ''): ResolvedDoc
 export function resolveRelativeUrl(target: string, baseUrl: string): string {
   if (!target || !baseUrl) return target;
   const trimmed = target.trim();
-  if (
-    /^(https?:\/\/|data:|mailto:|#)/i.test(trimmed) ||
-    trimmed.startsWith('//')
-  ) {
+  if (/^(https?:\/\/|data:|mailto:|#)/i.test(trimmed) || trimmed.startsWith('//')) {
     return trimmed;
   }
 
