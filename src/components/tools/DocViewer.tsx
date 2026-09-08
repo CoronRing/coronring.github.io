@@ -2,7 +2,8 @@
  * Document & Media Viewer tool island.
  *
  * Provides unlisted, shareable document rendering for GitHub files, raw URLs,
- * and local docs across Markdown, HTML, Video, Audio, Images, and Code.
+ * camo proxies, general web links, and local docs across Markdown, HTML, Video,
+ * Audio, Images, and Code.
  */
 
 import { useCallback, useEffect, useId, useMemo, useState } from 'react';
@@ -10,6 +11,7 @@ import { marked } from 'marked';
 import DOMPurify from 'dompurify';
 
 import {
+  type DocKind,
   type ResolvedDoc,
   resolveDocSource,
   resolveRelativeUrl,
@@ -30,18 +32,23 @@ const PRESETS = [
     url: 'https://github.com/RailtownAI/railtracks/blob/main/AGENTS.md',
   },
   {
-    label: 'RailtownAI · AGENTS.html',
-    kind: 'HTML',
-    url: 'https://raw.githubusercontent.com/RailtownAI/railtracks/main/AGENTS.html',
+    label: 'RailtownAI · logo.svg',
+    kind: 'GitHub SVG',
+    url: 'https://raw.githubusercontent.com/RailtownAI/railtracks/main/docs/assets/logo.svg',
   },
   {
-    label: 'RailtownAI · AGENTS.mp4',
-    kind: 'Video',
-    url: '/RailtownAI/railtracks/main/AGENTS.mp4',
+    label: 'Fastly Camo · logo.svg',
+    kind: 'General URL',
+    url: 'https://pypi-camo.freetls.fastly.net/41761b575ebdfa4bab1b5d008b0f4bb0ab572a16/68747470733a2f2f7261696c747261636b7373746f726167652e626c6f622e636f72652e77696e646f77732e6e65742f7261696c747261636b7373746f726167652f696d616765732f6c6f676f2e737667',
   },
   {
-    label: 'Local · demo.md',
-    kind: 'Local',
+    label: 'Telemetry · preview.html',
+    kind: 'HTML Sandbox',
+    url: '/docs/preview.html',
+  },
+  {
+    label: 'Operations · demo.md',
+    kind: 'Local Demo',
     url: '/docs/demo.md',
   },
 ] as const;
@@ -65,12 +72,16 @@ export default function DocViewer({
   const [textContent, setTextContent] = useState<string>('');
   const [renderedMarkdownHtml, setRenderedMarkdownHtml] = useState<string>('');
   const [htmlViewport, setHtmlViewport] = useState<ViewportWidth>('100%');
+  const [overrideKind, setOverrideKind] = useState<DocKind | null>(null);
 
   // Parse docParam whenever it changes
   const resolvedDoc = useMemo<ResolvedDoc | null>(() => {
     if (!docParam) return null;
     return resolveDocSource(docParam, typeof window !== 'undefined' ? window.location.origin : '');
   }, [docParam]);
+
+  // Active kind takes dynamic override into account
+  const activeKind: DocKind = overrideKind ?? resolvedDoc?.kind ?? 'markdown';
 
   // Read URL query parameter on client mount
   useEffect(() => {
@@ -103,6 +114,7 @@ export default function DocViewer({
     setDocParam(trimmed);
     setInputUrl(trimmed);
     setError(null);
+    setOverrideKind(null);
 
     if (typeof window !== 'undefined') {
       const newUrl = new URL(window.location.href);
@@ -120,12 +132,12 @@ export default function DocViewer({
       return;
     }
 
-    // Media and PDF files do not need text fetching
+    // Media and PDF files do not need text fetching: browser renders them directly
     if (
-      resolvedDoc.kind === 'video' ||
-      resolvedDoc.kind === 'audio' ||
-      resolvedDoc.kind === 'image' ||
-      resolvedDoc.kind === 'pdf'
+      activeKind === 'video' ||
+      activeKind === 'audio' ||
+      activeKind === 'image' ||
+      activeKind === 'pdf'
     ) {
       setLoading(false);
       setError(null);
@@ -136,22 +148,60 @@ export default function DocViewer({
     setLoading(true);
     setError(null);
 
-    fetch(resolvedDoc.rawUrl)
-      .then(async (res) => {
+    // Fetch attempt with CORS fallback for general web URLs
+    const fetchWithFallback = async (targetUrl: string): Promise<string> => {
+      try {
+        const res = await fetch(targetUrl);
         if (!res.ok) {
-          throw new Error(
-            res.status === 404
-              ? `Document not found (404) at ${resolvedDoc.rawUrl}`
-              : `Failed to fetch document: HTTP ${res.status} ${res.statusText}`,
-          );
+          throw new Error(`HTTP ${res.status}: ${res.statusText}`);
         }
-        return res.text();
-      })
+
+        // Sniff Content-Type header if available
+        const contentType = res.headers.get('content-type')?.toLowerCase() || '';
+        if (contentType.includes('image/')) {
+          if (isMounted) setOverrideKind('image');
+          return '';
+        }
+        if (contentType.includes('video/')) {
+          if (isMounted) setOverrideKind('video');
+          return '';
+        }
+        if (contentType.includes('audio/')) {
+          if (isMounted) setOverrideKind('audio');
+          return '';
+        }
+        if (contentType.includes('application/pdf')) {
+          if (isMounted) setOverrideKind('pdf');
+          return '';
+        }
+        if (contentType.includes('text/html') && activeKind !== 'html') {
+          if (isMounted) setOverrideKind('html');
+        }
+
+        return await res.text();
+      } catch (err: unknown) {
+        // If direct fetch failed and it's a general non-GitHub URL, try CORS proxy fallback
+        if (!resolvedDoc.isGitHub && !resolvedDoc.rawUrl.startsWith('/')) {
+          try {
+            const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(targetUrl)}`;
+            const proxyRes = await fetch(proxyUrl);
+            if (proxyRes.ok) {
+              return await proxyRes.text();
+            }
+          } catch {
+            // fallback also failed, throw original error
+          }
+        }
+        throw err;
+      }
+    };
+
+    fetchWithFallback(resolvedDoc.rawUrl)
       .then(async (text) => {
         if (!isMounted) return;
         setTextContent(text);
 
-        if (resolvedDoc.kind === 'markdown') {
+        if (activeKind === 'markdown') {
           // Configure marked parser
           const rawHtml = await marked.parse(text, {
             gfm: true,
@@ -178,7 +228,6 @@ export default function DocViewer({
             if (href) {
               const isRelative = !/^(https?:\/\/|mailto:|#)/i.test(href);
               if (isRelative) {
-                // If it's a relative markdown file, point to viewer!
                 if (href.endsWith('.md') || href.endsWith('.markdown')) {
                   const resolvedTarget = resolveRelativeUrl(href, resolvedDoc.baseUrl);
                   a.setAttribute('href', `/viewer?doc=${encodeURIComponent(resolvedTarget)}`);
@@ -194,7 +243,7 @@ export default function DocViewer({
             }
           });
 
-          // Sanitize sanitized HTML
+          // Sanitize HTML
           const sanitized = DOMPurify.sanitize(doc.body.innerHTML, {
             ADD_ATTR: ['target', 'rel', 'loading'],
             ADD_TAGS: ['iframe'],
@@ -215,7 +264,7 @@ export default function DocViewer({
     return () => {
       isMounted = false;
     };
-  }, [resolvedDoc]);
+  }, [resolvedDoc, activeKind]);
 
   // Compute canonical share link for copying
   const shareableUrl = useMemo(() => {
@@ -232,7 +281,7 @@ export default function DocViewer({
         aside={
           <div className="flex items-center gap-2">
             {resolvedDoc && (
-              <Badge tone="accent">{resolvedDoc.kind.toUpperCase()}</Badge>
+              <Badge tone="accent">{activeKind.toUpperCase()}</Badge>
             )}
             {resolvedDoc && (
               <Button
@@ -263,7 +312,7 @@ export default function DocViewer({
                     type="text"
                     value={inputUrl}
                     onChange={(e) => setInputUrl(e.target.value)}
-                    placeholder="e.g. https://github.com/RailtownAI/railtracks/blob/main/AGENTS.md"
+                    placeholder="Enter any GitHub URL, raw link, camo image, or web doc..."
                     className="w-full rounded-sm border border-[var(--c-line)] bg-[var(--c-sunken)] px-3 py-2 font-mono text-[12px] text-[var(--c-text)] placeholder:text-[var(--c-text-faint)] focus:border-[var(--c-accent)] focus:outline-none focus:ring-1 focus:ring-[var(--c-accent)]"
                   />
                 </div>
@@ -314,8 +363,7 @@ export default function DocViewer({
 
               {/* Supported formats hint */}
               <p className="font-mono text-[11px] text-[var(--c-text-faint)] leading-relaxed">
-                Accepts GitHub blob URLs (auto-converts to raw), raw GitHub URLs, shorthand repo paths (e.g.{' '}
-                <code>/RailtownAI/railtracks/main/AGENTS.mp4</code>), and local paths.
+                Accepts GitHub URLs (blob or raw), shorthand paths (defaults to GitHub), Camo proxies, general web links, and local docs.
               </p>
             </>
           )}
@@ -324,12 +372,12 @@ export default function DocViewer({
           {resolvedDoc && (
             <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
               <div className="flex items-center gap-2 overflow-hidden font-mono text-xs">
-                <span className="size-2 rounded-full bg-[var(--c-ok)]" />
-                <span className="font-semibold text-[var(--c-text)] truncate">
+                <span className="size-2 rounded-full bg-[var(--c-ok)] shrink-0" />
+                <span className="font-semibold text-[var(--c-text)] truncate max-w-xs sm:max-w-md">
                   {resolvedDoc.fileName}
                 </span>
                 {resolvedDoc.repo && (
-                  <span className="text-[var(--c-text-faint)] hidden sm:inline">
+                  <span className="text-[var(--c-text-faint)] hidden sm:inline truncate">
                     ({resolvedDoc.repo}@{resolvedDoc.branch})
                   </span>
                 )}
@@ -343,45 +391,115 @@ export default function DocViewer({
                   rel="noopener noreferrer"
                   className="inline-flex items-center gap-1 rounded-sm border border-[var(--c-line)] bg-[var(--c-surface)] px-2.5 py-1 font-mono text-[11px] text-[var(--c-text-muted)] transition-colors hover:border-[var(--c-accent)] hover:text-[var(--c-accent)]"
                 >
-                  View Source ↗
+                  {resolvedDoc.isGitHub ? 'GitHub ↗' : 'Direct Link ↗'}
                 </a>
-                <a
-                  href={resolvedDoc.rawUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1 rounded-sm border border-[var(--c-line)] bg-[var(--c-surface)] px-2.5 py-1 font-mono text-[11px] text-[var(--c-text-muted)] transition-colors hover:border-[var(--c-accent)] hover:text-[var(--c-accent)]"
-                >
-                  Raw ↗
-                </a>
+                {resolvedDoc.rawUrl !== resolvedDoc.sourceUrl && (
+                  <a
+                    href={resolvedDoc.rawUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 rounded-sm border border-[var(--c-line)] bg-[var(--c-surface)] px-2.5 py-1 font-mono text-[11px] text-[var(--c-text-muted)] transition-colors hover:border-[var(--c-accent)] hover:text-[var(--c-accent)]"
+                  >
+                    Raw ↗
+                  </a>
+                )}
               </div>
             </div>
           )}
         </div>
       </Panel>
 
-      {/* ── Error Banner ─────────────────────────────────────────────────── */}
-      {error && (
+      {/* ── Context-Aware Error Banner ───────────────────────────────────── */}
+      {error && resolvedDoc && (
         <ErrorNote>
-          <div className="flex flex-col gap-2">
-            <div className="font-bold">Failed to load document:</div>
-            <div>{error}</div>
-            <div className="text-[10.5px] text-[var(--c-text-faint)]">
-              Common causes: private repository (GitHub requires authentication), non-existent branch, or CORS restriction.
-              {resolvedDoc?.sourceUrl && (
-                <span className="ml-1">
-                  Try opening{' '}
+          <div className="flex flex-col gap-2.5">
+            <div className="flex items-center gap-2">
+              <span className="font-bold text-xs uppercase tracking-wide">
+                {resolvedDoc.isGitHub ? 'GitHub Document Not Found' : 'Failed to Load External Document'}
+              </span>
+              <Badge tone="alert">{error}</Badge>
+            </div>
+
+            {/* GitHub Specific Diagnosis & Links */}
+            {resolvedDoc.isGitHub ? (
+              <div className="text-xs text-[var(--c-text-muted)] flex flex-col gap-2">
+                <p>
+                  The requested file <code className="bg-[var(--c-sunken)] px-1 py-0.5 rounded">{resolvedDoc.fileName}</code> was not found at{' '}
+                  <span className="font-mono text-[11px] break-all">{resolvedDoc.rawUrl}</span>.
+                </p>
+                <div className="flex flex-wrap items-center gap-2 pt-1">
+                  {resolvedDoc.repoUrl && (
+                    <a
+                      href={resolvedDoc.repoUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 rounded border border-[var(--c-line)] bg-[var(--c-surface)] px-2.5 py-1 font-mono text-[11px] text-[var(--c-accent)] hover:underline"
+                    >
+                      📁 Browse {resolvedDoc.repo} ↗
+                    </a>
+                  )}
+                  {resolvedDoc.repo && resolvedDoc.branch && (
+                    <a
+                      href={`https://github.com/${resolvedDoc.repo}/tree/${resolvedDoc.branch}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 rounded border border-[var(--c-line)] bg-[var(--c-surface)] px-2.5 py-1 font-mono text-[11px] text-[var(--c-accent)] hover:underline"
+                    >
+                      🌿 Check '{resolvedDoc.branch}' branch ↗
+                    </a>
+                  )}
                   <a
                     href={resolvedDoc.sourceUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="underline text-[var(--c-accent)]"
+                    className="inline-flex items-center gap-1 rounded border border-[var(--c-line)] bg-[var(--c-surface)] px-2.5 py-1 font-mono text-[11px] text-[var(--c-accent)] hover:underline"
                   >
-                    directly on GitHub
+                    🔗 Try Direct Link on GitHub ↗
                   </a>
-                  .
-                </span>
-              )}
-            </div>
+                </div>
+                <p className="text-[11px] text-[var(--c-text-faint)] mt-1">
+                  Common reasons: file does not exist on branch <code>{resolvedDoc.branch}</code>, file was renamed/moved, or repository is private (client-side viewer cannot access private GitHub repos without auth).
+                </p>
+              </div>
+            ) : (
+              /* General External URL Diagnosis & Links */
+              <div className="text-xs text-[var(--c-text-muted)] flex flex-col gap-2">
+                <p>
+                  Could not fetch content from <span className="font-mono text-[11px] break-all">{resolvedDoc.sourceUrl}</span>.
+                </p>
+                <div className="flex flex-wrap items-center gap-2 pt-1">
+                  <a
+                    href={resolvedDoc.sourceUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 rounded border border-[var(--c-line)] bg-[var(--c-surface)] px-2.5 py-1 font-mono text-[11px] text-[var(--c-accent)] hover:underline"
+                  >
+                    🔗 Open Direct Link in New Tab ↗
+                  </a>
+                  <Button
+                    variant="ghost"
+                    onClick={() => {
+                      setOverrideKind('image');
+                      setError(null);
+                    }}
+                  >
+                    🖼️ Try Render as Image
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    onClick={() => {
+                      setOverrideKind('html');
+                      setError(null);
+                    }}
+                  >
+                    🌐 Try Render in Sandbox Frame
+                  </Button>
+                </div>
+                <p className="text-[11px] text-[var(--c-text-faint)] mt-1">
+                  Remote servers often restrict cross-origin script fetching (CORS). Images and iframes can still be rendered directly via browser embedding.
+                </p>
+              </div>
+            )}
           </div>
         </ErrorNote>
       )}
@@ -399,7 +517,7 @@ export default function DocViewer({
       {!loading && !error && resolvedDoc && (
         <div className="rounded-md border border-[var(--c-line)] bg-[var(--c-surface)] shadow-[var(--shadow-panel)] overflow-hidden">
           {/* 1. MARKDOWN VIEWER */}
-          {resolvedDoc.kind === 'markdown' && (
+          {activeKind === 'markdown' && (
             <div className="p-6 sm:p-10 max-w-4xl mx-auto">
               <article
                 className="doc-prose text-[15px] leading-relaxed text-[var(--c-text)]"
@@ -409,7 +527,7 @@ export default function DocViewer({
           )}
 
           {/* 2. HTML VIEWER */}
-          {resolvedDoc.kind === 'html' && (
+          {activeKind === 'html' && (
             <div className="flex flex-col">
               {/* Viewport Width Toolbar */}
               <div className="flex items-center justify-between border-b border-[var(--c-line)] bg-[var(--c-raised)] px-4 py-2">
@@ -456,7 +574,7 @@ export default function DocViewer({
           )}
 
           {/* 3. VIDEO VIEWER */}
-          {resolvedDoc.kind === 'video' && (
+          {activeKind === 'video' && (
             <div className="flex flex-col items-center justify-center p-6 sm:p-10 bg-[var(--c-sunken)]">
               <video
                 controls
@@ -483,7 +601,7 @@ export default function DocViewer({
           )}
 
           {/* 4. AUDIO VIEWER */}
-          {resolvedDoc.kind === 'audio' && (
+          {activeKind === 'audio' && (
             <div className="flex flex-col items-center justify-center p-12 bg-[var(--c-sunken)]">
               <div className="w-full max-w-lg rounded-md border border-[var(--c-line)] bg-[var(--c-surface)] p-6 shadow-md">
                 <div className="mb-4 flex items-center justify-between">
@@ -500,21 +618,31 @@ export default function DocViewer({
           )}
 
           {/* 5. IMAGE VIEWER */}
-          {resolvedDoc.kind === 'image' && (
+          {activeKind === 'image' && (
             <div className="flex flex-col items-center justify-center p-8 bg-[var(--c-sunken)]">
               <img
                 src={resolvedDoc.rawUrl}
                 alt={resolvedDoc.fileName}
                 className="max-h-[80vh] max-w-full rounded-md border border-[var(--c-line)] object-contain shadow-lg"
               />
-              <div className="mt-3 font-mono text-xs text-[var(--c-text-faint)]">
-                {resolvedDoc.fileName}
+              <div className="mt-3 flex items-center gap-3">
+                <span className="font-mono text-xs text-[var(--c-text-faint)]">
+                  {resolvedDoc.fileName}
+                </span>
+                <a
+                  href={resolvedDoc.rawUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="font-mono text-xs text-[var(--c-accent)] underline underline-offset-4"
+                >
+                  Open Original ↗
+                </a>
               </div>
             </div>
           )}
 
           {/* 6. PDF VIEWER */}
-          {resolvedDoc.kind === 'pdf' && (
+          {activeKind === 'pdf' && (
             <div className="p-4 bg-[var(--c-sunken)] min-h-[75vh]">
               <iframe
                 title={resolvedDoc.fileName}
@@ -525,7 +653,7 @@ export default function DocViewer({
           )}
 
           {/* 7. CODE & PLAIN TEXT VIEWER */}
-          {(resolvedDoc.kind === 'code' || resolvedDoc.kind === 'text') && (
+          {(activeKind === 'code' || activeKind === 'text') && (
             <div className="flex flex-col">
               <div className="flex items-center justify-between border-b border-[var(--c-line)] bg-[var(--c-raised)] px-4 py-2">
                 <span className="eyebrow text-[10px] text-[var(--c-text-faint)]">
@@ -548,7 +676,7 @@ export default function DocViewer({
             No document selected
           </div>
           <p className="font-mono text-xs text-[var(--c-text-faint)] max-w-md mx-auto leading-relaxed">
-            Enter a GitHub document link above or select one of the presets to view a document. You can share the resulting URL directly with others.
+            Enter a GitHub document link, general web link, or select one of the presets above to view a document. You can share the resulting URL directly with others.
           </p>
         </div>
       )}

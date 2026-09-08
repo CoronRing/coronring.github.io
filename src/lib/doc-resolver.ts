@@ -2,7 +2,8 @@
  * Document & Source URL Resolver.
  *
  * Normalises arbitrary document inputs (GitHub blob URLs, raw URLs, shorthand
- * repository paths, local paths) into clean fetch URLs and identifies content kinds.
+ * repository paths, camo proxies, general web URLs, and local paths) into clean
+ * fetch URLs and identifies content kinds.
  */
 
 export type DocKind =
@@ -18,20 +19,24 @@ export type DocKind =
 export interface ResolvedDoc {
   /** Clean URL used by the browser to fetch the raw content / media stream. */
   rawUrl: string;
-  /** Canonical display source (e.g. GitHub web page link or relative file path). */
+  /** Canonical display source (e.g. GitHub web page link or external website). */
   sourceUrl: string;
-  /** Human-readable filename (e.g. `AGENTS.md`). */
+  /** Human-readable filename (e.g. `AGENTS.md` or `logo.svg`). */
   fileName: string;
-  /** File extension in lowercase, including leading dot (e.g. `.md`). */
+  /** File extension in lowercase, including leading dot (e.g. `.md`, `.svg`). */
   extension: string;
   /** Inferred document kind for renderer dispatch. */
   kind: DocKind;
-  /** Repository / owner identifier if parsed from a GitHub path (e.g. `RailtownAI/railtracks`). */
+  /** True if source originates from a GitHub repository. */
+  isGitHub: boolean;
+  /** Repository identifier if GitHub (e.g. `RailtownAI/railtracks`). */
   repo?: string;
-  /** Git branch or commit ref if parsed (e.g. `main`). */
+  /** Git branch or commit ref if GitHub (e.g. `main`). */
   branch?: string;
   /** Path inside repository (e.g. `docs/AGENTS.md`). */
   repoPath?: string;
+  /** Link to browse the repository home page on GitHub. */
+  repoUrl?: string;
   /** Base directory URL for resolving relative links/images. */
   baseUrl: string;
 }
@@ -110,6 +115,26 @@ const EXT_TO_KIND: Record<string, DocKind> = {
 };
 
 /**
+ * Decodes hex-encoded target URLs inside Camo proxies (e.g. pypi-camo or github camo).
+ */
+export function decodeCamoHex(input: string): string | null {
+  try {
+    const match = input.match(/\/([a-fA-F0-9]{32,64})\/([a-fA-F0-9]{16,})/);
+    if (!match || !match[2]) return null;
+    const hex = match[2];
+    const decoded = decodeURIComponent(
+      hex.replace(/\s+/g, '').replace(/[0-9a-fA-F]{2}/g, '%$&'),
+    );
+    if (decoded.startsWith('http://') || decoded.startsWith('https://')) {
+      return decoded;
+    }
+  } catch {
+    // Non-hex or invalid URI sequence
+  }
+  return null;
+}
+
+/**
  * Extracts the file extension from a path or URL string (ignoring query strings and hashes).
  */
 export function getExtension(input: string): string {
@@ -151,9 +176,10 @@ export function getFileName(input: string): string {
  * Supported inputs:
  * 1. GitHub blob: `https://github.com/RailtownAI/railtracks/blob/main/AGENTS.md`
  * 2. Raw GitHub: `https://raw.githubusercontent.com/RailtownAI/railtracks/main/AGENTS.html`
- * 3. Shorthand path: `/RailtownAI/railtracks/main/AGENTS.mp4` or `RailtownAI/railtracks/blob/main/AGENTS.mp4`
- * 4. Local site doc: `/docs/demo.md` or `demo_old.md`
- * 5. General URL: `https://example.com/file.txt`
+ * 3. Shorthand path: `/RailtownAI/railtracks/main/AGENTS.mp4` or `RailtownAI/railtracks/blob/main/AGENTS.md`
+ * 4. Camo proxy URL: `https://pypi-camo.freetls.fastly.net/...`
+ * 5. General web URL: `https://example.com/file.md` or `https://.../image.svg`
+ * 6. Local site doc: `/docs/demo.md` or `demo.md`
  */
 export function resolveDocSource(rawInput: string, siteOrigin = ''): ResolvedDoc | null {
   const trimmed = rawInput.trim();
@@ -176,9 +202,11 @@ export function resolveDocSource(rawInput: string, siteOrigin = ''): ResolvedDoc
       fileName,
       extension: ext,
       kind: EXT_TO_KIND[ext] ?? 'markdown',
+      isGitHub: true,
       repo: `${owner}/${repoName}`,
       branch,
       repoPath,
+      repoUrl: `https://github.com/${owner}/${repoName}`,
       baseUrl,
     };
   }
@@ -200,17 +228,39 @@ export function resolveDocSource(rawInput: string, siteOrigin = ''): ResolvedDoc
       fileName,
       extension: ext,
       kind: EXT_TO_KIND[ext] ?? 'markdown',
+      isGitHub: true,
       repo: `${owner}/${repoName}`,
       branch,
       repoPath,
+      repoUrl: `https://github.com/${owner}/${repoName}`,
       baseUrl,
     };
   }
 
-  // 3. Shorthand GitHub path: /RailtownAI/railtracks/main/AGENTS.mp4 or RailtownAI/railtracks/blob/main/AGENTS.md
+  // 3. Camo Proxy URLs (e.g. pypi-camo, github camo)
+  const decodedCamo = decodeCamoHex(trimmed);
+  if (decodedCamo) {
+    const ext = getExtension(decodedCamo);
+    const fileName = getFileName(decodedCamo);
+    const baseUrl = trimmed.slice(0, trimmed.lastIndexOf('/') + 1);
+    const kind = EXT_TO_KIND[ext] ?? 'image';
+
+    return {
+      rawUrl: trimmed,
+      sourceUrl: decodedCamo,
+      fileName,
+      extension: ext,
+      kind,
+      isGitHub: false,
+      baseUrl,
+    };
+  }
+
+  // 4. Shorthand GitHub path: /RailtownAI/railtracks/main/AGENTS.mp4 or RailtownAI/railtracks/blob/main/AGENTS.md
+  // Defaults to GitHub when no scheme is provided
   const normalizedShorthand = trimmed.startsWith('/') ? trimmed.slice(1) : trimmed;
   const shorthandMatch = normalizedShorthand.match(
-    /^([a-zA-Z0-9_.-]+)\/([a-zA-Z0-9_.-]+)\/(?:blob\/)?([^/]+)\/(.+)$/,
+    /^([a-zA-Z0-9_.-]+)\/([a-zA-Z0-9_.-]+)(?:\/(?:blob\/)?([^/]+)\/(.+))?$/,
   );
 
   const firstSeg = shorthandMatch?.[1]?.toLowerCase() ?? '';
@@ -219,14 +269,17 @@ export function resolveDocSource(rawInput: string, siteOrigin = ''): ResolvedDoc
     !trimmed.startsWith('http://') &&
     !trimmed.startsWith('https://') &&
     firstSeg !== 'docs' &&
-    firstSeg !== 'public';
+    firstSeg !== 'public' &&
+    !firstSeg.includes('.'); // Not a domain name like example.com/file
 
   if (isShorthandRepo && shorthandMatch) {
-    const [, owner = '', repoName = '', branch = '', repoPath = ''] = shorthandMatch;
-    const rawUrl = `https://raw.githubusercontent.com/${owner}/${repoName}/${branch}/${repoPath}`;
-    const sourceUrl = `https://github.com/${owner}/${repoName}/blob/${branch}/${repoPath}`;
-    const ext = getExtension(repoPath);
-    const fileName = getFileName(repoPath);
+    const [, owner = '', repoName = '', branch = 'main', repoPath = 'README.md'] = shorthandMatch;
+    const cleanBranch = branch || 'main';
+    const cleanRepoPath = repoPath || 'README.md';
+    const rawUrl = `https://raw.githubusercontent.com/${owner}/${repoName}/${cleanBranch}/${cleanRepoPath}`;
+    const sourceUrl = `https://github.com/${owner}/${repoName}/blob/${cleanBranch}/${cleanRepoPath}`;
+    const ext = getExtension(cleanRepoPath);
+    const fileName = getFileName(cleanRepoPath);
     const baseUrl = rawUrl.slice(0, rawUrl.lastIndexOf('/') + 1);
 
     return {
@@ -235,18 +288,20 @@ export function resolveDocSource(rawInput: string, siteOrigin = ''): ResolvedDoc
       fileName,
       extension: ext,
       kind: EXT_TO_KIND[ext] ?? 'markdown',
+      isGitHub: true,
       repo: `${owner}/${repoName}`,
-      branch,
-      repoPath,
+      branch: cleanBranch,
+      repoPath: cleanRepoPath,
+      repoUrl: `https://github.com/${owner}/${repoName}`,
       baseUrl,
     };
   }
 
-  // 4. Local site doc path (e.g. /docs/manual.md or docs/manual.md or demo_old.md)
+  // 5. Local site doc path (e.g. /docs/demo.md or docs/manual.md or demo_old.md)
   const isLocal =
     trimmed.startsWith('/') ||
     trimmed.startsWith('./') ||
-    !trimmed.includes('://');
+    (!trimmed.includes('://') && !trimmed.includes('/'));
 
   if (isLocal) {
     let localPath = trimmed;
@@ -264,23 +319,29 @@ export function resolveDocSource(rawInput: string, siteOrigin = ''): ResolvedDoc
       fileName,
       extension: ext,
       kind: EXT_TO_KIND[ext] ?? 'markdown',
+      isGitHub: false,
       baseUrl,
     };
   }
 
-  // 5. Generic absolute HTTP/HTTPS URL (Gist, raw cdn, etc.)
+  // 6. Generic absolute HTTP/HTTPS URL (General link from any domain)
   try {
-    const urlObj = new URL(trimmed);
+    let parsed = trimmed;
+    if (!parsed.startsWith('http://') && !parsed.startsWith('https://')) {
+      parsed = `https://${parsed}`;
+    }
+    const urlObj = new URL(parsed);
     const ext = getExtension(urlObj.pathname);
     const fileName = getFileName(urlObj.pathname);
-    const baseUrl = trimmed.slice(0, trimmed.lastIndexOf('/') + 1);
+    const baseUrl = parsed.slice(0, parsed.lastIndexOf('/') + 1);
 
     return {
-      rawUrl: trimmed,
-      sourceUrl: trimmed,
+      rawUrl: parsed,
+      sourceUrl: parsed,
       fileName,
       extension: ext,
-      kind: EXT_TO_KIND[ext] ?? 'markdown',
+      kind: EXT_TO_KIND[ext] ?? (ext ? 'text' : 'markdown'),
+      isGitHub: false,
       baseUrl,
     };
   } catch {
