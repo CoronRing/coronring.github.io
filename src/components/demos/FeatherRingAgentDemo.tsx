@@ -227,7 +227,11 @@ export default function FeatherRingAgentDemo({ title: _title }: DemoProps): Reac
                     : 'text-[var(--c-text-muted)] hover:text-[var(--c-text)]'
                 }`}
               >
-                {m === 'music' ? 'Abu Dhabi Festival' : m === 'sandbox' ? 'Desktop Sandbox' : 'Context Engine'}
+                {m === 'music'
+                  ? 'Abu Dhabi Festival'
+                  : m === 'sandbox'
+                    ? 'Desktop Sandbox'
+                    : 'Context Engine'}
               </button>
             ))}
           </div>
@@ -243,7 +247,9 @@ export default function FeatherRingAgentDemo({ title: _title }: DemoProps): Reac
                 : 'border-[var(--c-line)] bg-[var(--c-surface)] text-[var(--c-text-muted)]'
             }`}
           >
-            <span className={`size-1.5 rounded-full ${isPlaying ? 'animate-pulse bg-[var(--c-ok)]' : 'bg-[var(--c-text-faint)]'}`} />
+            <span
+              className={`size-1.5 rounded-full ${isPlaying ? 'animate-pulse bg-[var(--c-ok)]' : 'bg-[var(--c-text-faint)]'}`}
+            />
             {isPlaying ? 'RUNNING' : 'PAUSED'}
           </button>
           <button
@@ -257,9 +263,9 @@ export default function FeatherRingAgentDemo({ title: _title }: DemoProps): Reac
       </div>
 
       {/* ── 80% Visual / Simulation Viewport ──────────────────────────── */}
-      <div className="relative grid min-h-[380px] lg:min-h-[460px] lg:grid-cols-[1.6fr_1fr] divide-y lg:divide-y-0 lg:divide-x divide-[var(--c-line)] border-b border-[var(--c-line)] bg-[var(--c-sunken)]">
+      <div className="relative grid min-h-[380px] divide-y divide-[var(--c-line)] border-b border-[var(--c-line)] bg-[var(--c-sunken)] lg:min-h-[460px] lg:grid-cols-[1.6fr_1fr] lg:divide-x lg:divide-y-0">
         {/* Left: Interactive Operator Canvas & Live Visualizer */}
-        <div className="relative flex flex-col justify-between p-5 overflow-hidden">
+        <div className="relative flex flex-col justify-between overflow-hidden p-5">
           {/* Subtle Grid Background */}
           <div
             className="pointer-events-none absolute inset-0 opacity-[0.07]"
@@ -293,7 +299,7 @@ export default function FeatherRingAgentDemo({ title: _title }: DemoProps): Reac
           <div className="relative z-10 my-6 flex flex-col items-center justify-center">
             {mode === 'music' && (
               <div className="w-full space-y-4">
-                <div className="flex items-end justify-between gap-1 h-32 px-4 rounded-sm border border-[var(--c-line)] bg-[var(--c-surface)]/80 backdrop-blur-md">
+                <div className="flex h-32 items-end justify-between gap-1 rounded-sm border border-[var(--c-line)] bg-[var(--c-surface)]/80 px-4 backdrop-blur-md">
                   {visualBars.map((height, idx) => (
                     <div
                       key={idx}
@@ -311,7 +317,7 @@ export default function FeatherRingAgentDemo({ title: _title }: DemoProps): Reac
                     />
                   ))}
                 </div>
-                <div className="flex justify-between font-mono text-[10px] text-[var(--c-text-faint)] px-1">
+                <div className="flex justify-between px-1 font-mono text-[10px] text-[var(--c-text-faint)]">
                   <span>STEM: BAYATI OUD [POLYPHONIC]</span>
                   <span>SPECTROGRAM // 48kHz 24-BIT</span>
                   <span>HARMONIC DENSITY: 94.2%</span>
@@ -321,16 +327,24 @@ export default function FeatherRingAgentDemo({ title: _title }: DemoProps): Reac
 
             {mode === 'sandbox' && (
               <div className="w-full space-y-3">
-                <div className="relative h-36 rounded-sm border border-[var(--c-line)] bg-[var(--c-surface)]/90 p-4 font-mono text-xs overflow-hidden">
+                <div className="relative h-36 overflow-hidden rounded-sm border border-[var(--c-line)] bg-[var(--c-surface)]/90 p-4 font-mono text-xs">
                   <div className="flex items-center justify-between border-b border-[var(--c-line)] pb-2 text-[10px] text-[var(--c-text-faint)]">
                     <span>CONTAINER RUNTIME: sandbox-node-03</span>
                     <span className="text-[var(--c-ok)]">SYS_ISOLATED: STRICT</span>
                   </div>
                   <div className="mt-3 space-y-1.5 text-[11px] leading-relaxed">
-                    <p className="text-[var(--c-accent)]">$ docker run --memory=512m --cpus=1.0 agent_tool_runner</p>
-                    <p className="text-[var(--c-text-muted)]">&gt; Initializing virtual screen (1920x1080)...</p>
-                    <p className="text-[var(--c-text)]">&gt; Mouse coordinate jump: target (x: 412, y: 380) [OK]</p>
-                    <p className="text-[var(--c-ok)]">&gt; Extracted AST nodes &amp; sandbox evaluation clean.</p>
+                    <p className="text-[var(--c-accent)]">
+                      $ docker run --memory=512m --cpus=1.0 agent_tool_runner
+                    </p>
+                    <p className="text-[var(--c-text-muted)]">
+                      &gt; Initializing virtual screen (1920x1080)...
+                    </p>
+                    <p className="text-[var(--c-text)]">
+                      &gt; Mouse coordinate jump: target (x: 412, y: 380) [OK]
+                    </p>
+                    <p className="text-[var(--c-ok)]">
+                      &gt; Extracted AST nodes &amp; sandbox evaluation clean.
+                    </p>
                   </div>
                   <div className="absolute right-4 bottom-3 size-2 animate-ping rounded-full bg-[var(--c-accent)]" />
                 </div>
@@ -340,26 +354,28 @@ export default function FeatherRingAgentDemo({ title: _title }: DemoProps): Reac
             {mode === 'context' && (
               <div className="w-full space-y-3">
                 <div className="rounded-sm border border-[var(--c-line)] bg-[var(--c-surface)]/90 p-4">
-                  <div className="flex items-center justify-between font-mono text-[11px] mb-2">
+                  <div className="mb-2 flex items-center justify-between font-mono text-[11px]">
                     <span className="text-[var(--c-text-muted)]">Context Memory Compression</span>
-                    <span className="text-[var(--c-accent)] font-semibold">{currentMode.telemetry.compression}</span>
+                    <span className="font-semibold text-[var(--c-accent)]">
+                      {currentMode.telemetry.compression}
+                    </span>
                   </div>
-                  <div className="h-3 w-full overflow-hidden rounded-full bg-[var(--c-raised)] border border-[var(--c-line)]">
+                  <div className="h-3 w-full overflow-hidden rounded-full border border-[var(--c-line)] bg-[var(--c-raised)]">
                     <div
                       className="h-full bg-[var(--c-accent)] transition-all duration-500"
                       style={{ width: '88%' }}
                     />
                   </div>
                   <div className="mt-3 grid grid-cols-3 gap-2 font-mono text-[10px] text-[var(--c-text-muted)]">
-                    <div className="border border-[var(--c-line)] p-2 rounded-xs">
+                    <div className="rounded-xs border border-[var(--c-line)] p-2">
                       <span className="block text-[var(--c-text-faint)]">RAW PROMPT</span>
                       <span className="font-semibold text-[var(--c-text)]">128,000 tok</span>
                     </div>
-                    <div className="border border-[var(--c-line)] p-2 rounded-xs">
+                    <div className="rounded-xs border border-[var(--c-line)] p-2">
                       <span className="block text-[var(--c-text-faint)]">EXTRACTED ENTITIES</span>
                       <span className="font-semibold text-[var(--c-text)]">42 Nodes</span>
                     </div>
-                    <div className="border border-[var(--c-line)] p-2 rounded-xs">
+                    <div className="rounded-xs border border-[var(--c-line)] p-2">
                       <span className="block text-[var(--c-text-faint)]">ACTIVE WORKING SET</span>
                       <span className="font-semibold text-[var(--c-accent)]">6,280 tok</span>
                     </div>
@@ -374,7 +390,9 @@ export default function FeatherRingAgentDemo({ title: _title }: DemoProps): Reac
             <div className="flex gap-4">
               <span className="text-[var(--c-text-faint)]">
                 AGENTS:{' '}
-                <strong className="text-[var(--c-text)]">{currentMode.telemetry.activeAgents}</strong>
+                <strong className="text-[var(--c-text)]">
+                  {currentMode.telemetry.activeAgents}
+                </strong>
               </span>
               <span className="text-[var(--c-text-faint)]">
                 WORKING SET:{' '}
@@ -388,7 +406,7 @@ export default function FeatherRingAgentDemo({ title: _title }: DemoProps): Reac
         {/* Right: Live Agent Action Log & State Inspector */}
         <div className="flex flex-col justify-between bg-[var(--c-surface)] p-4 font-mono text-xs">
           <div>
-            <div className="flex items-center justify-between border-b border-[var(--c-line)] pb-2 mb-3">
+            <div className="mb-3 flex items-center justify-between border-b border-[var(--c-line)] pb-2">
               <span className="text-[10px] font-semibold tracking-wider text-[var(--c-text-faint)] uppercase">
                 AGENT EXECUTION STEPSTREAM
               </span>
@@ -415,12 +433,12 @@ export default function FeatherRingAgentDemo({ title: _title }: DemoProps): Reac
                     }`}
                   >
                     <div className="flex items-center justify-between text-[10px]">
-                      <span className="font-semibold text-[var(--c-text)]">
-                        @{step.agent}
-                      </span>
+                      <span className="font-semibold text-[var(--c-text)]">@{step.agent}</span>
                       <span className="text-[var(--c-text-faint)]">{step.time}</span>
                     </div>
-                    <p className={`mt-1 text-[11px] font-medium ${isActive ? 'text-[var(--c-accent)]' : 'text-[var(--c-text)]'}`}>
+                    <p
+                      className={`mt-1 text-[11px] font-medium ${isActive ? 'text-[var(--c-accent)]' : 'text-[var(--c-text)]'}`}
+                    >
                       {step.action}
                     </p>
                     <p className="mt-0.5 text-[10px] leading-relaxed text-[var(--c-text-muted)]">

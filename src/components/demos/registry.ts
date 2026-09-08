@@ -24,7 +24,12 @@ export interface DemoProps {
   title: string;
 }
 
-export const DEMO_NAMES = ['placeholder', 'particle-wave', 'featherring', 'gs-prompt-manager'] as const;
+export const DEMO_NAMES = [
+  'placeholder',
+  'particle-wave',
+  'featherring',
+  'gs-prompt-manager',
+] as const;
 
 export type DemoName = (typeof DEMO_NAMES)[number];
 

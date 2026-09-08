@@ -149,22 +149,22 @@ export default function PromptManagerDemo({ title: _title }: DemoProps): React.R
           <span className="text-[11px] text-[var(--c-text-faint)]">
             GROUP: <strong className="text-[var(--c-text)]">{preset.group}</strong>
           </span>
-          <span className="text-[var(--c-ok)] text-[10px] border border-[var(--c-ok)]/40 bg-[var(--c-ok)]/10 px-2 py-0.5 rounded-sm">
+          <span className="rounded-sm border border-[var(--c-ok)]/40 bg-[var(--c-ok)]/10 px-2 py-0.5 text-[10px] text-[var(--c-ok)]">
             VALIDATED
           </span>
         </div>
       </div>
 
       {/* ── 80% Visual & Interactive Studio Viewport ─────────────────── */}
-      <div className="grid min-h-[380px] lg:min-h-[460px] lg:grid-cols-[1.1fr_1.4fr] divide-y lg:divide-y-0 lg:divide-x divide-[var(--c-line)] border-b border-[var(--c-line)] bg-[var(--c-sunken)]">
+      <div className="grid min-h-[380px] divide-y divide-[var(--c-line)] border-b border-[var(--c-line)] bg-[var(--c-sunken)] lg:min-h-[460px] lg:grid-cols-[1.1fr_1.4fr] lg:divide-x lg:divide-y-0">
         {/* Left: Interactive Variables & Macro Inputs */}
-        <div className="flex flex-col justify-between p-4 bg-[var(--c-surface)] font-mono text-xs overflow-y-auto">
+        <div className="flex flex-col justify-between overflow-y-auto bg-[var(--c-surface)] p-4 font-mono text-xs">
           <div className="space-y-4">
             <div>
               <span className="text-[10px] font-semibold tracking-wider text-[var(--c-text-faint)] uppercase">
                 DISCOVERED CLASS & TEMPLATE
               </span>
-              <p className="mt-1 text-[11px] text-[var(--c-text-muted)] leading-relaxed">
+              <p className="mt-1 text-[11px] leading-relaxed text-[var(--c-text-muted)]">
                 {preset.note}
               </p>
             </div>
@@ -175,22 +175,20 @@ export default function PromptManagerDemo({ title: _title }: DemoProps): React.R
               </span>
               {Object.entries(variables).map(([key, val]) => (
                 <div key={key} className="space-y-1">
-                  <label className="text-[10.5px] text-[var(--c-text-muted)] flex justify-between">
+                  <label className="flex justify-between text-[10.5px] text-[var(--c-text-muted)]">
                     <span>{key}</span>
                   </label>
                   <input
                     type="text"
                     value={val}
-                    onChange={(e) =>
-                      setVariables((prev) => ({ ...prev, [key]: e.target.value }))
-                    }
+                    onChange={(e) => setVariables((prev) => ({ ...prev, [key]: e.target.value }))}
                     className="w-full rounded-sm border border-[var(--c-line)] bg-[var(--c-sunken)] px-2.5 py-1.5 font-mono text-xs text-[var(--c-text)] focus:border-[var(--c-accent)] focus:outline-none"
                   />
                 </div>
               ))}
             </div>
 
-            <div className="space-y-2 pt-2 border-t border-[var(--c-line)]">
+            <div className="space-y-2 border-t border-[var(--c-line)] pt-2">
               <span className="text-[10px] font-semibold text-[var(--c-warn)] uppercase">
                 2. MACRO INJECTIONS ({`<<MACRO>>`})
               </span>
@@ -202,9 +200,7 @@ export default function PromptManagerDemo({ title: _title }: DemoProps): React.R
                   <textarea
                     rows={2}
                     value={val}
-                    onChange={(e) =>
-                      setMacros((prev) => ({ ...prev, [key]: e.target.value }))
-                    }
+                    onChange={(e) => setMacros((prev) => ({ ...prev, [key]: e.target.value }))}
                     className="w-full resize-none rounded-sm border border-[var(--c-line)] bg-[var(--c-sunken)] p-2 font-mono text-[11px] text-[var(--c-text)] focus:border-[var(--c-accent)] focus:outline-none"
                   />
                 </div>
@@ -212,17 +208,17 @@ export default function PromptManagerDemo({ title: _title }: DemoProps): React.R
             </div>
           </div>
 
-          <div className="mt-4 pt-3 border-t border-[var(--c-line)] text-[10.5px] text-[var(--c-text-faint)]">
+          <div className="mt-4 border-t border-[var(--c-line)] pt-3 text-[10.5px] text-[var(--c-text-faint)]">
             Auto-discovery scans classes in directory without manual imports.
           </div>
         </div>
 
         {/* Right: Live Rendered Output & Telemetry Viewport */}
-        <div className="flex flex-col justify-between p-4 bg-[var(--c-sunken)] font-mono text-xs">
+        <div className="flex flex-col justify-between bg-[var(--c-sunken)] p-4 font-mono text-xs">
           <div>
-            <div className="flex items-center justify-between border-b border-[var(--c-line)] pb-2 mb-3">
+            <div className="mb-3 flex items-center justify-between border-b border-[var(--c-line)] pb-2">
               <div className="flex items-center gap-2">
-                <span className="size-2 rounded-full bg-[var(--c-ok)] animate-pulse" />
+                <span className="size-2 animate-pulse rounded-full bg-[var(--c-ok)]" />
                 <span className="text-[10px] font-semibold tracking-wider text-[var(--c-text-faint)] uppercase">
                   RENDERED PROMPT OUTPUT
                 </span>
@@ -234,21 +230,21 @@ export default function PromptManagerDemo({ title: _title }: DemoProps): React.R
                 <button
                   type="button"
                   onClick={handleCopy}
-                  className="rounded-sm border border-[var(--c-line)] bg-[var(--c-surface)] px-2.5 py-1 text-[11px] font-semibold hover:border-[var(--c-text)] transition-colors"
+                  className="rounded-sm border border-[var(--c-line)] bg-[var(--c-surface)] px-2.5 py-1 text-[11px] font-semibold transition-colors hover:border-[var(--c-text)]"
                 >
                   {copied ? 'COPIED ✓' : 'COPY'}
                 </button>
               </div>
             </div>
 
-            <pre className="max-h-[340px] overflow-y-auto whitespace-pre-wrap rounded-sm border border-[var(--c-line)] bg-[var(--c-surface)] p-4 font-mono text-[12px] leading-relaxed text-[var(--c-text)]">
+            <pre className="max-h-[340px] overflow-y-auto rounded-sm border border-[var(--c-line)] bg-[var(--c-surface)] p-4 font-mono text-[12px] leading-relaxed whitespace-pre-wrap text-[var(--c-text)]">
               {compiled}
             </pre>
           </div>
 
           <div className="mt-3 flex items-center justify-between border-t border-[var(--c-line)] pt-3 text-[11px] text-[var(--c-text-faint)]">
             <span>gs_prompt_manager @ PyPI</span>
-            <span className="text-[var(--c-ok)] font-medium">Validation: 0 Missing Keys</span>
+            <span className="font-medium text-[var(--c-ok)]">Validation: 0 Missing Keys</span>
           </div>
         </div>
       </div>

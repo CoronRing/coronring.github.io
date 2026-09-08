@@ -253,12 +253,7 @@ export default function ChunkVisualizer(): React.ReactElement {
         {/* MAIN CANVAS BODY */}
         <div className="p-0">
           {mode === 'live_editor' && (
-            <LiveHighlightedEditor
-              text={text}
-              onChange={setText}
-              painted={painted}
-              focus={focus}
-            />
+            <LiveHighlightedEditor text={text} onChange={setText} painted={painted} focus={focus} />
           )}
 
           {mode === 'interactive_inspect' && (
@@ -309,11 +304,13 @@ export default function ChunkVisualizer(): React.ReactElement {
                 <span className="rounded bg-[var(--c-accent-fill)] px-2 py-0.5 font-bold text-[var(--c-accent-on-fill)] shadow-xs">
                   CHUNK #{focusedChunk.index + 1}
                 </span>
-                <span className="text-[var(--c-text)] font-semibold">
+                <span className="font-semibold text-[var(--c-text)]">
                   {focusedChunk.end - focusedChunk.start} chars
                 </span>
                 <span className="text-[var(--c-text-faint)]">·</span>
-                <span className="font-semibold text-[var(--c-accent)]">{focusedChunk.tokens} tokens</span>
+                <span className="font-semibold text-[var(--c-accent)]">
+                  {focusedChunk.tokens} tokens
+                </span>
                 <span className="text-[var(--c-text-faint)]">·</span>
                 <span className="text-[var(--c-text-muted)]">
                   range [{focusedChunk.start}..{focusedChunk.end}]
@@ -321,11 +318,13 @@ export default function ChunkVisualizer(): React.ReactElement {
                 {focusedChunk.overlapBefore > 0 && (
                   <>
                     <span className="text-[var(--c-text-faint)]">·</span>
-                    <span className="font-semibold text-[var(--c-ok)]">+{focusedChunk.overlapBefore}c overlap</span>
+                    <span className="font-semibold text-[var(--c-ok)]">
+                      +{focusedChunk.overlapBefore}c overlap
+                    </span>
                   </>
                 )}
                 {focusedChunk.cutsSentence && (
-                  <span className="rounded border border-[var(--c-warn)] bg-[color-mix(in_srgb,var(--c-warn)_15%,transparent)] px-1.5 py-0.5 font-semibold text-[10.5px] text-[var(--c-warn)]">
+                  <span className="rounded border border-[var(--c-warn)] bg-[color-mix(in_srgb,var(--c-warn)_15%,transparent)] px-1.5 py-0.5 text-[10.5px] font-semibold text-[var(--c-warn)]">
                     Severed mid-sentence
                   </span>
                 )}
@@ -337,7 +336,7 @@ export default function ChunkVisualizer(): React.ReactElement {
                 </Button>
               </div>
             </div>
-            <div className="mt-2 max-h-28 overflow-y-auto rounded border border-[var(--c-line)] bg-[var(--c-card)] p-2.5 font-mono text-[11px] leading-relaxed text-[var(--c-text-muted)] whitespace-pre-wrap select-all">
+            <div className="mt-2 max-h-28 overflow-y-auto rounded border border-[var(--c-line)] bg-[var(--c-card)] p-2.5 font-mono text-[11px] leading-relaxed whitespace-pre-wrap text-[var(--c-text-muted)] select-all">
               {focusedChunk.text}
             </div>
           </div>
@@ -349,9 +348,7 @@ export default function ChunkVisualizer(): React.ReactElement {
         title="Splitter Strategy & Tuning"
         aside={
           <div className="flex items-center gap-3">
-            <span className="font-mono text-[11px] text-[var(--c-text-faint)]">
-              Budget Unit:
-            </span>
+            <span className="font-mono text-[11px] text-[var(--c-text-faint)]">Budget Unit:</span>
             <Segmented
               value={unit}
               options={[
@@ -483,7 +480,7 @@ export default function ChunkVisualizer(): React.ReactElement {
                     : 'border-[var(--c-line)] bg-[var(--c-card)]'
                 }`}
               >
-                <div className="font-mono text-[10px] text-[var(--c-text-faint)] uppercase tracking-wider">
+                <div className="font-mono text-[10px] tracking-wider text-[var(--c-text-faint)] uppercase">
                   {st.label}
                 </div>
                 <div
@@ -547,7 +544,7 @@ function LiveHighlightedEditor({
       <div
         ref={backdropRef}
         aria-hidden="true"
-        className="pointer-events-none absolute inset-0 z-0 overflow-y-auto overflow-x-hidden p-4 font-mono text-[12.5px] leading-[1.85] whitespace-pre-wrap break-words select-none"
+        className="pointer-events-none absolute inset-0 z-0 overflow-x-hidden overflow-y-auto p-4 font-mono text-[12.5px] leading-[1.85] break-words whitespace-pre-wrap select-none"
         style={{ color: 'transparent' }}
       >
         {painted.map((segment, i) => {
@@ -641,9 +638,9 @@ function InteractiveInspectorDisplay({
                   e.stopPropagation();
                   onSelectChunk(primaryChunkIdx);
                 }}
-                className={`inline-flex items-center rounded px-1 py-0.2 mr-1 align-baseline font-mono text-[9px] font-bold tracking-tight cursor-pointer transition-transform hover:scale-105 select-none ${
+                className={`py-0.2 mr-1 inline-flex cursor-pointer items-center rounded px-1 align-baseline font-mono text-[9px] font-bold tracking-tight transition-transform select-none hover:scale-105 ${
                   focus === primaryChunkIdx
-                    ? 'bg-[var(--c-accent-fill)] text-[var(--c-accent-on-fill)] ring-1 ring-[var(--c-line)] shadow-xs'
+                    ? 'bg-[var(--c-accent-fill)] text-[var(--c-accent-on-fill)] shadow-xs ring-1 ring-[var(--c-line)]'
                     : 'bg-[var(--c-line)] text-[var(--c-text-muted)] hover:bg-[var(--c-accent-soft)] hover:text-[var(--c-accent)]'
                 }`}
                 title={`Click to focus Chunk #${primaryChunkIdx + 1}`}

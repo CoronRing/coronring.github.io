@@ -20,18 +20,22 @@ import ReservedStage from './stages/ReservedStage';
  * slides in from the left, and the controls rise from the bottom. Same canvas,
  * same instance, no reload.
  *
- * The handoff is a scroll position, not a switch. `--deck-t` runs 0 to 1 over
- * the first part of the pinned range and every difference between the two
- * states is interpolated off it in CSS, so scrolling back up runs the whole
- * thing in reverse and the name travels between its two homes rather than
- * being two elements that cross-fade. `phase` carries the same value coarsely,
- * for the things CSS cannot interpolate — `visibility`, `display`, and so the
- * tab order.
+ * The handoff is **latched, not scrubbed**. One deliberate scroll trips it and
+ * CSS runs the whole transition on its own timing; scrolling back up trips it
+ * the other way and CSS runs it in reverse. The scroll picks the direction, it
+ * does not meter the animation — metering it against the scroll made a visitor
+ * pay for the animation a wheel notch at a time, and the name arrived in
+ * pieces.
  *
- * The section is taller than the viewport with the whole of it pinned, so the
- * scroll that buys the handoff does not also scroll the introduction off the
- * top. What is left of the pinned range is dwell: the cloud spins up with the
- * scroll (see `ParticleStage`) before the page releases into the work below.
+ * Every difference between the two states is interpolated in CSS off the one
+ * number `--deck-t`, which is why the name travels between its two homes
+ * rather than being two elements that cross-fade. `phase` carries where the
+ * run has got to, for the things CSS cannot interpolate: `visibility`,
+ * `display`, and so the tab order.
+ *
+ * The section is a little taller than the viewport with the whole of it pinned,
+ * so the deck state gets a moment on screen — and the cloud spins with the
+ * scroll (see `ParticleStage`) — before the page releases into the work below.
  *
  * ## The exhibit sits beside the copy, not under it
  *
@@ -64,21 +68,24 @@ interface Props {
   indexHref: string;
 }
 
-/** Coarse read of `--deck-t`, for the properties that cannot be interpolated. */
+/** Where the handoff is in its own run. Drives what CSS cannot interpolate. */
 type Phase = 'intro' | 'moving' | 'deck';
 
-/** Share of the pinned range the handoff spends itself over; the rest is dwell. */
-const HANDOFF_SHARE = 0.55;
-
-/** Unpinned, the handoff is a step. Anything past this and the visitor has scrolled. */
-const HANDOFF_PX = 24;
-
-/** Where the deck is pinned and the handoff can be scrubbed. Matches deck.css. */
-const PINNED = '(min-width: 64rem)';
-
-function clamp01(value: number): number {
-  return value < 0 ? 0 : value > 1 ? 1 : value;
-}
+/**
+ * The two thresholds the handoff latches on, in pixels into the section.
+ *
+ * `ENTER` is about one wheel notch: enough that a stray touchpad tremor or a
+ * restored scroll position does not fire it, little enough that one deliberate
+ * scroll does. Scrubbing the transition against the scroll instead made a
+ * visitor pay for the whole animation a notch at a time.
+ *
+ * `EXIT` is lower than `ENTER` on purpose. Equal thresholds put a visitor
+ * resting exactly on the line into a loop, the transition restarting in the
+ * opposite direction on every small correction; the gap between them is what
+ * makes the latch stable.
+ */
+const ENTER_PX = 90;
+const EXIT_PX = 36;
 
 /**
  * Display size for a frame title, stepped by length.
@@ -140,58 +147,87 @@ export default function ProjectDeck({
   /*
    * The handoff.
    *
-   * `--deck-t` is written straight to the element rather than held in state:
-   * it changes every frame the page is moving, and re-rendering six tokens and
-   * a readout at 60Hz to move one number is not a trade worth making. The
-   * three-valued `phase` does go through state, and changes at most twice per
-   * pass.
+   * Scrolling past `ENTER_PX` sets `--deck-t` to 1 and CSS runs the whole
+   * transition on its own timing; scrolling back above `EXIT_PX` sets it to 0
+   * and CSS runs it backwards. The scroll position picks the direction, it does
+   * not meter the animation.
+   *
+   * `--deck-t` is written straight to the element rather than held in state,
+   * because `phase` has to lag it: the layers that leave are only taken out of
+   * the tab order once they have finished fading, and driving both from one
+   * state update would pop them out at the first frame instead.
    */
   useEffect(() => {
     const section = sectionRef.current;
     if (!section) return;
 
-    const pinned = window.matchMedia(PINNED);
+    /*
+     * How long to wait before taking the outgoing layer out of the tab order.
+     *
+     * Read from the *resolved* transition, not from a custom property holding
+     * the number: the build minifies `620ms` to `.62s`, so parsing the declared
+     * value gave 0.62 and the layers popped instead of fading. A computed
+     * `transition-duration` is always in seconds by spec, and this picks up
+     * `prefers-reduced-motion` for free, since that flattens it globally.
+     */
+    const swapMs = (): number => {
+      const declared = getComputedStyle(section).transitionDuration;
+      const times = declared
+        .split(',')
+        .map((part) => parseFloat(part) * 1000)
+        .filter((ms) => Number.isFinite(ms));
+      return Math.max(0, ...times);
+    };
+
+    let open = false;
     let frameId = 0;
+    let settleId = 0;
+
+    const apply = (next: boolean): void => {
+      if (next === open) return;
+      open = next;
+      section.style.setProperty('--deck-t', next ? '1' : '0');
+      setPhase('moving');
+      window.clearTimeout(settleId);
+      settleId = window.setTimeout(() => setPhase(next ? 'deck' : 'intro'), swapMs());
+    };
 
     const read = (): void => {
       frameId = 0;
       const travelled = window.scrollY - section.offsetTop;
-      let t: number;
-
-      if (pinned.matches) {
-        const range = (section.offsetHeight - window.innerHeight) * HANDOFF_SHARE;
-        t = range > 0 ? clamp01(travelled / range) : travelled > HANDOFF_PX ? 1 : 0;
-      } else {
-        t = travelled > HANDOFF_PX ? 1 : 0;
-      }
-
-      section.style.setProperty('--deck-t', t.toFixed(4));
-      setPhase(t < 0.02 ? 'intro' : t > 0.98 ? 'deck' : 'moving');
+      // Between the two thresholds nothing changes, which is the whole point.
+      if (travelled >= ENTER_PX) apply(true);
+      else if (travelled <= EXIT_PX) apply(false);
     };
 
     const schedule = (): void => {
       if (!frameId) frameId = requestAnimationFrame(read);
     };
 
-    read();
+    /* A reload part-way down the page starts where the visitor left off, with
+       no transition to play. */
+    if (window.scrollY - section.offsetTop >= ENTER_PX) {
+      open = true;
+      section.style.setProperty('--deck-t', '1');
+      setPhase('deck');
+    }
+
     window.addEventListener('scroll', schedule, { passive: true });
     window.addEventListener('resize', schedule);
-    pinned.addEventListener('change', schedule);
 
     return () => {
       if (frameId) cancelAnimationFrame(frameId);
+      window.clearTimeout(settleId);
       window.removeEventListener('scroll', schedule);
       window.removeEventListener('resize', schedule);
-      pinned.removeEventListener('change', schedule);
     };
   }, []);
 
-  /** The cue does what the scroll it stands in for would do. */
+  /** The cue does what the scroll it stands in for would do: trip the latch. */
   const advance = useCallback(() => {
     const section = sectionRef.current;
     if (!section) return;
-    const range = Math.max(section.offsetHeight - window.innerHeight, window.innerHeight * 0.6);
-    window.scrollTo({ top: section.offsetTop + range * HANDOFF_SHARE });
+    window.scrollTo({ top: section.offsetTop + ENTER_PX * 2 });
   }, []);
 
   // Pause every stage while the deck is off screen or the tab is hidden.

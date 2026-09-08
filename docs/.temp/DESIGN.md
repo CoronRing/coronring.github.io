@@ -1,7 +1,7 @@
 # coronring.github.io — Design Document
 
-**Version:** 0.12.0
-**Status:** Complete — the deck's handoff is a reversible scroll position, and the exhibit sits beside the copy rather than under it
+**Version:** 0.13.0
+**Status:** Complete — the deck's handoff is a reversible latch, and the exhibit sits beside the copy rather than under it
 **Last updated:** 2026-09-06
 **Owner:** Guan Zheng Huang (`CoronRing`)
 
@@ -9,17 +9,31 @@
 > deployables in this repository, and anything crossing the boundary between
 > them belongs in [`../SYSTEM.md`](../SYSTEM.md).
 >
-> **v0.12.0** — the landing page's two states become one continuum, and the
+> **v0.13.0** — the handoff latches instead of scrubbing, and the deploy
+> workflow moves off Node 20.
+>
+> Metering the transition against the scroll meant paying for it a wheel notch
+> at a time: the name arrived in pieces and it took three or four scrolls to
+> finish. It is now a **latch**. Crossing 90px into the section flips `--deck-t`
+> to 1 and a CSS `transition` runs the whole thing on its own 620ms; coming back
+> above 36px flips it to 0 and CSS runs it backwards. The gap between the two
+> thresholds is deliberate: equal ones put a visitor resting on the line into a
+> loop. The pin drops from 168vh to 133vh, because the dwell no longer has a
+> transition to pay for and the rest was scroll that did nothing.
+>
+> Every action in `deploy.yml` moves to a major that runs on Node 24, and the
+> build itself to Node 22. Two breaking changes in those majors were checked
+> and do not apply here (§14).
+>
+> **v0.12.0** — the landing page's two states become one interpolation, and the
 > exhibit stops being hidden by the type on top of it.
 >
-> **The handoff is a scroll position, not a switch.** `--deck-t` runs 0 to 1
-> over the first 55% of the pinned range and every difference between the two
-> states is interpolated off it in CSS, so scrolling back up runs the whole
-> thing in reverse. There is one masthead rather than two: it is laid out where
-> it ends up and the landing position is a transform, so the name travels and
-> shrinks into place instead of one copy fading out while another fades in.
-> Scrolling past the deck no longer strands a visitor in a state they cannot
-> leave.
+> **One number drives the handoff.** Every difference between the two states is
+> interpolated off `--deck-t` in CSS. There is one masthead rather than two: it
+> is laid out where it ends up and the landing position is a transform, so the
+> name travels and shrinks into place instead of one copy fading out while
+> another fades in. Scrolling past the deck no longer strands a visitor in a
+> state they cannot leave.
 >
 > **The exhibit is inset beside the copy column** rather than running full bleed
 > underneath it (§6.1). It was centred in the viewport with the copy lying
@@ -430,19 +444,32 @@ whether to stay.
 **Deck.** The introduction folds into two lines, the roster slides in from the
 left, and the control strip rises from the bottom.
 
-The handoff between them is a **scroll position**, not a switch. `ProjectDeck`
-writes `--deck-t` (0 to 1) onto the section from the scroll offset, and every
-difference between the two states is interpolated off it in CSS: the masthead's
-travel and scale, the rail's fade and slide, the readout's opacity, the control
-strip's rise, the lede's fade. Scrolling up runs all of it backwards, so a
-visitor can get back to the title card.
+The handoff between them is **latched, not scrubbed**. `ProjectDeck` flips
+`--deck-t` between 0 and 1 when the scroll crosses a threshold, and a
+`transition` on `.deck` runs every difference between the two states off that
+one number: the masthead's travel and scale, the rail's fade and slide, the
+readout's opacity, the control strip's rise, the lede's fade. The scroll picks
+the direction; it does not meter the animation.
 
-`--deck-t` is written straight to the element rather than held in React state.
-It changes every frame the page is moving, and re-rendering six tokens and a
-readout at 60 Hz to move one number is not a trade worth making. A three-valued
-`data-phase` (`intro` / `moving` / `deck`) does go through state and changes at
-most twice per pass; it carries only what CSS cannot interpolate: `visibility`,
-`display`, and therefore the tab order.
+Two thresholds, not one:
+
+|       | px into the section | why                                                                                                                                                                                 |
+| ----- | ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Enter | 90                  | About one wheel notch. Enough that a touchpad tremor or a restored scroll position does not fire it, little enough that one deliberate scroll does.                                 |
+| Exit  | 36                  | Lower than Enter on purpose. Equal thresholds put a visitor resting exactly on the line into a loop, the transition restarting in the opposite direction on every small correction. |
+
+`--deck-t` is written straight to the element rather than held in React state,
+because `data-phase` has to lag it. The layers that leave are only taken out of
+the tab order once they have finished fading, so `phase` moves `intro` →
+`moving` → `deck` with the middle step held for the length of the transition;
+driving both from one state update would pop them out on the first frame.
+
+The duration is written once, in the CSS `transition`, and read back in JS as
+the element's resolved `transition-duration`. Reading a custom property holding
+the number instead does not survive the build: it minifies `620ms` to `.62s`,
+`parseFloat` returns 0.62, and the layers pop. The resolved value is always in
+seconds by spec, and it picks up `prefers-reduced-motion` for free, since that
+flattens every transition globally.
 
 There is **one masthead**, not two. It is laid out where it ends up, at the top
 of the copy column, and the landing position is a transform off `--deck-t`, so
@@ -1316,6 +1343,26 @@ block a content change. The service is deployed by hand with
 be out of step and nothing will say so. Verify the pair against the public URL
 after either one changes; `../SYSTEM.md` §4 has the check.
 
+### Action versions
+
+Every action is on a major that runs on Node 24 (`checkout@v7`,
+`setup-node@v7`, `configure-pages@v6`, `upload-pages-artifact@v5`,
+`deploy-pages@v5`), and the build runs on Node 22. The runners were forcing
+Node-20 actions onto 24 and warning about it, and that shim will not last.
+
+Two breaking changes in those majors were checked against this repo and do not
+apply:
+
+- `checkout` v5+ tightened `pull_request_target` defaults. Nothing here
+  triggers on that event.
+- `upload-pages-artifact` v4+ stopped including dotfiles. `dist/` contains
+  none. If the build ever starts emitting one, pass `include-hidden-files: true`
+  rather than reverting the major.
+
+`setup-node` v5 added automatic caching driven by a `packageManager` field in
+`package.json`. There is no such field and `cache: npm` is passed explicitly,
+so the behaviour is unchanged.
+
 ---
 
 ## 14. Roadmap
@@ -1330,65 +1377,68 @@ after either one changes; `../SYSTEM.md` §4 has the check.
 
 ## 15. Decision log
 
-| Decision                                                              | Reasoning                                                                                                                                         |
-| --------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Pyodide in a worker, and terminate as the only stop                   | Synchronous WebAssembly cannot be interrupted in-page; on the main thread a visitor's infinite loop takes the tab and the stop button with it     |
-| Keep the `railtracks` preset even though it cannot install            | The blockers are missing wheels, not broken code; a hardcoded refusal would outlive the reason for it, and the attempt reports the real cause     |
-| Hand-written editor rather than CodeMirror                            | ~250 kB to type Python into a box on a page whose argument is that it loads fast; a gutter, colour and indent-aware keys is the whole ask         |
-| `/api/embed` on the chat service, not a new service                   | It needs Gemini keys, even rotation, per-model cooldowns and a rate limiter, all of which already exist there; a second copy is a second bug      |
-| L2-normalise embeddings at the service boundary                       | `gemini-embedding-001` is unit length only at 3072 dimensions; below that cosine and dot product silently disagree by up to 20%                   |
-| Semantic comparison opt-in per click, local engine as default         | The tool is fully useful without a request, so uploading pasted text on page load would buy nothing and cost the promise in §12.3                 |
-| Warn on catastrophic regex shapes rather than trying to abort         | Nothing in the page runs once the engine is inside a backtrack; a static check before running is the only defence that exists                     |
-| Random Kit names its source in the UI                                 | Reproducible and unpredictable are opposite requirements and `Math.random()` satisfies neither; hiding the choice hides the only two questions    |
-| Measure speech rate from `boundary` events, then extrapolate          | Speaking rate varies over 2x by voice, so estimating is wrong; speaking the whole text is right and takes minutes. Two seconds either way         |
-| `pyPreset` as a second project slot, not a new `demo:` key            | A demo is one island per project; a console is orthogonal, and `particle-wave` wants both                                                         |
-| Escalate to a headless browser before declaring a site unreadable     | v0.1.0's central error; the CSS was one `curl` away                                                                                               |
-| Generate and commit the price table rather than fetching LiteLLM live | Hermetic builds, a reviewable diff on every price change, and no third-party request from a visitor's browser                                     |
-| No server-side proxy for the MCP tester                               | An open request forwarder is an SSRF pivot; direct-from-tab also makes `localhost` endpoints testable                                             |
-| Tool engines in `src/lib/`, never in the island                       | Each was tested standalone before any UI existed; keeps the components short enough to read                                                       |
-| Vertical rail over horizontal header                                  | Nav persists through a full-height hero; gives the asymmetric edge the reference relies on                                                        |
-| Contrast veil rather than a matching one                              | A same-tone loader is a blank screen; the opposite tone makes the reveal an event                                                                 |
-| Veil once per session                                                 | An MPA that veils every navigation is unusable                                                                                                    |
-| Veil waits for the exhibit, not for `load`                            | `load` fires before the island hydrates and the engine starts, so the veil lifted onto "Starting engine…" — a loading screen that missed the load |
-| `holdVeil` a prop rather than a marker in the page                    | The decision is synchronous; on a slow load nothing below the veil is parsed yet, so a queried marker is found only after the ceiling has fired   |
-| Two accent tokens (text vs fill)                                      | `#fffa00` is illegible as text on white but correct as a fill with ink on top                                                                     |
-| Per-theme particle size and opacity                                   | Equal alpha does not mean equal perceived weight across grounds                                                                                   |
-| No canvas fade-in                                                     | Bought nothing; froze at ~35% contrast wherever the animation clock stalls                                                                        |
-| Parametric cloud with a fixed seed                                    | No source bitmap, no Python in CI, byte-identical rebuilds                                                                                        |
-| Vendor SenseRing rather than reimplement                              | The engine already exists, is better than a rewrite, and is the user's own work                                                                   |
-| Types declared beside vendored JS, not inside it                      | Upstream edits are lost on the next sync                                                                                                          |
-| Carousel over three stacked cards                                     | Three prose blocks compete for one glance                                                                                                         |
-| Generated cover art over grey boxes                                   | Says something true while real screenshots are pending                                                                                            |
-| Verify by sampling pixels                                             | Both particle bugs were invisible to inspection                                                                                                   |
-| Ambient motion on the rest frame, not as a force                      | As a force it fights the spring and washes out to a static offset                                                                                 |
-| Glyph at spin weight 0, corona at 1                                   | A spinning letter is upside down half the time                                                                                                    |
-| Median, not mean, as the extractor's background level                 | The mean leaves background pixels at a third weight; the trace fills the frame                                                                    |
-| Real driveable demo over a recording                                  | Claims about a physics engine are cheap; a spring-constant slider is not                                                                          |
-| Upload goes to the Python service, browser tracer as fallback         | The server half is the project; the fallback keeps a free-tier outage from breaking the page                                                      |
-| Provenance labelled in the UI rather than hidden                      | The quality gap between the two tracers is the demonstration, not an implementation detail                                                        |
-| Backend and infra excluded from the Pages workflow                    | A service that cannot build must not be able to block a content deploy                                                                            |
-| No em dashes in visitor-facing copy                                   | The strongest single tell of machine-written prose on a page employers read                                                                       |
-| Hero and "Selected work" merged into one deck                         | They showed the same engine twice, the second time inside three nested frames; one full-height surface is both the introduction and the work      |
-| The deck handoff scrubbed off scroll rather than latched              | A landing card you cannot scroll back to is a state a visitor is stranded in; a scroll position reverses for free and the name can travel         |
-| `--deck-t` written to the DOM rather than held in React state         | It changes every frame the page moves; re-rendering six tokens and a readout at 60 Hz to move one number buys nothing                             |
-| Exhibit inset beside the copy, overlapping 7 to 9%                    | Full bleed put the copy across the cloud's left 40%; a clean split leaves a visible seam, and a few percent of overlap reads as one composition   |
-| `touch-action: pan-y` on both canvases                                | With `none` the canvas owns most of a phone's first screen and there is nothing left to swipe on                                                  |
-| At most three controls per stage                                      | Twenty-two controls under a small canvas is a parameter sheet; a visitor cannot tell which number is the interesting one, so they move none       |
-| `Look` as a preset rather than three parameters                       | Colour mode, palette and trail length only make sense together at this altitude; the separable version lives on the project page                  |
-| Only the active stage mounted                                         | Six live exhibits behind one another is six animation loops for one visible picture; a re-mount costs one cached fetch                            |
-| Three reserved frames rather than a roster of three                   | A deck of three implies that is all the work there is; the slots are marked reserved and link nowhere, which is honest and fills the rail         |
-| The site statement as ghost type behind the exhibit                   | It stays the loudest thing on the first screen without competing with the frame title for the heading slot; it is real text, not an image         |
-| Hand-set sigils rather than hash-generated ones                       | A hash-driven mark is noise at 56px; six drawn glyphs let a visitor aim at a frame instead of reading a list                                      |
-| Rail as a `tablist`, stage as its `tabpanel`                          | Arrow keys, roving `tabindex` and `aria-selected` come from the pattern rather than from bespoke handlers                                         |
-| Agent pipeline drawn as a graph, not a log                            | The shape is what a visitor understands in four seconds; the timestamped transcript is what an operator reads on their fourth day                 |
-| `minmax(0, 1fr)` on the stacked deck grid                             | A track's default minimum is its widest child, so the control row sized the column and pushed the whole deck off a phone                          |
-| Deck presets carry no trails                                          | `particles x trailLength` antialiased segments per frame is the frame: 133 ms against 24 ms, and almost none of the geometry is visible           |
-| A `charge` preset mapping colour to speed                             | The cheapest interactive thing the engine can do — the cloud changes colour under the cursor without drawing anything extra                       |
-| Project names on the rail, not just sigils                            | A portrait identifies an operator; a stroke glyph does not identify a library. The mark orients, the name identifies                              |
-| Masthead cut to a name and a job title                                | Location, a positioning sentence and a status block naming the deck's own mechanics were all text in front of the exhibit                         |
-| The assistant as a band on the home page                              | The one surface that answers questions should not be the one you have to navigate away to reach                                                   |
-| The dock nudges once, then withdraws                                  | Nobody clicks a button labelled "Ask". Once a session, gone in 15 s if ignored, and never over the in-page assistant                              |
-| Cards restored for `#work`                                            | The manifest was faster to skim and duller to look at; the cover art is generated, so an entry is a picture from the day it is added              |
+| Decision                                                                | Reasoning                                                                                                                                             |
+| ----------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Pyodide in a worker, and terminate as the only stop                     | Synchronous WebAssembly cannot be interrupted in-page; on the main thread a visitor's infinite loop takes the tab and the stop button with it         |
+| Keep the `railtracks` preset even though it cannot install              | The blockers are missing wheels, not broken code; a hardcoded refusal would outlive the reason for it, and the attempt reports the real cause         |
+| Hand-written editor rather than CodeMirror                              | ~250 kB to type Python into a box on a page whose argument is that it loads fast; a gutter, colour and indent-aware keys is the whole ask             |
+| `/api/embed` on the chat service, not a new service                     | It needs Gemini keys, even rotation, per-model cooldowns and a rate limiter, all of which already exist there; a second copy is a second bug          |
+| L2-normalise embeddings at the service boundary                         | `gemini-embedding-001` is unit length only at 3072 dimensions; below that cosine and dot product silently disagree by up to 20%                       |
+| Semantic comparison opt-in per click, local engine as default           | The tool is fully useful without a request, so uploading pasted text on page load would buy nothing and cost the promise in §12.3                     |
+| Warn on catastrophic regex shapes rather than trying to abort           | Nothing in the page runs once the engine is inside a backtrack; a static check before running is the only defence that exists                         |
+| Random Kit names its source in the UI                                   | Reproducible and unpredictable are opposite requirements and `Math.random()` satisfies neither; hiding the choice hides the only two questions        |
+| Measure speech rate from `boundary` events, then extrapolate            | Speaking rate varies over 2x by voice, so estimating is wrong; speaking the whole text is right and takes minutes. Two seconds either way             |
+| `pyPreset` as a second project slot, not a new `demo:` key              | A demo is one island per project; a console is orthogonal, and `particle-wave` wants both                                                             |
+| Escalate to a headless browser before declaring a site unreadable       | v0.1.0's central error; the CSS was one `curl` away                                                                                                   |
+| Generate and commit the price table rather than fetching LiteLLM live   | Hermetic builds, a reviewable diff on every price change, and no third-party request from a visitor's browser                                         |
+| No server-side proxy for the MCP tester                                 | An open request forwarder is an SSRF pivot; direct-from-tab also makes `localhost` endpoints testable                                                 |
+| Tool engines in `src/lib/`, never in the island                         | Each was tested standalone before any UI existed; keeps the components short enough to read                                                           |
+| Vertical rail over horizontal header                                    | Nav persists through a full-height hero; gives the asymmetric edge the reference relies on                                                            |
+| Contrast veil rather than a matching one                                | A same-tone loader is a blank screen; the opposite tone makes the reveal an event                                                                     |
+| Veil once per session                                                   | An MPA that veils every navigation is unusable                                                                                                        |
+| Veil waits for the exhibit, not for `load`                              | `load` fires before the island hydrates and the engine starts, so the veil lifted onto "Starting engine…" — a loading screen that missed the load     |
+| `holdVeil` a prop rather than a marker in the page                      | The decision is synchronous; on a slow load nothing below the veil is parsed yet, so a queried marker is found only after the ceiling has fired       |
+| Two accent tokens (text vs fill)                                        | `#fffa00` is illegible as text on white but correct as a fill with ink on top                                                                         |
+| Per-theme particle size and opacity                                     | Equal alpha does not mean equal perceived weight across grounds                                                                                       |
+| No canvas fade-in                                                       | Bought nothing; froze at ~35% contrast wherever the animation clock stalls                                                                            |
+| Parametric cloud with a fixed seed                                      | No source bitmap, no Python in CI, byte-identical rebuilds                                                                                            |
+| Vendor SenseRing rather than reimplement                                | The engine already exists, is better than a rewrite, and is the user's own work                                                                       |
+| Types declared beside vendored JS, not inside it                        | Upstream edits are lost on the next sync                                                                                                              |
+| Carousel over three stacked cards                                       | Three prose blocks compete for one glance                                                                                                             |
+| Generated cover art over grey boxes                                     | Says something true while real screenshots are pending                                                                                                |
+| Verify by sampling pixels                                               | Both particle bugs were invisible to inspection                                                                                                       |
+| Ambient motion on the rest frame, not as a force                        | As a force it fights the spring and washes out to a static offset                                                                                     |
+| Glyph at spin weight 0, corona at 1                                     | A spinning letter is upside down half the time                                                                                                        |
+| Median, not mean, as the extractor's background level                   | The mean leaves background pixels at a third weight; the trace fills the frame                                                                        |
+| Real driveable demo over a recording                                    | Claims about a physics engine are cheap; a spring-constant slider is not                                                                              |
+| Upload goes to the Python service, browser tracer as fallback           | The server half is the project; the fallback keeps a free-tier outage from breaking the page                                                          |
+| Provenance labelled in the UI rather than hidden                        | The quality gap between the two tracers is the demonstration, not an implementation detail                                                            |
+| Backend and infra excluded from the Pages workflow                      | A service that cannot build must not be able to block a content deploy                                                                                |
+| No em dashes in visitor-facing copy                                     | The strongest single tell of machine-written prose on a page employers read                                                                           |
+| Hero and "Selected work" merged into one deck                           | They showed the same engine twice, the second time inside three nested frames; one full-height surface is both the introduction and the work          |
+| The deck handoff latched off scroll rather than scrubbed against it     | Scrubbing charges a visitor for the animation a wheel notch at a time and the name arrives in pieces; a latch reverses just as well, on its own clock |
+| Two latch thresholds rather than one                                    | One threshold puts a visitor resting on the line into a loop, the transition restarting in the opposite direction on every small correction           |
+| Transition duration read back off the element, not stored in a variable | The build minifies `620ms` to `.62s`, so parsing the declared value gave 0.62 and the outgoing layers popped instead of fading                        |
+| Every deploy action on a Node-24 major                                  | The runners were forcing Node-20 actions onto 24 and warning; the shim is temporary and a dead deploy pipeline is not a portfolio piece               |
+| `--deck-t` written to the DOM rather than held in React state           | It changes every frame the page moves; re-rendering six tokens and a readout at 60 Hz to move one number buys nothing                                 |
+| Exhibit inset beside the copy, overlapping 7 to 9%                      | Full bleed put the copy across the cloud's left 40%; a clean split leaves a visible seam, and a few percent of overlap reads as one composition       |
+| `touch-action: pan-y` on both canvases                                  | With `none` the canvas owns most of a phone's first screen and there is nothing left to swipe on                                                      |
+| At most three controls per stage                                        | Twenty-two controls under a small canvas is a parameter sheet; a visitor cannot tell which number is the interesting one, so they move none           |
+| `Look` as a preset rather than three parameters                         | Colour mode, palette and trail length only make sense together at this altitude; the separable version lives on the project page                      |
+| Only the active stage mounted                                           | Six live exhibits behind one another is six animation loops for one visible picture; a re-mount costs one cached fetch                                |
+| Three reserved frames rather than a roster of three                     | A deck of three implies that is all the work there is; the slots are marked reserved and link nowhere, which is honest and fills the rail             |
+| The site statement as ghost type behind the exhibit                     | It stays the loudest thing on the first screen without competing with the frame title for the heading slot; it is real text, not an image             |
+| Hand-set sigils rather than hash-generated ones                         | A hash-driven mark is noise at 56px; six drawn glyphs let a visitor aim at a frame instead of reading a list                                          |
+| Rail as a `tablist`, stage as its `tabpanel`                            | Arrow keys, roving `tabindex` and `aria-selected` come from the pattern rather than from bespoke handlers                                             |
+| Agent pipeline drawn as a graph, not a log                              | The shape is what a visitor understands in four seconds; the timestamped transcript is what an operator reads on their fourth day                     |
+| `minmax(0, 1fr)` on the stacked deck grid                               | A track's default minimum is its widest child, so the control row sized the column and pushed the whole deck off a phone                              |
+| Deck presets carry no trails                                            | `particles x trailLength` antialiased segments per frame is the frame: 133 ms against 24 ms, and almost none of the geometry is visible               |
+| A `charge` preset mapping colour to speed                               | The cheapest interactive thing the engine can do — the cloud changes colour under the cursor without drawing anything extra                           |
+| Project names on the rail, not just sigils                              | A portrait identifies an operator; a stroke glyph does not identify a library. The mark orients, the name identifies                                  |
+| Masthead cut to a name and a job title                                  | Location, a positioning sentence and a status block naming the deck's own mechanics were all text in front of the exhibit                             |
+| The assistant as a band on the home page                                | The one surface that answers questions should not be the one you have to navigate away to reach                                                       |
+| The dock nudges once, then withdraws                                    | Nobody clicks a button labelled "Ask". Once a session, gone in 15 s if ignored, and never over the in-page assistant                                  |
+| Cards restored for `#work`                                              | The manifest was faster to skim and duller to look at; the cover art is generated, so an entry is a picture from the day it is added                  |
 
 ---
 

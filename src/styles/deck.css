@@ -4,29 +4,28 @@
  * Everything here is prefixed `deck-`; nothing outside `ProjectDeck` and its
  * stages should reach for these names.
  *
- * ## One continuous handoff
+ * ## One latched handoff
  *
- * `--deck-t` runs 0 (landing card) to 1 (deck), set by `ProjectDeck` from the
- * scroll position over the pinned range. Every difference between the two
- * states is interpolated off it, so the handoff runs forward as the visitor
- * scrolls down and backwards as they scroll up. `data-phase` carries the same
- * value coarsely — `intro`, `moving`, `deck` — and is used only where a
- * property cannot be interpolated: `display`, `visibility`, and therefore the
- * tab order.
+ * `--deck-t` is 0 (landing card) or 1 (deck) and nothing in between: it is
+ * transitioned, not scrubbed. `ProjectDeck` flips it when the scroll crosses a
+ * threshold, and the `transition` on `.deck` runs every difference between the
+ * two states off that one number, forwards or backwards, on its own timing.
+ * `data-phase` carries where the run has got to — `intro`, `moving`, `deck` —
+ * and is used only where a property cannot be interpolated: `display`,
+ * `visibility`, and therefore the tab order.
  *
  * ## Layout
  *
- * From `lg` the section is pinned: it is taller than the viewport, its inner
- * frame is sticky, and the extra height is the scroll distance the handoff
- * spends itself over.
+ * From `lg` the section is pinned: it is taller than the viewport and its inner
+ * frame is sticky, so the deck state gets a moment on screen before the page
+ * releases into the work below.
  *
  * The copy owns a fixed column on the left and the exhibit is inset to sit
  * beside it, overlapping by `--deck-art-cover` so the two read as one
  * composition rather than two panels with a seam between them.
  *
  * Below `lg` there is no pin: the exhibit takes the top of the screen with the
- * roster and the readout stacked under it, and the handoff is a single step
- * that `--deck-t` transitions through.
+ * roster and the readout stacked under it.
  *
  * ## Motion
  *
@@ -38,8 +37,9 @@
  */
 
 /*
- * Registered so it can be transitioned below `lg`, where the handoff is a
- * step rather than a scroll position, and so `calc()` can rely on its type.
+ * Registered so it can be transitioned at all — an unregistered custom
+ * property is a token stream and animates as a step — and so the `calc()`
+ * expressions that read it can rely on its type.
  */
 @property --deck-t {
   syntax: '<number>';
@@ -50,6 +50,12 @@
 @layer components {
   .deck {
     --deck-t: 0;
+    /*
+     * The handoff. This declaration is the only place its duration is written:
+     * `ProjectDeck` reads the resolved `transition-duration` back off the
+     * element to know when the layers that left can leave the tab order.
+     */
+    transition: --deck-t 620ms var(--ease-out);
 
     /* Wide enough for the longest project name to set on one line. */
     --deck-rail-w: 8rem;
@@ -123,16 +129,18 @@
     .deck-pin {
       min-height: calc(100dvh - var(--deck-bar-h));
     }
-    /* No pin to scrub, so the step is transitioned instead. */
-    .deck {
-      transition: --deck-t var(--dur-slow) var(--ease-out);
-    }
   }
 
   @media (min-width: 64rem) {
     .deck {
-      /* One screen of exhibit, then two thirds of a screen of dwell. */
-      min-height: 168vh;
+      /*
+       * One screen of exhibit, then a third of a screen of dwell. The dwell no
+       * longer buys the transition — that runs on its own timing off one
+       * scroll — so it is only there to give the deck state a moment before
+       * the page releases into the work below. Any more and it reads as scroll
+       * that does nothing.
+       */
+      min-height: 133vh;
       /*
        * Sized so the landing name stays inside the copy column. Anything
        * larger and it sets across the exhibit, which is the thing this
@@ -462,10 +470,10 @@
    *
    * Below lg the size itself is interpolated, so the name wraps the way any
    * heading would — a phone has no room for a name that cannot break. That
-   * costs a layout pass per frame, which is affordable because the handoff
-   * there is a single transition rather than a scroll position. From lg the
-   * name is scaled by a transform, which composites, and the lines under it
-   * are pushed down by hand since a scaled box never grows.
+   * costs a layout pass per frame of the transition, which is affordable at
+   * that size. From lg the name is scaled by a transform, which composites,
+   * and the lines under it are pushed down by hand since a scaled box never
+   * grows.
    */
   .deck-mast-name {
     font-size: calc(
@@ -485,9 +493,13 @@
     }
   }
 
-  /* The sentence and the links, which belong to the landing card alone. */
+  /*
+   * The sentence and the links, which belong to the landing card alone. Gone
+   * before the run is half over, so they are not still fading while the
+   * readout is arriving, but not so fast that they read as being cut.
+   */
   .deck-lede {
-    opacity: max(0, calc(1 - var(--deck-t) * 1.8));
+    opacity: max(0, calc(1 - var(--deck-t) * 1.3));
   }
   .deck[data-phase='deck'] .deck-lede {
     visibility: hidden;
@@ -817,7 +829,7 @@
     .deck[data-phase='intro'] :is(.deck-rail, .deck-copy) {
       display: none;
     }
-    /* No scroll to scrub, so the roster assembles on its own timing. */
+    /* The roster is a row here rather than a column, so it assembles. */
     .deck:not([data-phase='intro']) .deck-rail {
       animation: deck-rail-in var(--dur-slow) var(--ease-out) both;
     }
