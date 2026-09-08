@@ -4,7 +4,8 @@
  *
  * Owns: <head> metadata, font loading, the pre-paint theme script, the
  * contrast veil, the fixed backdrop, the navigation rail, the `<main>`
- * landmark, and the footer. Pages supply only content and metadata.
+ * landmark, the footer, and the load-time fragment landing. Pages supply only
+ * content and metadata.
  *
  * Layout model: the rail is `position: fixed`, and everything else is pushed
  * right by `.rail-offset` (a padding equal to `--rail-w` at >=lg, zero below).
@@ -21,6 +22,7 @@ import { absolute } from '../lib/url';
 import Veil from '../components/layout/Veil.astro';
 import Backdrop from '../components/decor/Backdrop.astro';
 import Sidebar from '../components/layout/Sidebar.astro';
+import HashLanding from '../components/layout/HashLanding.astro';
 import Footer from '../components/layout/Footer.astro';
 import ChatDock from '../components/chat/ChatDock';
 
@@ -126,5 +128,13 @@ const ogImage = absolute(image, SITE.url);
     */
     }
     {!hideChatDock && <ChatDock client:idle />}
+
+    {
+      /*
+      Last in the body: it looks the fragment's target up by id, so every
+      section has to be parsed before it runs.
+    */
+    }
+    <HashLanding />
   </body>
 </html>

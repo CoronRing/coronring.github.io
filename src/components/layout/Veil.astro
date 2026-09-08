@@ -42,7 +42,9 @@ const { hold = false } = Astro.props;
  * Four behaviours that keep it from becoming an annoyance:
  *
  *  1. **Fails open.** The element is `hidden` in the markup and only unhidden
- *     by the inline pre-paint script. No JS, no veil, content visible.
+ *     by the inline pre-paint script. No JS, no veil, content visible. While
+ *     it is up the root is `overflow: hidden`; `coronring:veil-lifted` fires
+ *     on the way out so anything that needed the scrollport can act.
  *  2. **Once per session.** This is a multi-page app — veiling on every
  *     internal navigation would be intolerable. A sessionStorage flag limits
  *     it to the first page view of a visit. `?veil` on the URL overrides that,
@@ -122,6 +124,10 @@ const { hold = false } = Astro.props;
       }
       el.setAttribute('data-done', 'true');
       document.documentElement.style.overflow = '';
+      /* Announce the unlock. A `/#band` landing is clamped to the top for as
+         long as the root is `overflow: hidden`, so `HashLanding` waits for
+         this before it takes its last shot at the anchor. */
+      window.dispatchEvent(new Event('coronring:veil-lifted'));
       // Remove after the transition so it can never trap focus or clicks.
       setTimeout(function () {
         el.remove();

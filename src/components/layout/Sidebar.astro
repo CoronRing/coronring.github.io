@@ -12,11 +12,16 @@
  * find-in-page always see them; they are hidden visually via opacity/width on
  * the rail, not removed.
  *
+ * Every entry that has a matching home-page band links to that band's anchor
+ * (`/#tools`), never to the dedicated page, so one nav entry has one
+ * destination whatever page it is clicked from. The dedicated pages are
+ * reached from each band's own "all tools" / "full resume" link.
+ *
  * On the home page the rail doubles as a scroll-spy: `data-spy` links mark
  * themselves current as their section passes the viewport middle.
  */
 import { SITE } from '../../data/site';
-import { href, isActive } from '../../lib/url';
+import { anchor, href, isActive } from '../../lib/url';
 import Icon from '../ui/Icon.astro';
 import Mark from '../ui/Mark.astro';
 import ThemeToggle from './ThemeToggle.astro';
@@ -93,9 +98,9 @@ const onHome = path === '/' || path === '';
           return (
             <li>
               <a
-                href={spy ? `#${item.section}` : href(item.href)}
+                href={item.section ? anchor(item.section) : href(item.href)}
                 data-spy={spy ? item.section : undefined}
-                aria-current={active && !onHome ? 'page' : undefined}
+                aria-current={active && !onHome ? 'true' : undefined}
                 class:list={[
                   'nav-item relative flex h-12 items-center gap-4 px-[1.375rem] text-sm whitespace-nowrap transition-colors duration-[var(--dur-fast)]',
                   active && !onHome
@@ -187,8 +192,8 @@ const onHome = path === '/' || path === '';
             return (
               <li>
                 <a
-                  href={onHome && item.section ? `#${item.section}` : href(item.href)}
-                  aria-current={active && !onHome ? 'page' : undefined}
+                  href={item.section ? anchor(item.section) : href(item.href)}
+                  aria-current={active && !onHome ? 'true' : undefined}
                   class:list={[
                     'relative flex items-center gap-3.5 px-5 py-3.5',
                     active && !onHome

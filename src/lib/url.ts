@@ -52,3 +52,14 @@ function stripBase(path: string): string {
   }
   return path;
 }
+
+/**
+ * The home page's anchor for a nav section, e.g. `/#tools`.
+ *
+ * The rail points here rather than at the dedicated page, so a nav entry has
+ * one destination regardless of which page it is clicked from. Base-aware, so
+ * it is still same-document when the home page is served from a sub-path.
+ */
+export function anchor(section: string): string {
+  return `${href('/')}#${section}`;
+}

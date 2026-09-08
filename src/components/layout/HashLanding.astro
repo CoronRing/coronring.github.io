@@ -1,0 +1,107 @@
+---
+/**
+ * HashLanding — makes a cross-page `/#band` link land where it says.
+ *
+ * Two things on this site get in the way of the browser's own scroll to a
+ * fragment, and both only apply to a fragment that is present *at load*.
+ * An in-page anchor click is untouched and still scrolls smoothly.
+ *
+ *  1. The veil holds `overflow: hidden` on the root element while it is up
+ *     (see `Veil.astro`), and on the home page it holds it until the deck's
+ *     exhibit reports in — up to seven seconds. A locked scrollport clamps
+ *     the fragment scroll to zero, so the visitor lands at the top of the
+ *     page having asked for a band halfway down, and cannot scroll there by
+ *     hand either until the veil goes.
+ *  2. `html { scroll-behavior: smooth }` turns the landing into an animation
+ *     that starts at the top and travels the whole page. On the way it trips
+ *     every `client:visible` island and every `Reveal` observer it passes,
+ *     and each one that settles at a different height re-targets the
+ *     animation underneath it. That reads as the page refusing to go where it
+ *     was sent.
+ *
+ * So: land instantly rather than smoothly, and keep re-landing while the page
+ * is still settling — but stand down the moment the visitor scrolls for
+ * themselves. Fighting someone for the scroll position is worse than landing
+ * in the wrong place. Input that arrives while the veil is still up is not
+ * that signal: nothing can move behind the curtain, so it is ignored.
+ */
+---
+
+<script is:inline>
+  (function () {
+    var hash = location.hash;
+    if (hash.length < 2) return;
+
+    var root = document.documentElement;
+    var restore = root.style.scrollBehavior;
+    root.style.scrollBehavior = 'auto';
+
+    /* Re-land for this long after the page is free to move, and never past
+       the hard limit — the veil's own ceiling is 7s, this is the backstop. */
+    var SETTLE_MS = 1200;
+    var LIMIT = Date.now() + 12000;
+    var INPUT = ['wheel', 'touchstart', 'pointerdown', 'keydown'];
+
+    var deadline = Date.now() + SETTLE_MS;
+    var standing = true;
+
+    /** The veil removes itself once done, so its absence is the all-clear. */
+    function veiled() {
+      var el = document.getElementById('veil');
+      return el !== null && !el.hasAttribute('data-done');
+    }
+
+    function land() {
+      if (!standing) return;
+      var el = null;
+      try {
+        el = document.getElementById(decodeURIComponent(hash.slice(1)));
+      } catch (e) {
+        /* A fragment that is not valid percent-encoding names nothing. */
+      }
+      /* `scrollIntoView` honours the band's `scroll-margin-top` and the
+         scrollport's `scroll-padding-top`, so the mobile bar never clips it. */
+      if (el) el.scrollIntoView({ block: 'start', behavior: 'auto' });
+    }
+
+    function standDown() {
+      if (!standing) return;
+      standing = false;
+      root.style.scrollBehavior = restore;
+      INPUT.forEach(function (type) {
+        window.removeEventListener(type, onInput);
+      });
+      window.removeEventListener('coronring:veil-lifted', onFree);
+      window.removeEventListener('load', onFree);
+    }
+
+    function onInput() {
+      if (veiled()) return;
+      standDown();
+    }
+
+    /** The page became able to move: land, and give it a moment to settle. */
+    function onFree() {
+      deadline = Date.now() + SETTLE_MS;
+      land();
+    }
+
+    INPUT.forEach(function (type) {
+      window.addEventListener(type, onInput, { passive: true });
+    });
+    window.addEventListener('coronring:veil-lifted', onFree);
+    window.addEventListener('load', onFree);
+
+    (function tick() {
+      if (!standing) return;
+      land();
+      /* The settle window does not start counting until the scrollport is
+         actually free, or a held veil would spend the whole of it. */
+      if (Date.now() >= LIMIT || (!veiled() && Date.now() >= deadline)) {
+        standDown();
+        return;
+      }
+      setTimeout(tick, 120);
+    })();
+  })();
+</script>
