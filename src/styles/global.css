@@ -601,3 +601,157 @@
     transform: none;
   }
 }
+
+/* ─────────────────────────────────────────────────────────────────────
+ * Document Reader Prose (.doc-prose)
+ * ─────────────────────────────────────────────────────────────────── */
+.doc-prose {
+  color: var(--c-text);
+  font-size: 15px;
+  line-height: 1.75;
+}
+
+.doc-prose h1 {
+  font-family: var(--font-display);
+  font-size: 1.85rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  margin-top: 1.75rem;
+  margin-bottom: 1rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--c-line);
+  color: var(--c-text);
+}
+
+.doc-prose h2 {
+  font-family: var(--font-display);
+  font-size: 1.4rem;
+  font-weight: 700;
+  letter-spacing: -0.015em;
+  margin-top: 1.5rem;
+  margin-bottom: 0.75rem;
+  padding-bottom: 0.35rem;
+  border-bottom: 1px solid var(--c-line-faint);
+  color: var(--c-text);
+}
+
+.doc-prose h3 {
+  font-size: 1.15rem;
+  font-weight: 600;
+  margin-top: 1.25rem;
+  margin-bottom: 0.5rem;
+  color: var(--c-text);
+}
+
+.doc-prose h4,
+.doc-prose h5,
+.doc-prose h6 {
+  font-size: 1rem;
+  font-weight: 600;
+  margin-top: 1rem;
+  margin-bottom: 0.5rem;
+}
+
+.doc-prose p {
+  margin-top: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.doc-prose a {
+  color: var(--c-accent);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  transition: opacity var(--dur-fast) var(--ease-out);
+}
+
+.doc-prose a:hover {
+  opacity: 0.8;
+}
+
+.doc-prose code {
+  font-family: var(--font-mono);
+  font-size: 0.86em;
+  background-color: var(--c-sunken);
+  color: var(--c-text);
+  padding: 0.15em 0.35em;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--c-line);
+}
+
+.doc-prose pre {
+  margin-top: 1rem;
+  margin-bottom: 1rem;
+  padding: 1rem;
+  background-color: var(--c-sunken);
+  border: 1px solid var(--c-line);
+  border-radius: var(--r-sm);
+  overflow-x: auto;
+}
+
+.doc-prose pre code {
+  background-color: transparent;
+  padding: 0;
+  border: none;
+  font-size: 0.85rem;
+  line-height: 1.6;
+}
+
+.doc-prose ul {
+  list-style-type: disc;
+  padding-left: 1.5rem;
+  margin-top: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.doc-prose ol {
+  list-style-type: decimal;
+  padding-left: 1.5rem;
+  margin-top: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.doc-prose li {
+  margin-top: 0.35rem;
+  margin-bottom: 0.35rem;
+}
+
+.doc-prose blockquote {
+  border-left: 3px solid var(--c-accent);
+  background-color: var(--c-sunken);
+  padding: 0.6rem 1rem;
+  margin: 1rem 0;
+  border-radius: 0 var(--r-sm) var(--r-sm) 0;
+  color: var(--c-text-muted);
+}
+
+.doc-prose table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1.25rem 0;
+  font-size: 0.9rem;
+  border: 1px solid var(--c-line);
+}
+
+.doc-prose th,
+.doc-prose td {
+  border: 1px solid var(--c-line);
+  padding: 0.5rem 0.75rem;
+  text-align: left;
+}
+
+.doc-prose th {
+  background-color: var(--c-raised);
+  font-weight: 600;
+  color: var(--c-text);
+}
+
+.doc-prose hr {
+  border: none;
+  border-top: 1px solid var(--c-line);
+  margin: 2rem 0;
+}
+
+.doc-prose input[type='checkbox'] {
+  margin-right: 0.45rem;
+  accent-color: var(--c-accent-fill);
+}

@@ -1,0 +1,82 @@
+---
+/**
+ * Document & Media Viewer tool page.
+ */
+import ToolLayout from '../../layouts/ToolLayout.astro';
+import DocViewer from '../../components/tools/DocViewer';
+---
+
+<ToolLayout slug="doc-viewer">
+  <DocViewer client:load forceToolMode={true} />
+
+  <Fragment slot="about">
+    <div class="grid gap-6 md:grid-cols-3">
+      <div class="hud-card p-5">
+        <h3 class="eyebrow text-accent mb-2">01 · Automatic URL Rewriting</h3>
+        <p class="text-muted text-sm leading-relaxed">
+          Transforms GitHub web blob URLs (<code>github.com/.../blob/...</code>) directly into raw content endpoints.
+          Accepts shorthand paths like <code>/RailtownAI/railtracks/main/AGENTS.md</code> with zero manual conversion.
+        </p>
+        <div class="text-faint mt-3 font-mono text-[11px]">
+          Frictionless: Non-technical recipients can open links without cloning or navigating code repos.
+        </div>
+      </div>
+
+      <div class="hud-card p-5">
+        <h3 class="eyebrow text-accent mb-2">02 · Multi-Format Engine</h3>
+        <p class="text-muted text-sm leading-relaxed">
+          Dispatches markdown to sanitized GFM with relative asset resolution, HTML into an isolated sandboxed iframe,
+          and media (video, audio, image) into responsive native players.
+        </p>
+        <div class="text-faint mt-3 font-mono text-[11px]">
+          Safety: HTML is sandboxed; Markdown is sanitized via DOMPurify to neutralize script execution.
+        </div>
+      </div>
+
+      <div class="hud-card p-5">
+        <h3 class="eyebrow text-accent mb-2">03 · Unlisted Sharing</h3>
+        <p class="text-muted text-sm leading-relaxed">
+          Generates direct reader links (<code>coronring.github.io/viewer?doc=...</code>) that bypass navigation menus,
+          enforce <code>noindex</code> search engine headers, and stay out of the AI assistant corpus.
+        </p>
+        <div class="text-faint mt-3 font-mono text-[11px]">
+          Distribution: Share manuals, design notes, and project drafts cleanly.
+        </div>
+      </div>
+    </div>
+
+    <div class="hud-card border-warn mt-6 border-l-2 p-5">
+      <h3 class="eyebrow text-warn mb-3">Operational Limits & Assumptions</h3>
+      <ul class="text-muted grid gap-3 text-xs leading-relaxed sm:grid-cols-2">
+        <li class="flex gap-2">
+          <span class="text-accent font-mono font-bold">·</span>
+          <span>
+            <strong>Public Repositories Only:</strong> Fetches run client-side in the recipient's browser.
+            Private GitHub repositories requiring authentication or SSO will return 404/403.
+          </span>
+        </li>
+        <li class="flex gap-2">
+          <span class="text-accent font-mono font-bold">·</span>
+          <span>
+            <strong>Cross-Origin Restrictions:</strong> Arbitrary external servers must permit CORS for text
+            fetching. GitHub and GitHub User Content have full CORS enabled by default.
+          </span>
+        </li>
+        <li class="flex gap-2">
+          <span class="text-accent font-mono font-bold">·</span>
+          <span>
+            <strong>Sandboxed HTML:</strong> Sandboxed iframes block top-level frame navigation and storage access
+            for cross-origin defense.
+          </span>
+        </li>
+        <li class="flex gap-2">
+          <span class="text-accent font-mono font-bold">·</span>
+          <span>
+            <strong>Relative Asset Bounds:</strong> Markdown images and relative file links are resolved relative
+            to the document's GitHub directory base.
+          </span>
+        </li>
+      </ul>
+    </div>
+  </Fragment>
+</ToolLayout>

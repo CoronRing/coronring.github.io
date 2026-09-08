@@ -103,6 +103,17 @@ export const SCREENS: readonly ToolScreen[] = [
     ],
   },
   {
+    slug: 'doc-viewer',
+    inputLabel: 'Document URL',
+    input: 'github.com/RailtownAI/railtracks/blob/main/AGENTS.md',
+    rows: [
+      { label: 'resolved', value: 'raw.githubusercontent.com (auto)', tone: 'plus' },
+      { label: 'format', value: 'Markdown · sanitized GFM', tone: 'accent' },
+      { label: 'assets', value: 'relative images & links re-based', tone: 'plain' },
+      { label: 'unlisted', value: 'noindex · direct link shareable', tone: 'faint' },
+    ],
+  },
+  {
     slug: 'regex-lab',
     inputLabel: 'Pattern',
     input: '/(\\w+)@(\\w+)\\.(\\w{2,})/g',

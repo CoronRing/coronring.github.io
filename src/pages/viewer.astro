@@ -1,0 +1,38 @@
+---
+/**
+ * Unlisted Document & Media Viewer (/viewer).
+ *
+ * Dedicated route for sharing documents (Markdown, HTML, Video, Audio, Code)
+ * directly via URL (e.g. /viewer?doc=https://github.com/RailtownAI/railtracks/blob/main/AGENTS.md).
+ *
+ * Unlisted: marked noindex, excluded from navigation and AI chat corpus.
+ */
+import BaseLayout from '../layouts/BaseLayout.astro';
+import DocViewer from '../components/tools/DocViewer';
+
+const title = 'Document Viewer';
+const description = 'Unlisted document and media reader for GitHub and web sources.';
+---
+
+<BaseLayout
+  title={title}
+  description={description}
+  noindex={true}
+  hideChatDock={true}
+>
+  <main class="shell-content pt-8 pb-16">
+    <div class="mb-6 flex items-center justify-between">
+      <a
+        href="/"
+        class="text-muted hover:text-accent inline-flex items-center gap-2 font-mono text-xs transition-colors"
+      >
+        ← Home
+      </a>
+      <span class="font-mono text-[11px] text-faint uppercase tracking-wider">
+        Unlisted Document Viewer
+      </span>
+    </div>
+
+    <DocViewer client:load />
+  </main>
+</BaseLayout>
