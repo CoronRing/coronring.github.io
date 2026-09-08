@@ -1,13 +1,41 @@
 # coronring.github.io — Design Document
 
-**Version:** 0.13.0
-**Status:** Complete — the deck's handoff is a reversible latch, and the exhibit sits beside the copy rather than under it
-**Last updated:** 2026-09-06
+**Version:** 0.14.0
+**Status:** Complete — one nav entry has one destination, and the title card's contact links look like controls
+**Last updated:** 2026-09-08
 **Owner:** Guan Zheng Huang (`CoronRing`)
 
 > This document covers the Astro site only. The site is now one of three
 > deployables in this repository, and anything crossing the boundary between
 > them belongs in [`../SYSTEM.md`](../SYSTEM.md).
+>
+> **v0.14.0** — one nav entry has one destination, and the contact links on
+> the title card read as controls.
+>
+> **The rail points at the home bands, from every page.** A nav entry used to
+> resolve to `#tools` on the home page and to `/tools` anywhere else, so the
+> same word in the same place went to two different designs depending on where
+> it was clicked. Every entry that has a matching band now links to
+> `/#band` (§3, §4.1). The dedicated pages keep their routes and are reached
+> from each band's own "all tools" / "full resume" link.
+>
+> That link only works if the page lands where it points, and two things on
+> this site stopped it: the veil holds `overflow: hidden` on the root for up to
+> seven seconds, which clamps a fragment scroll to the top, and
+> `scroll-behavior: smooth` turns the landing into a full-page animation that
+> every `client:visible` island it passes re-targets underneath it.
+> `HashLanding` lands instantly instead, re-lands while the page is still
+> settling, and stands down the moment the visitor scrolls for themselves. The
+> veil now fires `coronring:veil-lifted` so it knows when the scrollport is
+> free.
+>
+> **The title card's three contact links are chips**, in the accent colour with
+> their marks, inverting to the accent fill on hover the way the contact band at
+> the foot of the page does (§6.1). Set in the body colour as plain words they
+> read as the tail of the sentence above them, which is a poor showing for the
+> only route to a person on the first screen. `ui/Icon.tsx` is a React renderer
+> over the same path registry as `Icon.astro`, since the deck is an island and
+> cannot mount the Astro one.
 >
 > **v0.13.0** — the handoff latches instead of scrubbing, and the deploy
 > workflow moves off Node 20.
@@ -280,6 +308,10 @@ The home page flow, as of v0.11.0:
 `#top` is both the introduction and the work. The band that used to sit between
 them is gone.
 
+Every nav entry with a band of its own points at `/#band`, from every page, so
+one entry has one destination. The routes above still exist and hold the full
+lists; they are reached from the band, not from the rail.
+
 `#ask` exists because the one part of the site that answers questions was the
 one part a visitor had to navigate away to reach. `/chat` still exists for
 direct links and renders the same component.
@@ -301,6 +333,31 @@ top bar plus a focus-trapped drawer, rendered from the same `SITE.nav` source.
 
 The rail also holds the site's **single persistent call to action**, which is
 why the home page needs only one button and the footer needs none.
+
+**Its destinations are the home page's bands**, not the dedicated pages: an
+entry resolving to `#tools` on the home page and to `/tools` elsewhere meant
+the same word in the same place led to two different designs. On the home page
+the rail still scroll-spies those ids, so a `/#tools` entry that is already
+home behaves as an in-page anchor.
+
+A fragment that is present at load needs help on this site, which is
+`HashLanding.astro`, mounted last in the body by `BaseLayout` so every section
+is parsed before it runs:
+
+- The veil holds `overflow: hidden` on the root while it is up, and on the home
+  page it holds it until the exhibit reports in. A locked scrollport clamps the
+  fragment scroll to zero, so the visitor lands at the top having asked for a
+  band halfway down. `Veil.astro` fires `coronring:veil-lifted` on its way out.
+- `scroll-behavior: smooth` turns the landing into an animation that starts at
+  the top and travels the whole page, tripping every `client:visible` island and
+  `Reveal` observer on the way; each one that settles at a different height
+  re-targets the animation underneath it.
+
+So it lands instantly rather than smoothly, keeps re-landing for 1.2s after the
+scrollport is free (12s hard ceiling), and stands down on the first wheel, touch
+or key from the visitor. Input arriving while the veil is still up is not that
+signal, since nothing can move behind the curtain. An in-page anchor click is
+untouched and still scrolls smoothly.
 
 ### 4.2 The contrast veil
 
@@ -436,8 +493,8 @@ inactive panels are `hidden`, so they leave the tab order entirely.
 
 ### Two states on one continuum
 
-**Landing.** A name, what the name does, one line, three links, and the exhibit
-running beside them. No roster, no controls, no counter. Someone who has been
+**Landing.** A name, what the name does, one line, three contact chips, and the
+exhibit running beside them. No roster, no controls, no counter. Someone who has been
 here for one second is not choosing between six projects; they are deciding
 whether to stay.
 
@@ -480,9 +537,18 @@ not gain. Below `lg` the size itself is interpolated so the name wraps like any
 heading, which costs a layout pass per frame and is affordable because the
 handoff there is one transition rather than a scroll position.
 
-From `lg` the section is 168vh with the frame sticky. The handoff spends itself
-over the first 55% of the pinned range; the rest is dwell, and the cloud spins
-up with it.
+The three links under the sentence are **chips, not words in a row**: accent
+text on an accent tint, hairline border, each with its mark, inverting to the
+solid accent fill on hover. They are the only route to a person on the first
+screen, and set in the body colour they read as the tail of the sentence above
+them. The tint sits over a 72% hold of the page ground with a 2px blur, because
+they cross the exhibit. Hover matches the contact band at the foot of the page
+(§3), so the two read as one control rather than two conventions.
+
+From `lg` the section is 133vh with the frame sticky. The handoff is latched
+rather than metered, so the extra third buys no animation: it is dwell, enough
+that the deck state gets a moment on screen and the cloud spins up with it
+before the page releases into the work below.
 
 ### Where the exhibit sits
 

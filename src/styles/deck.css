@@ -510,22 +510,35 @@
     }
   }
 
+  /*
+   * Chips, not words in a row. These three are the only way to reach a person
+   * from the landing card, and set in the body colour they read as the tail of
+   * the sentence above them: the accent, the mark and the border are what say
+   * they can be pressed. Hover inverts to the accent fill, the same gesture the
+   * contact band at the foot of the page uses, so the two read as one control.
+   */
   .deck-lede-link {
-    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 0.85rem;
+    color: var(--c-accent);
+    /* Accent tint over a hold of the page ground, so the chip stays readable
+       where it crosses the exhibit. */
+    background:
+      linear-gradient(var(--c-accent-soft), var(--c-accent-soft)),
+      color-mix(in srgb, var(--c-ground) 72%, transparent);
+    border: var(--hairline) solid var(--c-accent-ring);
+    backdrop-filter: blur(2px);
+    transition:
+      background var(--dur-base) var(--ease-out),
+      border-color var(--dur-base) var(--ease-out),
+      color var(--dur-base) var(--ease-out);
   }
-  .deck-lede-link::after {
-    content: '';
-    position: absolute;
-    inset-inline: 0;
-    bottom: -0.35em;
-    height: 1px;
-    background: currentColor;
-    transform: scaleX(0);
-    transform-origin: left;
-    transition: transform var(--dur-base) var(--ease-out);
-  }
-  .deck-lede-link:hover::after {
-    transform: scaleX(1);
+  .deck-lede-link:hover {
+    color: var(--c-accent-on-fill);
+    background: var(--c-accent-fill);
+    border-color: var(--c-accent-fill);
   }
 
   /* ── Rail ───────────────────────────────────────────────────────── */

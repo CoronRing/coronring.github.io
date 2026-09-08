@@ -5,6 +5,8 @@ import ParticleStage from './stages/ParticleStage';
 import AgentStage from './stages/AgentStage';
 import PromptStage from './stages/PromptStage';
 import ReservedStage from './stages/ReservedStage';
+import Icon from '../ui/Icon';
+import type { IconName } from '../ui/icons';
 
 /**
  * ProjectDeck — the landing page.
@@ -62,8 +64,12 @@ interface Props {
   role: string;
   /** One sentence, shown on the landing card only. */
   intro: string;
-  /** The handful of links that belong on a title card. */
-  links: ReadonlyArray<{ label: string; href: string }>;
+  /**
+   * The handful of links that belong on a title card. They are the only way
+   * off the landing card, so each one carries its mark: a row of plain words
+   * in the body colour reads as a sentence, not as three buttons.
+   */
+  links: ReadonlyArray<{ label: string; href: string; icon?: IconName }>;
   /** Where "all projects" goes. */
   indexHref: string;
 }
@@ -341,17 +347,23 @@ export default function ProjectDeck({
               <p className="text-muted prose-measure mt-6 text-base leading-relaxed sm:text-lg">
                 {intro}
               </p>
-              <div className="mt-8 flex flex-wrap items-center gap-x-6 gap-y-3">
-                {links.map((link) => (
-                  <a
-                    key={link.label}
-                    href={link.href}
-                    tabIndex={landed ? -1 : undefined}
-                    className="deck-lede-link text-muted hover:text-accent font-mono text-xs tracking-wide uppercase transition-colors"
-                  >
-                    {link.label}
-                  </a>
-                ))}
+              <div className="mt-8 flex flex-wrap items-center gap-3">
+                {links.map((link) => {
+                  const external = /^https?:/.test(link.href);
+                  return (
+                    <a
+                      key={link.label}
+                      href={link.href}
+                      tabIndex={landed ? -1 : undefined}
+                      target={external ? '_blank' : undefined}
+                      rel={external ? 'noopener noreferrer' : undefined}
+                      className="deck-lede-link font-mono text-xs tracking-wide uppercase"
+                    >
+                      {link.icon ? <Icon name={link.icon} size={14} /> : null}
+                      {link.label}
+                    </a>
+                  );
+                })}
               </div>
             </div>
           </div>
