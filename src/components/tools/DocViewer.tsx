@@ -16,7 +16,7 @@ import {
   resolveDocSource,
   resolveRelativeUrl,
 } from '../../lib/doc-resolver';
-import { Badge, Button, CopyButton, ErrorNote, Panel } from './ui';
+import { Badge, Button, CopyButton, ErrorNote } from './ui';
 
 export interface DocViewerProps {
   /** Optional initial document query passed from page. */
@@ -30,11 +30,6 @@ const PRESETS = [
     label: 'RailtownAI · AGENTS.md',
     kind: 'Markdown',
     url: 'https://github.com/RailtownAI/railtracks/blob/main/AGENTS.md',
-  },
-  {
-    label: 'GitHub Camo · logo.svg',
-    kind: 'Camo Proxy',
-    url: 'https://camo.githubusercontent.com/22d0a4e97c2225226b66a9cac1dd5e2bf6fef7bb242ba91a112a9c91656de48b/68747470733a2f2f7261696c747261636b7373746f726167652e626c6f622e636f72652e77696e646f77732e6e65742f7261696c747261636b7373746f726167652f696d616765732f6c6f676f2e737667',
   },
   {
     label: 'RailtownAI · logo.svg',
@@ -61,10 +56,27 @@ export default function DocViewer({
 }: DocViewerProps): React.ReactElement {
   const inputId = useId();
 
+  // Helper to read initial doc from window.location if in browser, else fallback to initialDoc
+  const getInitialDoc = (): string => {
+    if (typeof window !== 'undefined') {
+      try {
+        const params = new URLSearchParams(window.location.search);
+        const doc = params.get('doc');
+        if (doc) return doc.trim();
+      } catch {
+        // ignore
+      }
+    }
+    return (initialDoc || '').trim();
+  };
+
   // URL state
-  const [docParam, setDocParam] = useState<string>(initialDoc);
-  const [inputUrl, setInputUrl] = useState<string>(initialDoc);
-  const [showInputBar, setShowInputBar] = useState<boolean>(forceToolMode || !initialDoc);
+  const [docParam, setDocParam] = useState<string>(getInitialDoc);
+  const [inputUrl, setInputUrl] = useState<string>(getInitialDoc);
+  const [showInputBar, setShowInputBar] = useState<boolean>(() => {
+    const initial = getInitialDoc();
+    return forceToolMode || !initial;
+  });
 
   // Content state
   const [loading, setLoading] = useState<boolean>(false);
@@ -83,7 +95,7 @@ export default function DocViewer({
   // Active kind takes dynamic override into account
   const activeKind: DocKind = overrideKind ?? resolvedDoc?.kind ?? 'markdown';
 
-  // Read URL query parameter on client mount
+  // Read URL query parameter on popstate (browser back/forward)
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
@@ -101,7 +113,6 @@ export default function DocViewer({
       }
     };
 
-    readUrlDoc();
     window.addEventListener('popstate', readUrlDoc);
     return () => window.removeEventListener('popstate', readUrlDoc);
   }, [forceToolMode]);
@@ -274,140 +285,127 @@ export default function DocViewer({
   }, [docParam]);
 
   return (
-    <div className="flex flex-col gap-6">
-      {/* ── Top Bar / Tool Mode Controls ─────────────────────────────────── */}
-      <Panel
-        title="Document Source"
-        aside={
-          <div className="flex items-center gap-2">
-            {resolvedDoc && (
-              <Badge tone="accent">{activeKind.toUpperCase()}</Badge>
+    <div className="flex flex-col gap-4">
+      {/* ── Minimalist Reader Control Bar (when document is loaded) ─────── */}
+      {resolvedDoc && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-[var(--c-line)] bg-[var(--c-surface)] px-3.5 py-2 shadow-xs">
+          {/* Document metadata info */}
+          <div className="flex items-center gap-2 min-w-0 font-mono text-xs">
+            <span className="size-2 rounded-full bg-[var(--c-ok)] shrink-0" />
+            <span
+              className="font-bold text-[var(--c-text)] truncate max-w-[180px] sm:max-w-xs md:max-w-md"
+              title={resolvedDoc.fileName}
+            >
+              {resolvedDoc.fileName}
+            </span>
+            {resolvedDoc.repo && (
+              <span className="text-[var(--c-text-faint)] hidden sm:inline truncate max-w-[220px]">
+                ({resolvedDoc.repo}@{resolvedDoc.branch})
+              </span>
             )}
-            {resolvedDoc && (
-              <Button
-                variant="quiet"
-                onClick={() => setShowInputBar((prev) => !prev)}
-                title="Toggle URL Input & Presets"
+            <Badge tone="accent">{activeKind.toUpperCase()}</Badge>
+          </div>
+
+          {/* Action buttons */}
+          <div className="flex flex-wrap items-center gap-1.5 shrink-0">
+            <Button
+              variant="quiet"
+              onClick={() => setShowInputBar((prev) => !prev)}
+              title="Toggle URL Input & Presets"
+            >
+              {showInputBar ? '▲ Hide URL Bar' : '▼ Change URL'}
+            </Button>
+            {shareableUrl && <CopyButton text={shareableUrl} label="Copy Link" />}
+            <a
+              href={resolvedDoc.sourceUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 rounded-sm border border-[var(--c-line)] bg-[var(--c-raised)] px-2.5 py-1 font-mono text-[11px] text-[var(--c-text-muted)] transition-colors hover:border-[var(--c-accent)] hover:text-[var(--c-accent)]"
+            >
+              {resolvedDoc.isGitHub ? 'GitHub ↗' : 'Source ↗'}
+            </a>
+            {resolvedDoc.rawUrl !== resolvedDoc.sourceUrl && (
+              <a
+                href={resolvedDoc.rawUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 rounded-sm border border-[var(--c-line)] bg-[var(--c-raised)] px-2.5 py-1 font-mono text-[11px] text-[var(--c-text-muted)] transition-colors hover:border-[var(--c-accent)] hover:text-[var(--c-accent)]"
               >
-                {showInputBar ? '▲ Hide URL Bar' : '▼ Change URL'}
-              </Button>
+                Raw ↗
+              </a>
             )}
           </div>
-        }
-      >
-        <div className="flex flex-col gap-4 p-4">
-          {/* Collapsible Input Field & Presets */}
-          {showInputBar && (
-            <>
-              <form
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  navigateToDoc(inputUrl);
-                }}
-                className="flex flex-col gap-2 sm:flex-row"
-              >
-                <div className="relative flex-1">
-                  <input
-                    id={inputId}
-                    type="text"
-                    value={inputUrl}
-                    onChange={(e) => setInputUrl(e.target.value)}
-                    placeholder="Enter any GitHub URL, raw link, camo image, or web doc..."
-                    className="w-full rounded-sm border border-[var(--c-line)] bg-[var(--c-sunken)] px-3 py-2 font-mono text-[12px] text-[var(--c-text)] placeholder:text-[var(--c-text-faint)] focus:border-[var(--c-accent)] focus:outline-none focus:ring-1 focus:ring-[var(--c-accent)]"
-                  />
-                </div>
-                <div className="flex gap-2">
-                  <Button
-                    type="submit"
-                    variant="primary"
-                    disabled={!inputUrl.trim()}
-                  >
-                    Fetch & View
-                  </Button>
-                  {inputUrl && (
-                    <Button
-                      variant="ghost"
-                      onClick={() => {
-                        setInputUrl('');
-                        setDocParam('');
-                      }}
-                    >
-                      Clear
-                    </Button>
-                  )}
-                </div>
-              </form>
-
-              {/* Presets Strip */}
-              <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-[var(--c-line)]">
-                <span className="eyebrow text-[10px] text-[var(--c-text-faint)]">
-                  Presets:
-                </span>
-                {PRESETS.map((preset) => (
-                  <button
-                    key={preset.url}
-                    type="button"
-                    onClick={() => {
-                      setInputUrl(preset.url);
-                      navigateToDoc(preset.url);
-                    }}
-                    className="group inline-flex items-center gap-1.5 rounded-sm border border-[var(--c-line)] bg-[var(--c-raised)] px-2 py-1 font-mono text-[11px] text-[var(--c-text-muted)] transition-colors hover:border-[var(--c-accent)] hover:text-[var(--c-text)]"
-                  >
-                    <span>{preset.label}</span>
-                    <span className="text-[10px] text-[var(--c-text-faint)] group-hover:text-[var(--c-accent)]">
-                      · {preset.kind}
-                    </span>
-                  </button>
-                ))}
-              </div>
-
-              {/* Supported formats hint */}
-              <p className="font-mono text-[11px] text-[var(--c-text-faint)] leading-relaxed">
-                Accepts GitHub URLs (blob or raw), shorthand paths (defaults to GitHub), Camo proxies, general web links, and local docs.
-              </p>
-            </>
-          )}
-
-          {/* Active Document Header Rail */}
-          {resolvedDoc && (
-            <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
-              <div className="flex items-center gap-2 overflow-hidden font-mono text-xs">
-                <span className="size-2 rounded-full bg-[var(--c-ok)] shrink-0" />
-                <span className="font-semibold text-[var(--c-text)] truncate max-w-xs sm:max-w-md">
-                  {resolvedDoc.fileName}
-                </span>
-                {resolvedDoc.repo && (
-                  <span className="text-[var(--c-text-faint)] hidden sm:inline truncate">
-                    ({resolvedDoc.repo}@{resolvedDoc.branch})
-                  </span>
-                )}
-              </div>
-
-              <div className="flex flex-wrap items-center gap-2">
-                {shareableUrl && <CopyButton text={shareableUrl} label="Copy Share Link" />}
-                <a
-                  href={resolvedDoc.sourceUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1 rounded-sm border border-[var(--c-line)] bg-[var(--c-surface)] px-2.5 py-1 font-mono text-[11px] text-[var(--c-text-muted)] transition-colors hover:border-[var(--c-accent)] hover:text-[var(--c-accent)]"
-                >
-                  {resolvedDoc.isGitHub ? 'GitHub ↗' : 'Direct Link ↗'}
-                </a>
-                {resolvedDoc.rawUrl !== resolvedDoc.sourceUrl && (
-                  <a
-                    href={resolvedDoc.rawUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 rounded-sm border border-[var(--c-line)] bg-[var(--c-surface)] px-2.5 py-1 font-mono text-[11px] text-[var(--c-text-muted)] transition-colors hover:border-[var(--c-accent)] hover:text-[var(--c-accent)]"
-                  >
-                    Raw ↗
-                  </a>
-                )}
-              </div>
-            </div>
-          )}
         </div>
-      </Panel>
+      )}
+
+      {/* ── Collapsible URL Input & Presets Drawer ───────────────────────── */}
+      {showInputBar && (
+        <div className="rounded-md border border-[var(--c-line)] bg-[var(--c-surface)] p-3.5 shadow-xs flex flex-col gap-2.5">
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              navigateToDoc(inputUrl);
+              setShowInputBar(false);
+            }}
+            className="flex flex-col gap-2 sm:flex-row"
+          >
+            <div className="relative flex-1">
+              <input
+                id={inputId}
+                type="text"
+                value={inputUrl}
+                onChange={(e) => setInputUrl(e.target.value)}
+                placeholder="Enter GitHub URL (blob/raw), web document, or local path..."
+                className="w-full rounded-sm border border-[var(--c-line)] bg-[var(--c-sunken)] px-3 py-1.5 font-mono text-[12px] text-[var(--c-text)] placeholder:text-[var(--c-text-faint)] focus:border-[var(--c-accent)] focus:outline-none focus:ring-1 focus:ring-[var(--c-accent)]"
+              />
+            </div>
+            <div className="flex gap-1.5">
+              <Button
+                type="submit"
+                variant="primary"
+                disabled={!inputUrl.trim()}
+              >
+                Fetch & View
+              </Button>
+              {inputUrl && (
+                <Button
+                  variant="ghost"
+                  onClick={() => {
+                    setInputUrl('');
+                    setDocParam('');
+                  }}
+                >
+                  Clear
+                </Button>
+              )}
+            </div>
+          </form>
+
+          {/* Presets Strip */}
+          <div className="flex flex-wrap items-center gap-1.5 pt-2 border-t border-[var(--c-line)]">
+            <span className="eyebrow text-[10px] text-[var(--c-text-faint)]">
+              Presets:
+            </span>
+            {PRESETS.map((preset) => (
+              <button
+                key={preset.url}
+                type="button"
+                onClick={() => {
+                  setInputUrl(preset.url);
+                  navigateToDoc(preset.url);
+                  setShowInputBar(false);
+                }}
+                className="group inline-flex items-center gap-1 rounded-sm border border-[var(--c-line)] bg-[var(--c-raised)] px-2 py-0.5 font-mono text-[10.5px] text-[var(--c-text-muted)] transition-colors hover:border-[var(--c-accent)] hover:text-[var(--c-text)]"
+              >
+                <span>{preset.label}</span>
+                <span className="text-[9.5px] text-[var(--c-text-faint)] group-hover:text-[var(--c-accent)]">
+                  · {preset.kind}
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* ── Context-Aware Error Banner ───────────────────────────────────── */}
       {error && resolvedDoc && (

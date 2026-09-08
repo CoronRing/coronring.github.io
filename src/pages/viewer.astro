@@ -10,6 +10,7 @@
 import BaseLayout from '../layouts/BaseLayout.astro';
 import DocViewer from '../components/tools/DocViewer';
 
+const docFromUrl = Astro.url.searchParams.get('doc') || '';
 const title = 'Document Viewer';
 const description = 'Unlisted document and media reader for GitHub and web sources.';
 ---
@@ -20,19 +21,19 @@ const description = 'Unlisted document and media reader for GitHub and web sourc
   noindex={true}
   hideChatDock={true}
 >
-  <main class="shell-content pt-8 pb-16">
-    <div class="mb-6 flex items-center justify-between">
+  <main class="shell-content pt-4 pb-16">
+    <div class="mb-3 flex items-center justify-between">
       <a
         href="/"
-        class="text-muted hover:text-accent inline-flex items-center gap-2 font-mono text-xs transition-colors"
+        class="text-muted hover:text-accent inline-flex items-center gap-1.5 font-mono text-xs transition-colors"
       >
         ← Home
       </a>
       <span class="font-mono text-[11px] text-faint uppercase tracking-wider">
-        Unlisted Document Viewer
+        Viewer
       </span>
     </div>
 
-    <DocViewer client:load />
+    <DocViewer client:only="react" initialDoc={docFromUrl} />
   </main>
 </BaseLayout>
