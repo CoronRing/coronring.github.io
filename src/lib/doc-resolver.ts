@@ -122,9 +122,13 @@ export function decodeCamoHex(input: string): string | null {
     const match = input.match(/\/([a-fA-F0-9]{32,64})\/([a-fA-F0-9]{16,})/);
     if (!match || !match[2]) return null;
     const hex = match[2];
-    const decoded = decodeURIComponent(
+    let decoded = decodeURIComponent(
       hex.replace(/\s+/g, '').replace(/[0-9a-fA-F]{2}/g, '%$&'),
     );
+    // Auto-heal typo in railtracks storage camo URLs
+    if (decoded.includes('railtrcks')) {
+      decoded = decoded.replace(/railtrcks/gi, 'railtracks');
+    }
     if (decoded.startsWith('http://') || decoded.startsWith('https://')) {
       return decoded;
     }
@@ -242,12 +246,12 @@ export function resolveDocSource(rawInput: string, siteOrigin = ''): ResolvedDoc
   if (decodedCamo) {
     const ext = getExtension(decodedCamo);
     const fileName = getFileName(decodedCamo);
-    const baseUrl = trimmed.slice(0, trimmed.lastIndexOf('/') + 1);
+    const baseUrl = decodedCamo.slice(0, decodedCamo.lastIndexOf('/') + 1);
     const kind = EXT_TO_KIND[ext] ?? 'image';
 
     return {
-      rawUrl: trimmed,
-      sourceUrl: decodedCamo,
+      rawUrl: decodedCamo,
+      sourceUrl: trimmed,
       fileName,
       extension: ext,
       kind,

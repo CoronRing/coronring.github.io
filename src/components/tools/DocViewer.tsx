@@ -32,14 +32,14 @@ const PRESETS = [
     url: 'https://github.com/RailtownAI/railtracks/blob/main/AGENTS.md',
   },
   {
+    label: 'GitHub Camo · logo.svg',
+    kind: 'Camo Proxy',
+    url: 'https://camo.githubusercontent.com/22d0a4e97c2225226b66a9cac1dd5e2bf6fef7bb242ba91a112a9c91656de48b/68747470733a2f2f7261696c747261636b7373746f726167652e626c6f622e636f72652e77696e646f77732e6e65742f7261696c747261636b7373746f726167652f696d616765732f6c6f676f2e737667',
+  },
+  {
     label: 'RailtownAI · logo.svg',
     kind: 'GitHub SVG',
     url: 'https://raw.githubusercontent.com/RailtownAI/railtracks/main/docs/assets/logo.svg',
-  },
-  {
-    label: 'Fastly Camo · logo.svg',
-    kind: 'General URL',
-    url: 'https://pypi-camo.freetls.fastly.net/41761b575ebdfa4bab1b5d008b0f4bb0ab572a16/68747470733a2f2f7261696c747261636b7373746f726167652e626c6f622e636f72652e77696e646f77732e6e65742f7261696c747261636b7373746f726167652f696d616765732f6c6f676f2e737667',
   },
   {
     label: 'Telemetry · preview.html',
@@ -619,24 +619,48 @@ export default function DocViewer({
 
           {/* 5. IMAGE VIEWER */}
           {activeKind === 'image' && (
-            <div className="flex flex-col items-center justify-center p-8 bg-[var(--c-sunken)]">
-              <img
-                src={resolvedDoc.rawUrl}
-                alt={resolvedDoc.fileName}
-                className="max-h-[80vh] max-w-full rounded-md border border-[var(--c-line)] object-contain shadow-lg"
-              />
-              <div className="mt-3 flex items-center gap-3">
-                <span className="font-mono text-xs text-[var(--c-text-faint)]">
+            <div className="flex flex-col items-center justify-center p-6 sm:p-10 bg-[var(--c-sunken)]">
+              <div className="relative flex items-center justify-center min-w-[280px] min-h-[280px] max-w-4xl p-8 rounded-md border border-[var(--c-line)] bg-[var(--c-surface)] shadow-md overflow-hidden">
+                <img
+                  src={resolvedDoc.rawUrl}
+                  alt={resolvedDoc.fileName}
+                  referrerPolicy="no-referrer"
+                  className="max-h-[75vh] max-w-full object-contain"
+                  style={{ minWidth: '140px', minHeight: '140px' }}
+                  onError={(e) => {
+                    const img = e.currentTarget;
+                    if (resolvedDoc.sourceUrl && img.src !== resolvedDoc.sourceUrl) {
+                      img.src = resolvedDoc.sourceUrl;
+                    }
+                  }}
+                />
+              </div>
+              <div className="mt-4 flex flex-wrap items-center justify-center gap-4">
+                <span className="font-mono text-xs font-semibold text-[var(--c-text)]">
                   {resolvedDoc.fileName}
                 </span>
+                <span className="text-[var(--c-text-faint)] font-mono text-xs">·</span>
                 <a
                   href={resolvedDoc.rawUrl}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="font-mono text-xs text-[var(--c-accent)] underline underline-offset-4"
                 >
-                  Open Original ↗
+                  Direct Media Link ↗
                 </a>
+                {resolvedDoc.sourceUrl !== resolvedDoc.rawUrl && (
+                  <>
+                    <span className="text-[var(--c-text-faint)] font-mono text-xs">·</span>
+                    <a
+                      href={resolvedDoc.sourceUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="font-mono text-xs text-[var(--c-text-muted)] hover:text-[var(--c-accent)] underline underline-offset-4"
+                    >
+                      Proxy Link ↗
+                    </a>
+                  </>
+                )}
               </div>
             </div>
           )}
