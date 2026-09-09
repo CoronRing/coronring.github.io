@@ -104,6 +104,8 @@ export default function ToolShowcase({ indexHref }: Props): React.ReactElement {
       const rect = band.getBoundingClientRect();
       const span = rect.height - window.innerHeight;
       if (span <= 0) return;
+      // Only drive active frame when scrolling within the pinned band
+      if (rect.top > 80 || rect.bottom < window.innerHeight - 80) return;
       const progress = Math.min(0.999, Math.max(0, -rect.top / span));
       setActive(Math.min(count - 1, Math.floor(progress * count)));
     };
@@ -112,7 +114,6 @@ export default function ToolShowcase({ indexHref }: Props): React.ReactElement {
       if (!raf) raf = requestAnimationFrame(measure);
     };
 
-    measure();
     window.addEventListener('scroll', onScroll, { passive: true });
     window.addEventListener('resize', onScroll);
     return () => {
@@ -122,22 +123,21 @@ export default function ToolShowcase({ indexHref }: Props): React.ReactElement {
     };
   }, [count]);
 
-  /** Click on indicator or item: smooth scroll to frame or switch on mobile */
+  /** Click on indicator or item: switch immediately and smooth scroll if desktop */
   const go = useCallback(
     (next: number, focus = false) => {
       const i = ((next % count) + count) % count;
+      setActive(i);
+
       const band = bandRef.current;
-
-      if (!band || !window.matchMedia('(min-width: 64rem)').matches) {
-        setActive(i);
-        if (focus) itemRefs.current[i]?.focus();
-        return;
+      if (band && window.matchMedia('(min-width: 64rem)').matches) {
+        const rect = band.getBoundingClientRect();
+        const span = rect.height - window.innerHeight;
+        if (span > 0) {
+          const top = window.scrollY + rect.top + span * ((i + 0.1) / count);
+          window.scrollTo({ top, behavior: 'smooth' });
+        }
       }
-
-      const rect = band.getBoundingClientRect();
-      const span = rect.height - window.innerHeight;
-      const top = window.scrollY + rect.top + span * ((i + 0.5) / count);
-      window.scrollTo({ top, behavior: 'smooth' });
       if (focus) itemRefs.current[i]?.focus();
     },
     [count],
