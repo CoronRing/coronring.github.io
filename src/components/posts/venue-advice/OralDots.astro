@@ -1,0 +1,209 @@
+---
+/**
+ * The model's P(oral or spotlight) for every NeurIPS paper, as stacked dot
+ * histograms: one dot per paper, piled on its value. The model answered in
+ * round numbers (1%, 2.5%, 3%), so a jittered strip would hide dots behind
+ * each other; stacking shows every one.
+ *
+ * Orals are the accent, posters and workshop papers grey. The vertical line is
+ * the real rate (about 1.3% of NeurIPS submissions), which most papers clear.
+ */
+import Figure from '../Figure.astro';
+import LegendKey from '../LegendKey.astro';
+import { VENUE_ADVICE } from '../../../data/posts/venue-advice';
+
+const { oral, poster, workshop } = VENUE_ADVICE.pOral;
+const ROWS = [
+  { key: 'oral', label: 'NeurIPS oral or spotlight', values: oral, tone: 'accent' },
+  { key: 'poster', label: 'NeurIPS poster', values: poster, tone: 'context' },
+  { key: 'workshop', label: 'NeurIPS workshop paper', values: workshop, tone: 'context' },
+] as const;
+
+const MAX = 6.5;
+const REAL_RATE = 1.3;
+const TICKS = [0, 1, 2, 3, 4, 5, 6];
+const x = (v: number) => `${((v / MAX) * 100).toFixed(2)}%`;
+
+const mean = (v: readonly number[]) => v.reduce((a, b) => a + b, 0) / v.length;
+
+/** Dots per row, each with its stack position among papers that share its value. */
+const stacked = ROWS.map((row) => {
+  const seen = new Map<number, number>();
+  const dots = row.values.map((v) => {
+    const level = seen.get(v) ?? 0;
+    seen.set(v, level + 1);
+    return { v, level };
+  });
+  return { ...row, dots, tallest: Math.max(...seen.values()) };
+});
+const tallest = Math.max(...stacked.map((r) => r.tallest));
+---
+
+<Figure
+  title="Orals get a slightly higher oral probability than posters, and NeurIPS workshop papers get almost the same"
+  caption={`Each dot is one paper's predicted chance of an oral or spotlight, if submitted to NeurIPS. The vertical line is the real rate, about ${REAL_RATE}% of submissions. Means: orals ${mean(oral).toFixed(1)}%, workshop papers ${mean(workshop).toFixed(1)}%, posters ${mean(poster).toFixed(1)}%.`}
+>
+  <div class="dots" style={`--levels:${tallest}`}>
+    {
+      stacked.map((row) => (
+        <div class="dots-row">
+          <div class="dots-label">
+            <span>{row.label}</span>
+            <span class="dots-n">
+              {row.values.length} papers · mean {mean(row.values).toFixed(1)}%
+            </span>
+          </div>
+          <div class="dots-track">
+            <span class="dots-rate" style={`left:${x(REAL_RATE)}`} />
+            {row.dots.map((d) => (
+              <span
+                class:list={['dots-dot', `is-${row.tone}`]}
+                style={`left:${x(d.v)};bottom:calc(${d.level} * var(--step))`}
+                title={`${row.label}: predicted ${d.v}% chance of an oral or spotlight`}
+              />
+            ))}
+          </div>
+        </div>
+      ))
+    }
+
+    <div class="dots-axis" aria-hidden="true">
+      {
+        TICKS.map((t) => (
+          <span class:list={['dots-tick', t === 0 && 'is-first']} style={`left:${x(t)}`}>
+            {t}%
+          </span>
+        ))
+      }
+      <span class="dots-tick is-rate" style={`left:${x(REAL_RATE)}`}>real rate</span>
+    </div>
+  </div>
+
+  <Fragment slot="legend">
+    <LegendKey shape="dot" tone="accent" label="Orals and spotlights" />
+    <LegendKey shape="dot" tone="context" label="Posters and workshop papers" />
+  </Fragment>
+
+  <table slot="data">
+    <thead>
+      <tr>
+        <th>Group</th>
+        <th>Papers</th>
+        <th>Mean</th>
+        <th>Every value (%)</th>
+      </tr>
+    </thead>
+    <tbody>
+      {
+        ROWS.map((row) => (
+          <tr>
+            <td>{row.label}</td>
+            <td class="cell-tight">{row.values.length}</td>
+            <td class="cell-tight">{mean(row.values).toFixed(2)}%</td>
+            <td>{row.values.join(', ')}</td>
+          </tr>
+        ))
+      }
+    </tbody>
+  </table>
+</Figure>
+
+<style>
+  .dots {
+    --dot: 0.625rem;
+    --step: calc(var(--dot) + 2px);
+  }
+
+  .dots-row {
+    display: grid;
+    gap: 0.4rem;
+    padding: 0.75rem 0 0;
+    border-bottom: 1px solid var(--c-line);
+  }
+
+  .dots-label {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    font-size: 0.8125rem;
+    line-height: 1.35;
+    color: var(--c-text);
+  }
+
+  .dots-n {
+    font-family: var(--font-mono);
+    font-size: 0.625rem;
+    color: var(--c-text-faint);
+  }
+
+  .dots-track {
+    position: relative;
+    height: calc(var(--levels) * var(--step) + 0.25rem);
+  }
+
+  .dots-rate {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 1px;
+    background: var(--c-line-strong);
+  }
+
+  /* Dot plus a 2px page-coloured gap below it, so stacked dots read as separate papers. */
+  .dots-dot {
+    position: absolute;
+    width: var(--dot);
+    height: var(--dot);
+    margin-bottom: 2px;
+    border-radius: 50%;
+    transform: translateX(-50%);
+    cursor: default;
+  }
+
+  .dots-dot.is-accent {
+    background: var(--c-accent);
+  }
+
+  .dots-dot.is-context {
+    background: var(--c-viz-context);
+  }
+
+  .dots-dot:hover {
+    outline: 2px solid var(--c-text);
+    outline-offset: 1px;
+  }
+
+  .dots-axis {
+    position: relative;
+    height: 1.5rem;
+  }
+
+  .dots-tick {
+    position: absolute;
+    top: 0.3rem;
+    transform: translateX(-50%);
+    font-family: var(--font-mono);
+    font-size: 0.625rem;
+    color: var(--c-text-faint);
+    white-space: nowrap;
+  }
+
+  .dots-tick.is-first {
+    transform: none;
+  }
+
+  .dots-tick.is-rate {
+    top: 1.05rem;
+    color: var(--c-text-muted);
+  }
+
+  .dots-axis {
+    height: 2.25rem;
+  }
+
+  @media (max-width: 40rem) {
+    .dots {
+      --dot: 0.5rem;
+    }
+  }
+</style>

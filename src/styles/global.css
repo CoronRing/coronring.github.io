@@ -755,3 +755,180 @@
   margin-right: 0.45rem;
   accent-color: var(--c-accent-fill);
 }
+
+/* ─────────────────────────────────────────────────────────────────────
+ * Long-form post prose (.post-prose)
+ *
+ * The blog's reading surface. It follows the project write-ups (15 px Inter
+ * at 1.75, display-face section heads, accent links) and adds what an essay
+ * with results needs: tables that scroll inside the measure instead of
+ * breaking it, tabular figures, a quiet blockquote and a closing note style.
+ * Every value is a token, so both themes come for free.
+ * ─────────────────────────────────────────────────────────────────── */
+.post-prose {
+  color: var(--c-text);
+  font-size: 15px;
+  line-height: 1.75;
+}
+
+.post-prose > :first-child {
+  margin-top: 0;
+}
+
+.post-prose h2 {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-stretch: 118%;
+  text-transform: uppercase;
+  letter-spacing: -0.005em;
+  line-height: 1.05;
+  text-wrap: balance;
+  font-size: 1.5rem;
+  margin-top: 3.25rem;
+  margin-bottom: 1rem;
+  scroll-margin-top: 5rem;
+}
+
+.post-prose h3 {
+  font-size: 1.05rem;
+  font-weight: 600;
+  margin-top: 2rem;
+  margin-bottom: 0.6rem;
+  scroll-margin-top: 5rem;
+}
+
+.post-prose p {
+  margin-top: 1.25rem;
+  margin-bottom: 1.25rem;
+}
+
+.post-prose strong {
+  font-weight: 600;
+  color: var(--c-text);
+}
+
+.post-prose a {
+  color: var(--c-accent);
+  text-decoration: underline;
+  text-underline-offset: 4px;
+  transition: opacity var(--dur-fast) var(--ease-out);
+}
+
+.post-prose a:hover {
+  opacity: 0.8;
+}
+
+.post-prose ul,
+.post-prose ol {
+  margin-top: 1.25rem;
+  margin-bottom: 1.25rem;
+  padding-left: 1.25rem;
+}
+
+.post-prose ul {
+  list-style-type: disc;
+}
+
+.post-prose ol {
+  list-style-type: decimal;
+}
+
+.post-prose li {
+  margin-top: 0.4rem;
+  margin-bottom: 0.4rem;
+  padding-left: 0.25rem;
+}
+
+.post-prose li::marker {
+  color: var(--c-text-faint);
+}
+
+.post-prose code {
+  font-family: var(--font-mono);
+  font-size: 0.85em;
+  background-color: var(--c-sunken);
+  padding: 0.125rem 0.375rem;
+  border-radius: var(--r-sm);
+}
+
+.post-prose pre {
+  margin: 1.5rem 0;
+  padding: 1rem;
+  border: 1px solid var(--c-line);
+  overflow-x: auto;
+}
+
+.post-prose pre code {
+  background-color: transparent;
+  padding: 0;
+}
+
+.post-prose blockquote {
+  border-left: 2px solid var(--c-accent);
+  padding-left: 1rem;
+  margin: 1.5rem 0;
+  color: var(--c-text-muted);
+}
+
+/*
+ * Tables carry the results, so they get the most care: hairline rules rather
+ * than a boxed grid, and mono tabular figures. `scripts/rehype-table-scroll.mjs`
+ * wraps each table in `.table-scroll`, which scrolls sideways on a phone, and
+ * marks short cells `cell-tight` so figures never wrap mid-number.
+ */
+.post-prose .table-scroll {
+  margin: 1.75rem 0;
+  overflow-x: auto;
+}
+
+.post-prose table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  font-variant-numeric: tabular-nums;
+}
+
+.post-prose .cell-tight {
+  white-space: nowrap;
+}
+
+.post-prose th,
+.post-prose td {
+  padding: 0.55rem 1rem 0.55rem 0;
+  text-align: left;
+  vertical-align: top;
+  border-bottom: 1px solid var(--c-line);
+}
+
+.post-prose th {
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--c-text-muted);
+  border-bottom-color: var(--c-line-strong);
+}
+
+.post-prose td:last-child,
+.post-prose th:last-child {
+  padding-right: 0;
+}
+
+.post-prose hr {
+  border: none;
+  border-top: 1px solid var(--c-line);
+  margin: 2.5rem 0;
+}
+
+/* The trailing italic paragraph: method notes and sources, set as a footnote. */
+.post-prose > p:last-child > em:only-child {
+  display: block;
+  margin-top: 2.5rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--c-line);
+  font-style: normal;
+  font-size: 0.8125rem;
+  color: var(--c-text-muted);
+}

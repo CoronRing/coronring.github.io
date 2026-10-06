@@ -48,8 +48,46 @@ const deckProjects = projects.map((p) => ({
   href: href(`/projects/${p.id}`),
 }));
 
-const resources = (await getCollection('resources', (r) => !r.data.draft))
-  .sort((a, b) => b.data.updated.getTime() - a.data.updated.getTime())
+/**
+ * The notes band: blog posts and resources in one list, newest first.
+ *
+ * Posts link to their own page; resources keep their old behaviour (external
+ * links open in a new tab, notes without a URL go to the Resources page).
+ */
+interface NoteRow {
+  readonly key: string;
+  readonly label: string;
+  readonly title: string;
+  readonly summary: string;
+  readonly date: Date;
+  readonly href: string;
+  readonly external: boolean;
+}
+
+const postRows: NoteRow[] = (await getCollection('posts', (p) => !p.data.draft)).map((p) => ({
+  key: `post-${p.id}`,
+  label: 'post',
+  title: p.data.title,
+  summary: p.data.summary,
+  date: p.data.published,
+  href: href(`/blog/${p.id}`),
+  external: false,
+}));
+
+const resourceRows: NoteRow[] = (await getCollection('resources', (r) => !r.data.draft)).map(
+  (r) => ({
+    key: `resource-${r.id}`,
+    label: r.data.category,
+    title: r.data.title,
+    summary: r.data.summary,
+    date: r.data.updated,
+    href: r.data.url ?? href('/resources'),
+    external: Boolean(r.data.url),
+  }),
+);
+
+const notes = [...postRows, ...resourceRows]
+  .sort((a, b) => b.date.getTime() - a.date.getTime())
   .slice(0, 4);
 
 const liveTools = TOOLS.filter((t) => t.status === 'live');
@@ -343,7 +381,7 @@ const showcaseTools: ShowcaseTool[] = liveTools.map((t) => ({
 
   {/* ══ 05 · Resources ════════════════════════════════════════════ */}
   {
-    resources.length > 0 && (
+    notes.length > 0 && (
       <section
         id="resources"
         aria-labelledby="resources-h"
@@ -362,25 +400,23 @@ const showcaseTools: ShowcaseTool[] = liveTools.map((t) => ({
           </Reveal>
 
           <ul class="divide-line mt-12 divide-y">
-            {resources.map((entry, i) => (
+            {notes.map((entry, i) => (
               <Reveal as="li" delay={i * 50}>
                 <a
-                  href={entry.data.url ?? href('/resources')}
-                  target={entry.data.url ? '_blank' : undefined}
-                  rel={entry.data.url ? 'noopener noreferrer' : undefined}
+                  href={entry.href}
+                  target={entry.external ? '_blank' : undefined}
+                  rel={entry.external ? 'noopener noreferrer' : undefined}
                   class="group hover:text-accent flex items-baseline gap-5 py-5 transition-colors"
                 >
-                  <span class="text-faint font-mono text-[10px] uppercase">
-                    {entry.data.category}
-                  </span>
+                  <span class="text-faint font-mono text-[10px] uppercase">{entry.label}</span>
                   <span class="min-w-0 flex-1">
-                    <span class="block text-base">{entry.data.title}</span>
+                    <span class="block text-base">{entry.title}</span>
                     <span class="text-muted mt-1 block text-sm leading-relaxed">
-                      {entry.data.summary}
+                      {entry.summary}
                     </span>
                   </span>
                   <Icon
-                    name="arrow-up-right"
+                    name={entry.external ? 'arrow-up-right' : 'arrow-right'}
                     size={14}
                     class="text-faint group-hover:text-accent shrink-0 transition-colors"
                   />

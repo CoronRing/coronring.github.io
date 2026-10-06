@@ -1,0 +1,59 @@
+---
+/**
+ * One legend entry. The swatch mirrors the mark it names (a line for lines, a
+ * block for bars, a dot for dots); the text stays in text tokens, never the
+ * series colour.
+ */
+interface Props {
+  shape: 'line' | 'block' | 'dot';
+  tone: 'accent' | 'context';
+  label: string;
+}
+
+const { shape, tone, label } = Astro.props;
+---
+
+<span class="legend-key">
+  <span class:list={['legend-swatch', `legend-${shape}`, `legend-${tone}`]} aria-hidden="true"
+  ></span>
+  {label}
+</span>
+
+<style>
+  .legend-key {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .legend-swatch {
+    display: inline-block;
+    flex-shrink: 0;
+  }
+
+  .legend-line {
+    width: 1rem;
+    height: 2px;
+    border-radius: 1px;
+  }
+
+  .legend-block {
+    width: 0.75rem;
+    height: 0.625rem;
+    border-radius: 2px;
+  }
+
+  .legend-dot {
+    width: 0.5rem;
+    height: 0.5rem;
+    border-radius: 50%;
+  }
+
+  .legend-accent {
+    background: var(--c-accent);
+  }
+
+  .legend-context {
+    background: var(--c-viz-context);
+  }
+</style>

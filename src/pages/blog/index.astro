@@ -1,0 +1,67 @@
+---
+/**
+ * Blog index: every published post, newest first.
+ *
+ * The same hairline list as Resources rather than cards. A post is a title, a
+ * line of why to read it and a date, and a box around that adds only height.
+ */
+import { getCollection } from 'astro:content';
+import PageLayout from '../../layouts/PageLayout.astro';
+import Icon from '../../components/ui/Icon.astro';
+import Reveal from '../../components/ui/Reveal.astro';
+import { longDate, readingMinutes } from '../../lib/format';
+import { href } from '../../lib/url';
+
+const posts = (await getCollection('posts', (p) => !p.data.draft)).sort(
+  (a, b) => b.data.published.getTime() - a.data.published.getTime(),
+);
+---
+
+<PageLayout
+  eyebrow="Blog"
+  title="Blog"
+  description="Long-form posts on evaluating language models and the systems built around them."
+  lede="Experiments I ran to answer a question, written up with the numbers."
+>
+  {
+    posts.length > 0 ? (
+      <ul class="divide-line border-line divide-y border-t">
+        {posts.map((post, i) => (
+          <Reveal as="li" delay={i * 40}>
+            <a
+              href={href(`/blog/${post.id}`)}
+              class="group hover:text-accent flex items-baseline gap-5 py-6 transition-colors"
+            >
+              <time
+                datetime={post.data.published.toISOString()}
+                class="text-faint hidden w-28 shrink-0 font-mono text-[10px] sm:block"
+              >
+                {longDate(post.data.published)}
+              </time>
+              <span class="min-w-0 flex-1">
+                <span class="block text-lg leading-snug">{post.data.title}</span>
+                <span class="text-muted prose-measure mt-1.5 block text-sm leading-relaxed">
+                  {post.data.summary}
+                </span>
+                <span class="text-faint mt-2 block font-mono text-[10px] uppercase">
+                  {readingMinutes(post.body ?? '')} min read
+                  <span class="sm:hidden"> · {longDate(post.data.published)}</span>
+                </span>
+              </span>
+              <Icon
+                name="arrow-right"
+                size={14}
+                class="text-faint group-hover:text-accent shrink-0 transition-colors"
+              />
+            </a>
+          </Reveal>
+        ))}
+      </ul>
+    ) : (
+      <p class="text-muted text-sm">
+        No posts yet. Add Markdown files under{' '}
+        <code class="text-accent font-mono">src/content/posts/</code>.
+      </p>
+    )
+  }
+</PageLayout>

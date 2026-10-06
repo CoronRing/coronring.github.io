@@ -1,0 +1,127 @@
+---
+title: Stop taking AI advice on where to submit your paper
+summary: I asked GPT-6 Luna where to submit 132 blinded AI papers whose 2026 venues it could not have seen. It never suggested an oral, sent half the workshop papers to main conferences, and sounded just as sure when wrong.
+published: 2026-10-06
+tags: [llm-evaluation, peer-review, experiment]
+header: venue-advice
+---
+
+import StatRow from '../../components/posts/StatRow.astro';
+import AdvicePiles from '../../components/posts/venue-advice/AdvicePiles.astro';
+import AucDots from '../../components/posts/venue-advice/AucDots.astro';
+import OralDots from '../../components/posts/venue-advice/OralDots.astro';
+
+A growing number of researchers paste a draft into a chatbot and ask some version of "is this NeurIPS material?" The answer comes back fluent, specific and reasonable. I wanted to know whether it is also right.
+
+So I took 132 papers from 2026 AI venues, stripped everything that could identify where they were published, and asked a current model where each one should be submitted. Then I compared its advice with where the papers actually landed.
+
+<StatRow
+  stats={[
+    { value: '0 of 29', label: 'orals and spotlights told to aim that high' },
+    {
+      value: '20%',
+      label: 'right venue among main-conference papers',
+      note: '25% by picking at random',
+    },
+    { value: '0.42 / 0.40', label: 'average confidence when right / when wrong' },
+  ]}
+/>
+
+## The short version
+
+- It never once recommended aiming for an oral or spotlight, including for the 29 papers that received one.
+- Among main-conference papers, it named the right venue 20% of the time. Picking at random among the four main options would get 25%.
+- It sent half of the Findings and workshop papers to main conferences.
+- Its confidence was the same when it was right (0.42) and when it was wrong (0.40).
+- Asking it to review the paper carefully and estimate acceptance odds first made the advice worse, not better.
+- Its acceptance estimates rank papers by quality about as well as counting the words in them.
+
+## The setup
+
+**The papers.** Four tiers of 2026 venues, all AI and LLM work:
+
+| Tier | Where the paper was accepted                    | Papers |
+| ---- | ----------------------------------------------- | ------ |
+| 1    | NeurIPS 2026, oral or spotlight                 | 29     |
+| 2    | NeurIPS 2026 poster, EMNLP 2026 main, COLM 2026 | 36     |
+| 3    | Findings of EMNLP 2026                          | 32     |
+| 4    | Workshops at ICML 2026 and NeurIPS 2026         | 35     |
+
+NeurIPS decisions come from the conference's official accepted-paper list. EMNLP, COLM and workshop labels come from the authors' own arXiv comments ("Accepted to Findings of EMNLP 2026"), because those venues had not published full lists yet.
+
+**No memorization.** The evaluator was GPT-6 Luna at high reasoning effort, with a knowledge cutoff of May 18, 2026. Every venue above announced its decisions after that date, and every paper was first posted to arXiv after it. The model could not have read these papers or learned where they went.
+
+**Blinding.** Before the model saw a paper I removed author names, affiliations, links, acknowledgements, references, appendices, and venue-specific sections such as limitations statements and checklists. Venue names in the text were replaced, and template leftovers that name a workshop were deleted. The model was also told not to reason from submission deadlines or formatting, which in a dataset like this would leak the answer.
+
+**Two ways of asking.**
+
+1. _Just asking._ "I'm planning to submit this paper in the 2026 cycle. These are the options, from most to least selective. Which one should I submit to?" This is what most people actually type.
+2. _Asking like a careful advisor._ Write a full program-committee review first, then estimate the probability of acceptance at each option, then recommend the most selective option with roughly even odds or better.
+
+## Just asking
+
+|                                                                | Result   | For comparison                             |
+| -------------------------------------------------------------- | -------- | ------------------------------------------ |
+| Right tier                                                     | 39%      | 25% random, 27% for always saying "tier 2" |
+| Right venue, main-conference papers only                       | 20%      | 25% random                                 |
+| Main conference vs not                                         | 68%      | 50% coin flip                              |
+| Orals and spotlights told to aim that high                     | 0 of 29  |                                            |
+| Findings and workshop papers told to aim for a main conference | 34 of 67 |                                            |
+| Same answer when asked a second time                           | 28 of 31 |                                            |
+
+The 39% looks better than chance until you see where it comes from. The model told 69% of all papers to aim for a main conference. That default is right for papers that are main-conference papers, so it scores well on tier 2 (29 of 36) and badly everywhere else: 0 of 29 orals, 13 of 32 Findings papers and 9 of 35 workshop papers. It aimed too high 44 times and too low 37 times.
+
+Two more things stood out.
+
+**The confidence is decoration.** On average the model reported 0.42 when it picked the right tier and 0.40 when it picked the wrong one. A number that does not move with being right tells you nothing.
+
+**The advice follows topic, not quality.** None of the 40 papers in arXiv's computation-and-language category was told to try NeurIPS. Seven of the eleven computer-vision papers were. The model has a sense of which conference a topic "belongs" to, and that sense drives the recommendation.
+
+It is also consistent. Asked again, it gave the same venue for 28 of 31 papers. That makes it more persuasive, not more accurate.
+
+## Asking more carefully made it worse
+
+The careful-advisor prompt got the tier right 30% of the time, down from 39%, and recommended a main conference for only 3 of the 65 papers that were main-conference papers.
+
+The cause is instructive. The model's acceptance estimates are realistic in aggregate. It put a typical NeurIPS paper's chances at roughly 12% to 23%, and NeurIPS 2026 actually accepted 25.7% of submissions. But with odds like that, almost no paper clears "even odds or better" at a top venue, so 127 of the 132 papers were steered to Findings or a workshop.
+
+I then tried replacing the model's threshold with the venues' real acceptance rates: aim for a venue whenever the model's probability beats that venue's actual rate. That overshoots in the other direction. Across all 132 papers, the model's chance of an oral had a median of 2% and stayed within a narrow 0.1% to 6%, while the real rate is about 1.3% of submissions. So 83 of 132 papers came out as "go for an oral".
+
+Neither threshold works because the numbers are squeezed into a narrow band. The model hedges toward the middle, and no cutoff turns that into good advice.
+
+<AdvicePiles />
+
+## Is there any signal at all?
+
+A recommendation can be bad while the underlying judgment still has some value, so I also checked whether the model's acceptance probabilities at least rank papers correctly. The measure is AUC: pick one paper from the stronger group and one from the weaker group, and AUC is the chance the model gives the stronger one the higher number. 0.5 is a coin flip, 1.0 is perfect. As a baseline I ranked the same papers by their word count, nothing else.
+
+<AucDots />
+
+For the coarse question, whether a paper belongs at a main conference at all, word count does slightly better than the model. For main vs Findings at the same conference, which is the comparison that isolates reviewers' judgment of quality, the model is at chance.
+
+The oral-vs-poster number, 0.76, looks like a real signal, and it is the only one in the data. The last row explains it. The model gives NeurIPS workshop papers almost exactly the same oral probability as actual orals (2.5% vs 2.7% on average), and word count tells those two groups apart better than the model does (0.75 vs 0.55). What the model recognizes is a paper that reads like NeurIPS-style machine learning, not a paper that clears the oral bar.
+
+<OralDots />
+
+## What this does not show
+
+- Every paper here was accepted somewhere. This tests telling good from great, not predicting acceptance or rejection, and a model could still be useful for catching papers that are not ready at all.
+- Labels for EMNLP, COLM and workshops are self-reported by authors.
+- The full experiment used one model. A smaller pilot with Claude Opus 5.5 on 37 of the papers pointed the same way: 24% exact venue among main-conference papers, and no tier-1 recommendation under any prompt. Larger models may do better.
+- I did not test whether the model's written reviews, its lists of strengths and weaknesses, are useful. Only its venue judgment.
+- Topic differs across tiers, since NeurIPS papers lean toward machine learning and vision and EMNLP papers toward language. That helps the model on any comparison that crosses conferences, so the weak results above are, if anything, generous.
+
+## What to do instead
+
+The verdict is the part to ignore. "This looks like a strong NeurIPS poster" sounds informed, but in this experiment it carried about as much information as the paper's length.
+
+If you want help deciding where to submit:
+
+- **Ask people who review for the venue.** They have seen the distribution the decision is drawn from. The model has not.
+- **Read last year's accepted papers at the venue you are considering**, especially the orals. Compare the size of the claim and the depth of the evidence, not the topic.
+- **Use the model for the parts that do not need a verdict.** It writes a plausible review. Whether its listed weaknesses are the ones reviewers will raise is a separate question this experiment did not answer, but checking a draft against them costs little.
+- **Ignore the confidence number.** Here it was the same whether the model was right or wrong.
+
+The model answers the question "where should I submit?" with the same fluency it brings to everything else. That fluency is the problem: it reads like judgment, and on this question it mostly is not.
+
+_Method notes: GPT-6 Luna, reasoning effort high, about 3M tokens across 132 papers and two prompts, run in early October 2026. Acceptance rates for the threshold test come from NeurIPS 2026 (7,900 of 30,709) and COLM 2026 (29%), with EMNLP 2025 standing in for EMNLP 2026, which had not published its submission count._

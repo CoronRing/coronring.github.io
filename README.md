@@ -63,13 +63,14 @@ docs/            Design docs (start with docs/SYSTEM.md)
 public/          Static assets served from the root
 src/
 ├── components/  ui/ · layout/ · decor/ · deck/ · demos/ · tools/
-├── content/     Schema-validated projects, resources, experience
+├── content/     Schema-validated projects, resources, posts, experience
 ├── data/        site.ts · tools.ts · models.ts
 ├── layouts/     BaseLayout · PageLayout · ToolLayout
 ├── lib/         url · theme · tokens · format · image-to-cloud · particle-wave-api
 ├── pages/       Routes
 └── styles/      tokens.css · global.css · deck.css
 scripts/         generate-cloud.mjs → public/clouds/{corona,orbit,wave}.pwcloud
+                 rehype-table-scroll.mjs: Markdown tables scroll on phones
 backend/         FastAPI service (own README, own tests, own design doc)
 infra/           Oracle provisioning and deploy scripts (own README)
 ```
@@ -78,6 +79,18 @@ infra/           Oracle provisioning and deploy scripts (own README)
 
 **A project.** Drop an MDX file in `src/content/projects/`. Frontmatter is
 Zod-validated in `src/content.config.ts`, so a bad field fails the build.
+
+**A blog post.** A Markdown or MDX file in `src/content/posts/`, with
+`title`, `summary` (at most 220 characters), `published`, and optionally
+`updated`, `tags`, `header` and `draft`. It renders at `/blog/<file name>`, appears on `/blog`, at
+the top of `/resources` and in the home page's notes band, and reaches the chat
+assistant through the corpus on the next build. Use `##` headings: they become
+the contents list beside the post. Tables need nothing special; they scroll
+sideways on a phone. For charts, write the post as `.mdx` and import figure
+components from `src/components/posts/` (`Figure`, `LegendKey`, `StatRow`, and
+per-post charts such as `venue-advice/`); a full-width graphic under the title
+is a named `header`, registered in `src/components/posts/PostHeader.astro`.
+Visitor copy rules (no em dashes) apply, see `docs/.temp/DESIGN.md` § 12.1.
 
 **An interactive demo.** Build the island in `src/components/demos/`, register
 it in `registry.ts`, then set `interactive: true` and `demo: "<key>"` in the

@@ -1,13 +1,40 @@
 # coronring.github.io — Design Document
 
-**Version:** 0.14.0
-**Status:** Complete — one nav entry has one destination, and the title card's contact links look like controls
-**Last updated:** 2026-09-08
+**Version:** 0.16.0
+**Status:** Complete — posts can carry charts and a header graphic
+**Last updated:** 2026-10-06
 **Owner:** Guan Zheng Huang (`CoronRing`)
 
 > This document covers the Astro site only. The site is now one of three
 > deployables in this repository, and anything crossing the boundary between
 > them belongs in [`../SYSTEM.md`](../SYSTEM.md).
+>
+> **v0.16.0** — charts in posts. A post written as MDX imports figure
+> components from `src/components/posts/`. `Figure` is the frame (a sentence
+> title, the chart, a legend row, a caption and a collapsed data table, which
+> is the chart's accessible twin); `LegendKey` and `StatRow` are shared parts.
+> A post can name a full-width `header` graphic, resolved by explicit branch
+> in `PostHeader.astro`. Charts follow the emphasis form: the one series that
+> matters in `--c-accent`, context in the new `--c-viz-context` token. That
+> token exists because `--c-text-faint` sits too close to the olive accent on
+> light ground (OKLab ΔE 14.9, under the normal-vision floor of 15); `#9c9c9c`
+> clears it (ΔE 18.6) and dark keeps `#6e6e75` (ΔE 47). It is under 3:1 on the
+> light ground, so every chart that uses it carries direct labels and a data
+> table. Charts are HTML and CSS rather than one scaled SVG, so text stays at
+> real sizes on a phone; the header draws its lines in a stretched SVG with
+> HTML labels over it. No chart ships JavaScript: hover detail is a native
+> `title` on each mark, and the data table carries every value.
+>
+> **v0.15.0** — a blog. Posts are a fourth content collection (`posts`,
+> plain Markdown) rendered at `/blog/[slug]` with the project page's grammar: a
+> back link, a marked eyebrow carrying the date and reading time, a display
+> title and a one-sentence lede, then `.post-prose` at the reading measure with
+> a sticky rail (published, length, tags, and a contents list built from the
+> post's `##` headings). Tables carry most of a results post, so
+> `scripts/rehype-table-scroll.mjs` wraps each one in a scroller and keeps
+> short cells on one line. Posts lead `/resources` and join the notes band on
+> the home page, newest first, so the rail stays at six entries (§3). Article
+> pages emit `og:type=article` with their dates and tags.
 >
 > **v0.14.0** — one nav entry has one destination, and the contact links on
 > the title card read as controls.
@@ -287,7 +314,9 @@ Five routes. Each nav entry carries a two-digit index as a HUD motif.
 /projects            01  Projects   Card gallery with generated cover art
 /projects/[slug]         Detail: live demo above the write-up
 /resume              02  Resume     One timeline, four sections
-/resources           03  Resources  Categorised link list
+/resources           03  Resources  Categorised link list, posts first
+/blog                    Blog       Every post, newest first (reached from Resources and the notes band)
+/blog/[slug]             Post: masthead, prose, sticky rail with contents
 /tools               04  Tools      Instruments for language-model work
 /tools/[slug]            Individual tool: instrument above, write-up below
 /404                     Not found
@@ -1114,6 +1143,7 @@ faint" and been dismissed as a style preference.
 | ------------ | ------------------------- | --------------------------------------------------------------------------------------------------------- |
 | `projects`   | `src/content/projects/`   | `title`, `summary` (≤180), `order`, `status`, `interactive`, `demo`, `tech`, `links`, `featured`, `draft` |
 | `resources`  | `src/content/resources/`  | `title`, `summary`, `category`, `url?`, `tags`, `updated`, `draft`                                        |
+| `posts`      | `src/content/posts/`      | `title`, `summary` (≤220), `published`, `updated?`, `tags`, `header?`, `draft`                            |
 | `experience` | `src/content/experience/` | `organization`, `role`, `start`, `end?`, `kind`, `highlights`, `tech`                                     |
 
 All Zod-validated. Omitting `end` means "current" and renders as _Present_.

@@ -1,0 +1,173 @@
+---
+/**
+ * "Three ways of asking, three different piles": for each way of asking, how
+ * many papers it sent to each tier (the accent bar) over where the papers
+ * actually were (the grey bar behind it, the same in every panel). One shared
+ * scale across panels, so lengths compare across them.
+ *
+ * A bullet-chart pairing rather than grouped bars: the reader's question is
+ * "does the advice match reality, tier by tier?", and an overlay answers it at
+ * a glance without doubling the number of bars.
+ */
+import Figure from '../Figure.astro';
+import LegendKey from '../LegendKey.astro';
+import { TIER_LABELS, VENUE_ADVICE } from '../../../data/posts/venue-advice';
+
+const { actual, naive, advisor, baseRate } = VENUE_ADVICE.piles;
+const PANELS = [
+  { key: 'naive', title: 'Just asking', counts: naive },
+  { key: 'advisor', title: 'Careful advisor', counts: advisor },
+  { key: 'base-rate', title: 'Advisor + real acceptance rates', counts: baseRate },
+] as const;
+
+const max = Math.max(...actual, ...PANELS.flatMap((p) => p.counts));
+/** Bars use 78% of the track so the value label always fits past the longest one. */
+const width = (n: number) => `${((n / max) * 78).toFixed(2)}%`;
+---
+
+<Figure
+  title="Each way of asking piles the papers into a different tier, and none matches where they were accepted"
+  caption="Grey: where the 132 papers were actually accepted. Accent: where the model sent them. 'Careful advisor' recommends the most selective option with even odds or better; the third panel replaces that threshold with each venue's real acceptance rate."
+>
+  <div class="piles">
+    <div class="piles-corner"></div>
+    {PANELS.map((panel) => <div class="piles-head">{panel.title}</div>)}
+
+    {
+      TIER_LABELS.map((tier, t) => (
+        <>
+          <div class="piles-tier">{tier}</div>
+          {PANELS.map((panel) => (
+            <div
+              class="piles-cell"
+              title={`${panel.title}: ${panel.counts[t]} papers sent to ${tier} (${actual[t]} actually accepted there)`}
+            >
+              <span class="piles-actual" style={`width:${width(actual[t]!)}`} />
+              {panel.counts[t]! > 0 && (
+                <span class="piles-advice" style={`width:${width(panel.counts[t]!)}`} />
+              )}
+              <span
+                class="piles-value"
+                style={`left:calc(${width(Math.max(panel.counts[t]!, actual[t]!))} + 0.35rem)`}
+              >
+                {panel.counts[t]}
+              </span>
+            </div>
+          ))}
+        </>
+      ))
+    }
+  </div>
+
+  <Fragment slot="legend">
+    <LegendKey shape="block" tone="accent" label="Where the advice sent papers" />
+    <LegendKey shape="block" tone="context" label="Where they were accepted" />
+  </Fragment>
+
+  <table slot="data">
+    <thead>
+      <tr>
+        <th>Tier</th>
+        <th>Accepted</th>
+        {PANELS.map((p) => <th>{p.title}</th>)}
+      </tr>
+    </thead>
+    <tbody>
+      {
+        TIER_LABELS.map((tier, t) => (
+          <tr>
+            <td>{tier}</td>
+            <td class="cell-tight">{actual[t]}</td>
+            {PANELS.map((p) => (
+              <td class="cell-tight">{p.counts[t]}</td>
+            ))}
+          </tr>
+        ))
+      }
+    </tbody>
+  </table>
+</Figure>
+
+<style>
+  .piles {
+    display: grid;
+    grid-template-columns: 7.25rem repeat(3, minmax(0, 1fr));
+    column-gap: 0.75rem;
+    row-gap: 0.25rem;
+    align-items: center;
+  }
+
+  .piles-head {
+    align-self: end;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid var(--c-line);
+    font-family: var(--font-mono);
+    font-size: 0.625rem;
+    letter-spacing: 0.08em;
+    line-height: 1.35;
+    text-transform: uppercase;
+    color: var(--c-text-muted);
+  }
+
+  .piles-tier {
+    font-size: 0.8125rem;
+    line-height: 1.3;
+    color: var(--c-text);
+  }
+
+  .piles-cell {
+    position: relative;
+    height: 2.25rem;
+    cursor: default;
+  }
+
+  /* Both bars grow from the same left baseline: square there, 4px round at the data end. */
+  .piles-actual,
+  .piles-advice {
+    position: absolute;
+    left: 0;
+    top: 50%;
+    border-radius: 0 4px 4px 0;
+    transform: translateY(-50%);
+  }
+
+  .piles-actual {
+    height: 1rem;
+    background: var(--c-viz-context);
+    opacity: 0.38;
+  }
+
+  .piles-advice {
+    height: 0.4375rem;
+    background: var(--c-accent);
+  }
+
+  .piles-cell:hover .piles-actual {
+    opacity: 0.55;
+  }
+
+  .piles-value {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    font-family: var(--font-mono);
+    font-size: 0.6875rem;
+    font-variant-numeric: tabular-nums;
+    color: var(--c-text-muted);
+  }
+
+  @media (max-width: 40rem) {
+    .piles {
+      grid-template-columns: 5.25rem repeat(3, minmax(0, 1fr));
+      column-gap: 0.5rem;
+    }
+
+    .piles-tier {
+      font-size: 0.75rem;
+    }
+
+    .piles-head {
+      font-size: 0.5625rem;
+    }
+  }
+</style>

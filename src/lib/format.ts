@@ -37,6 +37,16 @@ export function bytes(value: number): string {
   return `${n.toFixed(1)} ${units[i]}`;
 }
 
+/**
+ * Minutes to read a Markdown body at a steady 230 words a minute, never less
+ * than one. Counts words in the raw source, so tables and code count too, which
+ * is closer to how long a technical post actually takes than prose alone.
+ */
+export function readingMinutes(markdown: string): number {
+  const words = markdown.split(/\s+/).filter((w) => /[A-Za-z0-9]/.test(w)).length;
+  return Math.max(1, Math.round(words / 230));
+}
+
 /** Zero-pad to two digits, for HUD-style ordinal labels. */
 export function ordinal(index: number): string {
   return String(index).padStart(2, '0');

@@ -1,0 +1,237 @@
+---
+/**
+ * Ranking quality per comparison: the model's acceptance probability (accent)
+ * against blinded word count (grey), each an AUC with its 95% bootstrap
+ * interval, on one 0.3 to 1.0 axis with the coin-flip line at 0.5.
+ *
+ * A dot-and-whisker plot because the intervals are the point: several of them
+ * cross 0.5, and a bar chart of point estimates would hide that.
+ */
+import Figure from '../Figure.astro';
+import LegendKey from '../LegendKey.astro';
+import { VENUE_ADVICE, type Interval } from '../../../data/posts/venue-advice';
+
+const LO = 0.3;
+const HI = 1.0;
+const TICKS = [0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0];
+const x = (v: number) => `${(((v - LO) / (HI - LO)) * 100).toFixed(2)}%`;
+const fmt = (v: number) => v.toFixed(2);
+
+const SERIES = [
+  { key: 'model', label: "Model's acceptance probability", tone: 'accent' },
+  { key: 'words', label: 'Word count alone', tone: 'context' },
+] as const;
+
+const rows = VENUE_ADVICE.auc;
+const tip = (label: string, name: string, [e, lo, hi]: Interval) =>
+  `${label} · ${name}: AUC ${fmt(e)} (95% interval ${fmt(lo)} to ${fmt(hi)})`;
+---
+
+<Figure
+  title="Word count ranks papers about as well as the model's own acceptance estimates"
+  caption="AUC is the chance that a paper from the better group gets the higher score; 0.5 is a coin flip. Lines show 95% bootstrap intervals, and an interval that crosses 0.5 is consistent with no signal at all."
+>
+  <div class="auc">
+    {
+      rows.map((row) => (
+        <div class="auc-row">
+          <div class="auc-label">
+            <span>{row.label}</span>
+            <span class="auc-n">
+              {row.n[0]} vs {row.n[1]} papers · model {fmt(row.model[0])} · words{' '}
+              {fmt(row.words[0])}
+            </span>
+          </div>
+          <div class="auc-track">
+            <span class="auc-chance" style={`left:${x(0.5)}`} />
+            {SERIES.map((s, i) => {
+              const [e, lo, hi] = row[s.key];
+              return (
+                <span
+                  class:list={['auc-series', `is-${s.tone}`]}
+                  style={`top:${i === 0 ? '30%' : '70%'}`}
+                  title={tip(row.label, s.label, row[s.key])}
+                >
+                  <span
+                    class="auc-whisker"
+                    style={`left:${x(lo)};width:calc(${x(hi)} - ${x(lo)})`}
+                  />
+                  <span class="auc-dot" style={`left:${x(e)}`} />
+                </span>
+              );
+            })}
+          </div>
+        </div>
+      ))
+    }
+
+    <div class="auc-axis" aria-hidden="true">
+      {
+        TICKS.map((t) => (
+          <span
+            class:list={[
+              'auc-tick',
+              t === 0.5 && 'is-chance',
+              t === TICKS[0] && 'is-first',
+              t === TICKS.at(-1) && 'is-last',
+            ]}
+            style={`left:${x(t)}`}
+          >
+            {t === 0.5 ? '0.5 coin flip' : t.toFixed(1)}
+          </span>
+        ))
+      }
+    </div>
+  </div>
+
+  <Fragment slot="legend">
+    {SERIES.map((s) => <LegendKey shape="dot" tone={s.tone} label={s.label} />)}
+  </Fragment>
+
+  <table slot="data">
+    <thead>
+      <tr>
+        <th>Comparison</th>
+        <th>Papers</th>
+        <th>Model AUC</th>
+        <th>Word count AUC</th>
+      </tr>
+    </thead>
+    <tbody>
+      {
+        rows.map((row) => (
+          <tr>
+            <td>{row.label}</td>
+            <td class="cell-tight">
+              {row.n[0]} vs {row.n[1]}
+            </td>
+            <td class="cell-tight">
+              {fmt(row.model[0])} ({fmt(row.model[1])} to {fmt(row.model[2])})
+            </td>
+            <td class="cell-tight">
+              {fmt(row.words[0])} ({fmt(row.words[1])} to {fmt(row.words[2])})
+            </td>
+          </tr>
+        ))
+      }
+    </tbody>
+  </table>
+</Figure>
+
+<style>
+  .auc {
+    position: relative;
+  }
+
+  .auc-row {
+    display: grid;
+    gap: 0.4rem;
+    padding: 0.75rem 0;
+    border-bottom: 1px solid var(--c-line-faint);
+  }
+
+  .auc-label {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    font-size: 0.8125rem;
+    line-height: 1.35;
+    color: var(--c-text);
+  }
+
+  .auc-n {
+    font-family: var(--font-mono);
+    font-size: 0.625rem;
+    color: var(--c-text-faint);
+  }
+
+  .auc-track {
+    position: relative;
+    height: 2.25rem;
+  }
+
+  .auc-chance {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 1px;
+    background: var(--c-line-strong);
+  }
+
+  .auc-series {
+    position: absolute;
+    left: 0;
+    right: 0;
+    height: 1rem;
+    transform: translateY(-50%);
+    cursor: default;
+  }
+
+  .auc-whisker {
+    position: absolute;
+    top: 50%;
+    height: 2px;
+    border-radius: 1px;
+    transform: translateY(-50%);
+  }
+
+  /* 8px dot with a 2px ring in the page colour, so it stays legible on the whisker. */
+  .auc-dot {
+    position: absolute;
+    top: 50%;
+    width: 0.75rem;
+    height: 0.75rem;
+    border-radius: 50%;
+    border: 2px solid var(--c-ground);
+    transform: translate(-50%, -50%);
+  }
+
+  .is-accent .auc-whisker,
+  .is-accent .auc-dot {
+    background: var(--c-accent);
+  }
+
+  .is-context .auc-whisker,
+  .is-context .auc-dot {
+    background: var(--c-viz-context);
+  }
+
+  .auc-series:hover .auc-whisker {
+    height: 3px;
+  }
+
+  .auc-axis {
+    position: relative;
+    height: 1.5rem;
+    margin-top: 0.35rem;
+  }
+
+  .auc-tick {
+    position: absolute;
+    top: 0.25rem;
+    transform: translateX(-50%);
+    font-family: var(--font-mono);
+    font-size: 0.625rem;
+    font-variant-numeric: tabular-nums;
+    color: var(--c-text-faint);
+    white-space: nowrap;
+  }
+
+  .auc-tick.is-first {
+    transform: none;
+  }
+
+  .auc-tick.is-last {
+    transform: translateX(-100%);
+  }
+
+  .auc-tick.is-chance {
+    color: var(--c-text-muted);
+  }
+
+  @media (max-width: 40rem) {
+    .auc-tick:not(.is-chance):nth-child(even) {
+      display: none;
+    }
+  }
+</style>

@@ -85,6 +85,31 @@ const resources = defineCollection({
   }),
 });
 
+/**
+ * Long-form posts, rendered at `/blog/<file name>`.
+ *
+ * Plain Markdown is enough: the post page supplies the masthead, the reading
+ * time and the contents list, so a post file is only frontmatter and prose.
+ */
+const posts = defineCollection({
+  loader: glob({ base: './src/content/posts', pattern: '**/*.{md,mdx}' }),
+  schema: z.object({
+    title: z.string(),
+    /** One or two sentences: the card line, the meta description and the lede. */
+    summary: z.string().max(220),
+    published: z.coerce.date(),
+    /** Set when a post is revised after publication; shown beside the date. */
+    updated: z.coerce.date().optional(),
+    tags: z.array(z.string()).default([]),
+    /**
+     * Full-width graphic under the title, by name. Resolved in
+     * `src/components/posts/PostHeader.astro`; an unknown name fails the build.
+     */
+    header: z.string().optional(),
+    draft: z.boolean().default(false),
+  }),
+});
+
 const experience = defineCollection({
   loader: glob({ base: './src/content/experience', pattern: '**/*.{md,mdx}' }),
   schema: z.object({
@@ -104,4 +129,4 @@ const experience = defineCollection({
   }),
 });
 
-export const collections = { projects, resources, experience };
+export const collections = { projects, resources, posts, experience };

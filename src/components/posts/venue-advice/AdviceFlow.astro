@@ -1,0 +1,317 @@
+---
+/**
+ * Header graphic for the venue-advice post: one line per paper, from the tier
+ * it was accepted at (left) to the tier the plain question sent it to (right).
+ * Lines where the advice matched are the accent; the misses are context grey.
+ *
+ * The lines live in an SVG stretched over the plot area (`preserveAspectRatio
+ * = none`, non-scaling strokes), so its proportions can change per breakpoint
+ * without redrawing. Every label is HTML positioned from the same geometry, so
+ * text stays at real CSS sizes on a phone instead of shrinking with the art.
+ */
+import { TIER_LABELS, VENUE_ADVICE } from '../../../data/posts/venue-advice';
+
+const flows = VENUE_ADVICE.flows;
+const TIERS: readonly number[] = [0, 1, 2, 3];
+
+/** Vertical geometry in SVG user units; the SVG maps 0..1000 to the plot height. */
+const SPAN = 1000;
+const GAP = 40;
+const total = flows.flat().reduce((a, b) => a + b, 0);
+const slot = (SPAN - GAP * (TIERS.length - 1)) / total;
+
+const leftCounts = TIERS.map((a) => flows[a]!.reduce((x, y) => x + y, 0));
+const rightCounts = TIERS.map((p) => TIERS.reduce((sum, a) => sum + flows[a]![p]!, 0));
+
+function tops(counts: readonly number[]): number[] {
+  let y = 0;
+  return counts.map((n) => {
+    const top = y;
+    y += n * slot + GAP;
+    return top;
+  });
+}
+const leftTop = tops(leftCounts);
+const rightTop = tops(rightCounts);
+
+interface Bundle {
+  actual: number;
+  advised: number;
+  count: number;
+  paths: string[];
+}
+
+/**
+ * Papers leave the left in (actual, advised) order and arrive on the right in
+ * (advised, actual) order, which keeps bundles together and minimises crossings.
+ */
+const bundles: Bundle[] = [];
+for (const a of TIERS) {
+  for (const p of TIERS) {
+    const count = flows[a]![p]!;
+    if (count === 0) continue;
+    const leftBefore = TIERS.slice(0, p).reduce((s, q) => s + flows[a]![q]!, 0);
+    const rightBefore = TIERS.slice(0, a).reduce((s, b) => s + flows[b]![p]!, 0);
+    const paths = Array.from({ length: count }, (_, k) => {
+      const y0 = leftTop[a]! + (leftBefore + k + 0.5) * slot;
+      const y1 = rightTop[p]! + (rightBefore + k + 0.5) * slot;
+      return `M0 ${y0.toFixed(1)} C500 ${y0.toFixed(1)} 500 ${y1.toFixed(1)} 1000 ${y1.toFixed(1)}`;
+    });
+    bundles.push({ actual: a, advised: p, count, paths });
+  }
+}
+// Misses first so the matches draw on top.
+bundles.sort((x, y) => Number(x.actual === x.advised) - Number(y.actual === y.advised));
+
+const matched = bundles.filter((b) => b.actual === b.advised).reduce((s, b) => s + b.count, 0);
+const pct = (units: number) => `${((units / SPAN) * 100).toFixed(2)}%`;
+
+const describe =
+  `Flow of ${total} papers from the tier they were accepted at to the tier GPT-6 Luna advised. ` +
+  TIERS.map(
+    (a) =>
+      `${TIER_LABELS[a]}: ${leftCounts[a]} papers, advised ` +
+      TIERS.filter((p) => flows[a]![p]! > 0)
+        .map((p) => `${TIER_LABELS[p]} ${flows[a]![p]}`)
+        .join(', '),
+  ).join('. ') +
+  `. No paper was advised to aim for an oral or spotlight.`;
+---
+
+<figure class="flow">
+  <div class="flow-head" aria-hidden="true">
+    <span>Accepted at</span>
+    <span>AI said to submit to</span>
+  </div>
+
+  <div class="flow-stage" role="img" aria-label={describe}>
+    {
+      TIERS.map((a) => (
+        <>
+          <div
+            class="flow-node flow-node-left"
+            style={`top:${pct(leftTop[a]!)};height:${pct(leftCounts[a]! * slot)}`}
+          />
+          <div
+            class="flow-label flow-label-left"
+            style={`top:${pct(leftTop[a]! + (leftCounts[a]! * slot) / 2)}`}
+          >
+            <span class="flow-tier">{TIER_LABELS[a]}</span>
+            <span class="flow-count">{leftCounts[a]} papers</span>
+          </div>
+        </>
+      ))
+    }
+
+    <svg class="flow-lines" viewBox={`0 0 1000 ${SPAN}`} preserveAspectRatio="none">
+      {
+        bundles.map((b) => (
+          <g class:list={['flow-bundle', b.actual === b.advised ? 'is-match' : 'is-miss']}>
+            <title>
+              {`${b.count} ${b.count === 1 ? 'paper' : 'papers'} accepted as ${TIER_LABELS[b.actual]}, advised ${TIER_LABELS[b.advised]}`}
+            </title>
+            {b.paths.map((d) => (
+              <path d={d} />
+            ))}
+          </g>
+        ))
+      }
+    </svg>
+
+    {
+      TIERS.map((p) => (
+        <>
+          <div
+            class="flow-node flow-node-right"
+            style={`top:${pct(rightTop[p]!)};height:${pct(Math.max(rightCounts[p]! * slot, 2))}`}
+          />
+          <div
+            class:list={['flow-label flow-label-right', rightCounts[p] === 0 && 'is-empty']}
+            style={`top:${pct(rightTop[p]! + (rightCounts[p]! * slot) / 2)}`}
+          >
+            <span class="flow-tier">{TIER_LABELS[p]}</span>
+            <span class="flow-count">
+              {rightCounts[p] === 0 ? 'none sent here' : `${rightCounts[p]} papers`}
+            </span>
+          </div>
+        </>
+      ))
+    }
+  </div>
+
+  <figcaption class="flow-caption">
+    <span class="flow-key"
+      ><span class="flow-swatch is-match"></span>advice matched the tier ({matched})</span
+    >
+    <span class="flow-key"
+      ><span class="flow-swatch is-miss"></span>advice missed ({total - matched})</span
+    >
+    <span class="flow-note"
+      >One line per paper. GPT-6 Luna, asked "which of these should I submit to?" for {total} blinded
+      2026 papers.</span
+    >
+  </figcaption>
+</figure>
+
+<style>
+  .flow {
+    --gutter: 10.5rem;
+    margin: 0;
+  }
+
+  .flow-head {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 1rem;
+    font-family: var(--font-mono);
+    font-size: 0.6875rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--c-text-faint);
+  }
+
+  .flow-stage {
+    position: relative;
+    height: 22rem;
+  }
+
+  .flow-lines {
+    position: absolute;
+    inset: 0 var(--gutter);
+    width: calc(100% - 2 * var(--gutter));
+    height: 100%;
+    overflow: visible;
+  }
+
+  .flow-bundle path {
+    fill: none;
+    vector-effect: non-scaling-stroke;
+    stroke-linecap: round;
+  }
+
+  .flow-bundle.is-miss path {
+    stroke: var(--c-viz-context);
+    stroke-width: 1.1;
+    stroke-opacity: 0.55;
+  }
+
+  .flow-bundle.is-match path {
+    stroke: var(--c-accent);
+    stroke-width: 1.6;
+    stroke-opacity: 0.95;
+  }
+
+  .flow-bundle:hover path {
+    stroke-opacity: 1;
+    stroke-width: 2;
+  }
+
+  .flow-node {
+    position: absolute;
+    width: 3px;
+    background: var(--c-text);
+    border-radius: 1px;
+  }
+
+  .flow-node-left {
+    left: calc(var(--gutter) - 3px);
+  }
+
+  .flow-node-right {
+    right: calc(var(--gutter) - 3px);
+  }
+
+  .flow-label {
+    position: absolute;
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    width: calc(var(--gutter) - 1rem);
+    transform: translateY(-50%);
+    line-height: 1.25;
+  }
+
+  .flow-label-left {
+    left: 0;
+    align-items: flex-end;
+    text-align: right;
+  }
+
+  .flow-label-right {
+    right: 0;
+    align-items: flex-start;
+  }
+
+  .flow-label-right.is-empty {
+    transform: translateY(-20%);
+  }
+
+  .flow-tier {
+    font-size: 0.8125rem;
+    color: var(--c-text);
+  }
+
+  .flow-count {
+    font-family: var(--font-mono);
+    font-size: 0.6875rem;
+    color: var(--c-text-muted);
+  }
+
+  .flow-label-right.is-empty .flow-count {
+    color: var(--c-accent);
+  }
+
+  .flow-caption {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem 1.25rem;
+    margin-top: 1.25rem;
+    font-family: var(--font-mono);
+    font-size: 0.6875rem;
+    color: var(--c-text-muted);
+  }
+
+  .flow-key {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .flow-swatch {
+    width: 1rem;
+    height: 2px;
+    border-radius: 1px;
+  }
+
+  .flow-swatch.is-match {
+    background: var(--c-accent);
+  }
+
+  .flow-swatch.is-miss {
+    background: var(--c-viz-context);
+  }
+
+  .flow-note {
+    flex-basis: 100%;
+    font-family: var(--font-sans, inherit);
+    color: var(--c-text-faint);
+  }
+
+  @media (max-width: 40rem) {
+    .flow {
+      --gutter: 6.25rem;
+    }
+
+    .flow-stage {
+      height: 26rem;
+    }
+
+    .flow-tier {
+      font-size: 0.75rem;
+    }
+
+    .flow-count {
+      font-size: 0.625rem;
+    }
+  }
+</style>

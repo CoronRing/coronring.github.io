@@ -1,0 +1,27 @@
+---
+/**
+ * PostHeader — the full-width graphic a post can carry under its title.
+ *
+ * A post names its header in frontmatter (`header: venue-advice`) and this
+ * component maps the name with explicit branches, the same pattern as
+ * `DemoFrame`. A lookup table of components would read more neatly, but an
+ * explicit branch keeps every import statically analysable, and an unknown
+ * name fails the build with a message that says where to register it.
+ */
+import AdviceFlow from './venue-advice/AdviceFlow.astro';
+
+interface Props {
+  name: string;
+}
+
+export const POST_HEADERS = ['venue-advice'] as const;
+
+const { name } = Astro.props;
+if (!(POST_HEADERS as readonly string[]).includes(name)) {
+  throw new Error(
+    `Unknown post header "${name}". Add it to POST_HEADERS in src/components/posts/PostHeader.astro.`,
+  );
+}
+---
+
+{name === 'venue-advice' && <AdviceFlow />}

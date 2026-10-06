@@ -1,0 +1,75 @@
+---
+/**
+ * A row of headline figures for the top of a post: value, then a label, then
+ * an optional comparison line. Sans, proportional figures (the face the body
+ * uses, never the display face), no colour: the number is the chart.
+ */
+interface Stat {
+  value: string;
+  label: string;
+  /** Optional comparison, e.g. "25% by chance". */
+  note?: string;
+}
+
+interface Props {
+  stats: readonly Stat[];
+}
+
+const { stats } = Astro.props;
+---
+
+<dl class="stats">
+  {
+    stats.map((s) => (
+      <div class="stat">
+        <dt class="stat-label">{s.label}</dt>
+        <dd class="stat-value">{s.value}</dd>
+        {s.note && <dd class="stat-note">{s.note}</dd>}
+      </div>
+    ))
+  }
+</dl>
+
+<style>
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+    gap: 1px;
+    margin: 2rem 0;
+    border-top: 1px solid var(--c-line-strong);
+    border-bottom: 1px solid var(--c-line);
+  }
+
+  .stat {
+    display: flex;
+    flex-direction: column;
+    padding: 1rem 1rem 1rem 0;
+  }
+
+  .stat-label {
+    order: 2;
+    margin-top: 0.4rem;
+    font-size: 0.8125rem;
+    line-height: 1.4;
+    color: var(--c-text);
+  }
+
+  .stat-value {
+    order: 1;
+    margin: 0;
+    font-family: var(--font-sans);
+    font-size: 2rem;
+    font-weight: 600;
+    line-height: 1;
+    letter-spacing: -0.02em;
+    color: var(--c-text);
+  }
+
+  .stat-note {
+    order: 3;
+    margin: 0.35rem 0 0;
+    font-family: var(--font-mono);
+    font-size: 0.625rem;
+    color: var(--c-text-faint);
+  }
+</style>

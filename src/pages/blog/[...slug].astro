@@ -1,0 +1,139 @@
+---
+/**
+ * Blog post page.
+ *
+ * Built like a project page so the two read as one site: a back link, a
+ * display title and a one-sentence lede, then the prose at the reading measure
+ * with a sticky rail beside it at >=lg. A post may name a full-width header
+ * graphic (`header` in frontmatter), drawn between the lede and the prose.
+ * The rail carries the metadata and a
+ * contents list taken from the post's own `##` headings, so a long post can be
+ * skimmed without adding anything to the Markdown.
+ */
+import type { GetStaticPaths } from 'astro';
+import { getCollection, render } from 'astro:content';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import Icon from '../../components/ui/Icon.astro';
+import PostHeader from '../../components/posts/PostHeader.astro';
+import { longDate, readingMinutes } from '../../lib/format';
+import { href } from '../../lib/url';
+
+export const getStaticPaths = (async () => {
+  const posts = await getCollection('posts', (p) => !p.data.draft);
+  return posts.map((post) => ({ params: { slug: post.id }, props: { post } }));
+}) satisfies GetStaticPaths;
+
+const { post } = Astro.props;
+const { Content, headings } = await render(post);
+const { data } = post;
+
+const contents = headings.filter((h) => h.depth === 2);
+const minutes = readingMinutes(post.body ?? '');
+---
+
+<BaseLayout
+  title={data.title}
+  description={data.summary}
+  article={{ published: data.published, updated: data.updated, tags: data.tags }}
+>
+  <header class="shell pt-12 pb-10 sm:pt-16">
+    <div>
+      <a
+        href={href('/blog')}
+        class="text-muted hover:text-accent inline-flex items-center gap-2 font-mono text-xs transition-colors"
+      >
+        <Icon name="arrow-left" size={13} />
+        All posts
+      </a>
+    </div>
+
+    <p class="eyebrow eyebrow-marked mt-10">
+      <time datetime={data.published.toISOString()}>{longDate(data.published)}</time>
+      <span class="text-faint"> · {minutes} min read</span>
+    </p>
+
+    <h1 class="display mt-5 max-w-4xl text-4xl sm:text-5xl lg:text-6xl">{data.title}</h1>
+    <p class="text-muted prose-measure mt-6 text-lg leading-relaxed">{data.summary}</p>
+  </header>
+
+  {
+    data.header && (
+      <div class="shell pb-14">
+        <PostHeader name={data.header} />
+      </div>
+    )
+  }
+
+  <div class="shell"><div class="rule-x"></div></div>
+
+  <div class="shell grid gap-12 pt-12 pb-24 lg:grid-cols-[minmax(0,1fr)_16rem] lg:gap-16">
+    <article class="post-prose max-w-[var(--prose-max)] min-w-0">
+      <Content />
+    </article>
+
+    <aside class="lg:sticky lg:top-10 lg:self-start" aria-label="About this post">
+      <dl class="divide-line border-line divide-y border-t">
+        <div class="py-4">
+          <dt class="eyebrow">Published</dt>
+          <dd class="mt-2 font-mono text-sm">
+            <time datetime={data.published.toISOString()}>{longDate(data.published)}</time>
+          </dd>
+        </div>
+        {
+          data.updated && (
+            <div class="py-4">
+              <dt class="eyebrow">Updated</dt>
+              <dd class="mt-2 font-mono text-sm">
+                <time datetime={data.updated.toISOString()}>{longDate(data.updated)}</time>
+              </dd>
+            </div>
+          )
+        }
+        <div class="py-4">
+          <dt class="eyebrow">Length</dt>
+          <dd class="mt-2 font-mono text-sm">{minutes} min read</dd>
+        </div>
+        {
+          data.tags.length > 0 && (
+            <div class="py-4">
+              <dt class="eyebrow">Tags</dt>
+              <dd class="text-muted mt-2 font-mono text-xs leading-relaxed">
+                {data.tags.join(' · ')}
+              </dd>
+            </div>
+          )
+        }
+      </dl>
+
+      {
+        contents.length > 1 && (
+          <nav aria-label="Contents" class="mt-8 hidden lg:block">
+            <p class="eyebrow">Contents</p>
+            <ol class="mt-4 space-y-2.5">
+              {contents.map((h, i) => (
+                <li class="flex gap-3 text-sm leading-snug">
+                  <span class="text-faint font-mono text-[10px]">
+                    {String(i + 1).padStart(2, '0')}
+                  </span>
+                  <a href={`#${h.slug}`} class="text-muted hover:text-accent transition-colors">
+                    {h.text}
+                  </a>
+                </li>
+              ))}
+            </ol>
+          </nav>
+        )
+      }
+    </aside>
+  </div>
+
+  <div class="shell border-line border-t py-12">
+    <a
+      href={href('/blog')}
+      class="text-muted hover:text-accent inline-flex items-center gap-2 font-mono text-xs transition-colors"
+    >
+      <Icon name="arrow-left" size={13} />
+      All posts
+    </a>
+  </div>
+</BaseLayout>

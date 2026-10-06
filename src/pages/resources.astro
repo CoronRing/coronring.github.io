@@ -5,12 +5,16 @@
  * A hairline list, not a card grid. These are links: the useful information
  * is the title and one line of why, and a bordered box around each one adds
  * nothing but height.
+ *
+ * Blog posts lead the page as their own group, since this is where the home
+ * band's "All resources" link lands and the rail has no separate blog entry.
  */
 import { getCollection, type CollectionEntry } from 'astro:content';
 import PageLayout from '../layouts/PageLayout.astro';
 import Icon from '../components/ui/Icon.astro';
 import Reveal from '../components/ui/Reveal.astro';
 import { longDate } from '../lib/format';
+import { href } from '../lib/url';
 
 type Resource = CollectionEntry<'resources'>;
 
@@ -23,6 +27,10 @@ const CATEGORY_LABEL = {
 } as const;
 
 const resources = await getCollection('resources', (r) => !r.data.draft);
+
+const posts = (await getCollection('posts', (p) => !p.data.draft)).sort(
+  (a, b) => b.data.published.getTime() - a.data.published.getTime(),
+);
 
 /** Group by category, preserving the declaration order of CATEGORY_LABEL. */
 const grouped = (Object.keys(CATEGORY_LABEL) as Array<Resource['data']['category']>)
@@ -42,6 +50,54 @@ const grouped = (Object.keys(CATEGORY_LABEL) as Array<Resource['data']['category
   description="References, notes, and reading on agents, LLM operations, and engineering practice."
   lede="Things I keep coming back to, plus notes I wrote because the reference I wanted didn't exist."
 >
+  {
+    posts.length > 0 && (
+      <section aria-labelledby="c-posts" class="mb-14">
+        <div class="flex items-baseline justify-between gap-6">
+          <h2 id="c-posts" class="eyebrow eyebrow-marked">
+            Posts
+          </h2>
+          <a
+            href={href('/blog')}
+            class="text-muted hover:text-accent font-mono text-[11px] transition-colors"
+          >
+            All posts
+          </a>
+        </div>
+
+        <ul class="divide-line mt-5 divide-y">
+          {posts.map((post, i) => (
+            <Reveal as="li" delay={i * 40}>
+              <a
+                href={href(`/blog/${post.id}`)}
+                class="group hover:text-accent flex items-baseline gap-4 py-5 transition-colors"
+              >
+                <div class="min-w-0 flex-1">
+                  <h3 class="text-base leading-snug">
+                    {post.data.title}
+                    <Icon
+                      name="arrow-right"
+                      size={13}
+                      class="text-faint group-hover:text-accent ml-1.5 inline align-baseline transition-colors"
+                    />
+                  </h3>
+                  <p class="text-muted mt-1.5 text-sm leading-relaxed">{post.data.summary}</p>
+                </div>
+
+                <time
+                  datetime={post.data.published.toISOString()}
+                  class="text-faint hidden shrink-0 font-mono text-[10px] sm:block"
+                >
+                  {longDate(post.data.published)}
+                </time>
+              </a>
+            </Reveal>
+          ))}
+        </ul>
+      </section>
+    )
+  }
+
   {
     grouped.length > 0 ? (
       <div class="space-y-14">

@@ -1,0 +1,102 @@
+---
+/**
+ * Figure — the frame every chart in a post sits in.
+ *
+ * A title (what the chart shows, as a sentence), the chart, an optional
+ * legend row, a caption (how to read it), and a collapsed data table. The
+ * table is the chart's accessible twin: every value a mark or tooltip shows
+ * is also there as text, so nothing is gated on hover or on colour.
+ *
+ * Built from <div>s, not <p>s, so the post's prose rhythm (`.post-prose p`)
+ * does not leak into the chart chrome. The data table is real Markdown-style
+ * <table> on purpose, so it inherits the post's table styling.
+ */
+interface Props {
+  title: string;
+  caption?: string;
+  /** Label for the collapsed data table. */
+  dataLabel?: string;
+}
+
+const { title, caption, dataLabel = 'Show the data' } = Astro.props;
+const hasLegend = Astro.slots.has('legend');
+const hasData = Astro.slots.has('data');
+---
+
+<figure class="post-figure">
+  <div class="post-figure-title">{title}</div>
+  <div class="post-figure-body"><slot /></div>
+  {
+    hasLegend && (
+      <div class="post-figure-legend">
+        <slot name="legend" />
+      </div>
+    )
+  }
+  {caption && <figcaption class="post-figure-caption">{caption}</figcaption>}
+  {
+    hasData && (
+      <details class="post-figure-data">
+        <summary>{dataLabel}</summary>
+        <slot name="data" />
+      </details>
+    )
+  }
+</figure>
+
+<style>
+  .post-figure {
+    margin: 2.5rem 0;
+    padding-top: 1.25rem;
+    border-top: 1px solid var(--c-line-strong);
+  }
+
+  .post-figure-title {
+    font-weight: 600;
+    font-size: 0.9375rem;
+    line-height: 1.4;
+    color: var(--c-text);
+    margin-bottom: 1.25rem;
+  }
+
+  .post-figure-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem 1.25rem;
+    margin-top: 1rem;
+    font-family: var(--font-mono);
+    font-size: 0.6875rem;
+    color: var(--c-text-muted);
+  }
+
+  .post-figure-caption {
+    margin-top: 0.75rem;
+    font-size: 0.8125rem;
+    line-height: 1.6;
+    color: var(--c-text-muted);
+  }
+
+  .post-figure-data {
+    margin-top: 0.75rem;
+  }
+
+  .post-figure-data summary {
+    cursor: pointer;
+    width: fit-content;
+    font-family: var(--font-mono);
+    font-size: 0.6875rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--c-text-faint);
+    transition: color var(--dur-fast) var(--ease-out);
+  }
+
+  .post-figure-data summary:hover,
+  .post-figure-data summary:focus-visible {
+    color: var(--c-accent);
+  }
+
+  .post-figure-data :global(table) {
+    margin-top: 0.75rem;
+  }
+</style>

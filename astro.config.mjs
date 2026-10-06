@@ -6,6 +6,7 @@ import sitemap from '@astrojs/sitemap';
 import tailwindcss from '@tailwindcss/vite';
 
 import { corpusIntegration } from './scripts/build-corpus.mjs';
+import { rehypeTableScroll } from './scripts/rehype-table-scroll.mjs';
 
 /**
  * User-site deployment: https://coronring.github.io serves from the domain root,
@@ -26,6 +27,8 @@ export default defineConfig({
     format: 'directory',
   },
   markdown: {
+    // Tables scroll inside the reading measure and keep short figures on one line.
+    rehypePlugins: [rehypeTableScroll],
     shikiConfig: {
       themes: { light: 'github-light', dark: 'github-dark-default' },
       wrap: true,

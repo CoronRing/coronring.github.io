@@ -44,6 +44,11 @@ interface Props {
    * fold; see `components/layout/Veil.astro`.
    */
   holdVeil?: boolean;
+  /**
+   * Marks the page as an article for link previews: `og:type` becomes
+   * `article` and the dates and tags are emitted. Set by blog posts only.
+   */
+  article?: { published: Date; updated?: Date; tags?: readonly string[] };
 }
 
 const {
@@ -53,6 +58,7 @@ const {
   noindex = false,
   hideChatDock = false,
   holdVeil = false,
+  article,
 } = Astro.props;
 
 const pageTitle = title ? `${title} · ${SITE.handle}` : SITE.title;
@@ -74,7 +80,21 @@ const ogImage = absolute(image, SITE.url);
     <meta name="author" content={SITE.name} />
     {noindex && <meta name="robots" content="noindex, nofollow" />}
 
-    <meta property="og:type" content="website" />
+    <meta property="og:type" content={article ? 'article' : 'website'} />
+    {
+      article && (
+        <>
+          <meta property="article:published_time" content={article.published.toISOString()} />
+          {article.updated && (
+            <meta property="article:modified_time" content={article.updated.toISOString()} />
+          )}
+          <meta property="article:author" content={SITE.name} />
+          {(article.tags ?? []).map((tag) => (
+            <meta property="article:tag" content={tag} />
+          ))}
+        </>
+      )
+    }
     <meta property="og:site_name" content={SITE.name} />
     <meta property="og:title" content={pageTitle} />
     <meta property="og:description" content={description} />
