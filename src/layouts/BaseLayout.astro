@@ -49,6 +49,11 @@ interface Props {
    * `article` and the dates and tags are emitted. Set by blog posts only.
    */
   article?: { published: Date; updated?: Date; tags?: readonly string[] };
+  /**
+   * schema.org JSON-LD for search engines (a `BlogPosting`, a `Person`), one
+   * object or several. Serialised as-is into a `<script type="application/ld+json">`.
+   */
+  structuredData?: Record<string, unknown> | readonly Record<string, unknown>[];
 }
 
 const {
@@ -59,6 +64,7 @@ const {
   hideChatDock = false,
   holdVeil = false,
   article,
+  structuredData,
 } = Astro.props;
 
 const pageTitle = title ? `${title} · ${SITE.handle}` : SITE.title;
@@ -79,6 +85,11 @@ const ogImage = absolute(image, SITE.url);
     <meta name="description" content={description} />
     <meta name="author" content={SITE.name} />
     {noindex && <meta name="robots" content="noindex, nofollow" />}
+    {
+      SITE.googleSiteVerification && (
+        <meta name="google-site-verification" content={SITE.googleSiteVerification} />
+      )
+    }
 
     <meta property="og:type" content={article ? 'article' : 'website'} />
     {
@@ -104,6 +115,15 @@ const ogImage = absolute(image, SITE.url);
     <meta name="twitter:title" content={pageTitle} />
     <meta name="twitter:description" content={description} />
     <meta name="twitter:image" content={ogImage} />
+    {
+      structuredData && (
+        <script
+          type="application/ld+json"
+          is:inline
+          set:html={JSON.stringify(structuredData).replace(/</g, '\\u003c')}
+        />
+      )
+    }
 
     {
       /*

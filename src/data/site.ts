@@ -44,6 +44,12 @@ export interface SiteConfig {
   readonly nav: readonly NavItem[];
   readonly social: readonly SocialLink[];
   readonly repo: string;
+  /**
+   * Google Search Console ownership token, emitted as the
+   * `google-site-verification` meta tag. Public by design: Google reads it off
+   * the page. Keep it, or the property loses verification on the next check.
+   */
+  readonly googleSiteVerification?: string;
   /** The single persistent call to action, pinned to the rail's footer. */
   readonly cta: { readonly label: string; readonly href: string };
 }
@@ -62,6 +68,7 @@ export const SITE: SiteConfig = {
   location: 'Toronto, Canada',
   email: EMAIL,
   repo: 'CoronRing/coronring.github.io',
+  googleSiteVerification: 'yKwkUQOhhOpF46PPWxAq1Efu7FHAiruI1o9DuQj7XFA',
 
   nav: [
     { label: 'Index', href: '/', section: 'top', index: '00', icon: 'home', blurb: 'Start here.' },

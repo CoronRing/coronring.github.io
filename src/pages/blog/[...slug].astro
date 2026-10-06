@@ -16,7 +16,8 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
 import Icon from '../../components/ui/Icon.astro';
 import PostHeader from '../../components/posts/PostHeader.astro';
 import { longDate, readingMinutes } from '../../lib/format';
-import { href } from '../../lib/url';
+import { absolute, href } from '../../lib/url';
+import { SITE } from '../../data/site';
 
 export const getStaticPaths = (async () => {
   const posts = await getCollection('posts', (p) => !p.data.draft);
@@ -28,13 +29,30 @@ const { Content, headings } = await render(post);
 const { data } = post;
 
 const contents = headings.filter((h) => h.depth === 2);
+
+/** What search engines read about the post: schema.org `BlogPosting`. */
+const image = data.image ?? '/og-default.png';
+const blogPosting = {
+  '@context': 'https://schema.org',
+  '@type': 'BlogPosting',
+  headline: data.title,
+  description: data.summary,
+  datePublished: data.published.toISOString(),
+  dateModified: (data.updated ?? data.published).toISOString(),
+  author: { '@type': 'Person', name: SITE.name, url: SITE.url },
+  image: absolute(image, SITE.url),
+  keywords: data.tags.join(', '),
+  mainEntityOfPage: absolute(`/blog/${post.id}/`, SITE.url),
+};
 const minutes = readingMinutes(post.body ?? '');
 ---
 
 <BaseLayout
   title={data.title}
   description={data.summary}
+  image={image}
   article={{ published: data.published, updated: data.updated, tags: data.tags }}
+  structuredData={blogPosting}
 >
   <header class="shell pt-12 pb-10 sm:pt-16">
     <div>

@@ -18,7 +18,13 @@ export default defineConfig({
   base: '/',
   trailingSlash: 'ignore',
   output: 'static',
-  integrations: [react(), mdx(), sitemap(), corpusIntegration()],
+  integrations: [
+    react(),
+    mdx(),
+    // `/404` and `/viewer` are `noindex`; listing them would contradict their own meta tag.
+    sitemap({ filter: (page) => !/\/(404|viewer)\/?$/.test(new URL(page).pathname) }),
+    corpusIntegration(),
+  ],
   vite: {
     plugins: [tailwindcss()],
   },

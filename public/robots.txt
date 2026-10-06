@@ -1,0 +1,5 @@
+# Everything is public. The sitemap lists every indexable page.
+User-agent: *
+Allow: /
+
+Sitemap: https://coronring.github.io/sitemap-index.xml

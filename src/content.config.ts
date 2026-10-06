@@ -106,6 +106,8 @@ const posts = defineCollection({
      * `src/components/posts/PostHeader.astro`; an unknown name fails the build.
      */
     header: z.string().optional(),
+    /** Social preview image under `public/` (1200×630 PNG). Defaults to the site image. */
+    image: z.string().optional(),
     draft: z.boolean().default(false),
   }),
 });

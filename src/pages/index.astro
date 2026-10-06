@@ -92,6 +92,19 @@ const notes = [...postRows, ...resourceRows]
 
 const liveTools = TOOLS.filter((t) => t.status === 'live');
 
+/** Who and what this site is, for search engines: schema.org `WebSite` and `Person`. */
+const siteData = [
+  { '@context': 'https://schema.org', '@type': 'WebSite', name: SITE.name, url: SITE.url },
+  {
+    '@context': 'https://schema.org',
+    '@type': 'Person',
+    name: SITE.name,
+    jobTitle: SITE.role,
+    url: SITE.url,
+    sameAs: SITE.social.filter((s) => s.href.startsWith('https://')).map((s) => s.href),
+  },
+];
+
 /**
  * The three capabilities, and for each of them the work that is the evidence.
  *
@@ -182,7 +195,7 @@ const showcaseTools: ShowcaseTool[] = liveTools.map((t) => ({
 }));
 ---
 
-<BaseLayout holdVeil>
+<BaseLayout holdVeil structuredData={siteData}>
   {
     /* ══ 00 · The deck ═════════════════════════════════════════════
       `client:load`, not `client:visible`: this *is* the first screen, so
