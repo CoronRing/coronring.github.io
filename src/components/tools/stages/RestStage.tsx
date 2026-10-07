@@ -1,122 +1,129 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
+import OpenTool from './OpenTool';
+
+/**
+ * Rest Reminder on the showcase screen: a working focus/break dial, and the
+ * next two hours laid out as a strip of focus and break blocks with a "now"
+ * marker, plus the clock times they land on. The full tool's page explains how
+ * it keeps time in a background tab; this screen only shows the clock.
+ *
+ * Clock times exist only after mount: the band is server-rendered, and a time
+ * computed on the server would not match the visitor's clock on hydration.
+ */
+
+const LENGTH = { work: 25 * 60, break: 5 * 60 } as const;
+type Mode = keyof typeof LENGTH;
+const CYCLE = LENGTH.work + LENGTH.break;
+const CYCLES_SHOWN = 4;
+
+const TICKS = Array.from({ length: 60 }, (_, i) => i);
+
+function clock(ms: number): string {
+  return new Date(ms).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
 
 interface Props {
   href: string;
 }
 
 export default function RestStage({ href }: Props): React.ReactElement {
-  const [mode, setMode] = useState<'work' | 'break'>('work');
+  const [mode, setMode] = useState<Mode>('work');
   const [running, setRunning] = useState(false);
-  const [seconds, setSeconds] = useState(25 * 60);
+  const [seconds, setSeconds] = useState<number>(LENGTH.work);
+  const [now, setNow] = useState<number | null>(null);
 
-  // Simulation timer when running
+  useEffect(() => {
+    setNow(Date.now());
+    const minute = window.setInterval(() => setNow(Date.now()), 30_000);
+    return () => window.clearInterval(minute);
+  }, []);
+
   useEffect(() => {
     if (!running) return;
     const timer = window.setInterval(() => {
       setSeconds((s) => (s > 0 ? s - 1 : 0));
+      setNow(Date.now());
     }, 1000);
-    return () => clearInterval(timer);
+    return () => window.clearInterval(timer);
   }, [running]);
 
-  const total = mode === 'work' ? 25 * 60 : 5 * 60;
-  const progress = 1 - seconds / total;
-  const mins = Math.floor(seconds / 60);
-  const secs = seconds % 60;
-  const timeStr = `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+  const progress = 1 - seconds / LENGTH[mode];
+  const time = `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`;
 
-  const switchMode = (next: 'work' | 'break') => {
+  /** Seconds into the current focus+break cycle, so the strip's marker lines up with the dial. */
+  const intoCycle =
+    mode === 'work' ? LENGTH.work - seconds : LENGTH.work + (LENGTH.break - seconds);
+  const toBreak = mode === 'work' ? seconds : 0;
+  const toWork = mode === 'work' ? seconds + LENGTH.break : seconds;
+
+  const switchMode = (next: Mode): void => {
     setMode(next);
-    setSeconds(next === 'work' ? 25 * 60 : 5 * 60);
+    setSeconds(LENGTH[next]);
     setRunning(false);
   };
 
-  // SVG circular dial parameters
-  const radius = 54;
-  const circumference = 2 * Math.PI * radius;
-  const strokeDashoffset = circumference * (1 - progress);
+  const r = 54;
+  const circumference = 2 * Math.PI * r;
 
   return (
-    <div className="space-y-6">
-      {/* ── Top Bar: Mode Switcher & Web Worker Status ─────────────────── */}
-      <div className="border-line flex flex-wrap items-center justify-between gap-4 border-b pb-4">
-        <div className="flex items-center gap-1.5">
-          <span className="text-faint mr-2 font-mono text-[11px] tracking-wider uppercase">
-            Interval:
-          </span>
-          <button
-            type="button"
-            onClick={() => switchMode('work')}
-            className={`rounded px-3 py-1 font-mono text-xs transition-colors ${
-              mode === 'work'
-                ? 'bg-accent-fill text-accent-on-fill font-medium'
-                : 'bg-raised text-muted hover:text-fg'
-            }`}
-          >
-            25m Deep Work
-          </button>
-          <button
-            type="button"
-            onClick={() => switchMode('break')}
-            className={`rounded px-3 py-1 font-mono text-xs transition-colors ${
-              mode === 'break'
-                ? 'bg-accent-fill text-accent-on-fill font-medium'
-                : 'bg-raised text-muted hover:text-fg'
-            }`}
-          >
-            5m Ergonomic Break
-          </button>
-        </div>
-
-        <div className="flex items-center gap-2 font-mono text-xs text-[var(--c-ok)]">
-          <span className="size-2 animate-pulse rounded-full bg-[var(--c-ok)]" />
-          <span>Web Worker Active (Throttling Proof)</span>
-        </div>
-      </div>
-
-      {/* ── Centerpiece: Circular Clock & Ergonomics Panel ────────────── */}
-      <div className="grid items-center gap-6 sm:grid-cols-[14rem_minmax(0,1fr)]">
-        {/* Radial Animated Clock */}
-        <div className="border-line bg-surface/60 flex flex-col items-center justify-center rounded-sm border p-4">
-          <div className="relative flex size-36 items-center justify-center">
-            <svg className="size-full -rotate-90" viewBox="0 0 128 128">
-              {/* Track background */}
+    <div className="flex min-h-0 flex-1 flex-col gap-5">
+      <div className="grid flex-1 items-center gap-8 lg:grid-cols-[auto_minmax(0,1fr)]">
+        {/* ── Dial ──────────────────────────────────────────────────── */}
+        <div className="flex flex-col items-center gap-5 lg:px-4">
+          <div className="relative size-60">
+            <svg className="size-full" viewBox="0 0 128 128" aria-hidden="true">
+              {TICKS.map((i) => {
+                const major = i % 5 === 0;
+                const a = (i / 60) * 2 * Math.PI - Math.PI / 2;
+                const r0 = major ? 59 : 60.5;
+                return (
+                  <line
+                    key={i}
+                    x1={64 + r0 * Math.cos(a)}
+                    y1={64 + r0 * Math.sin(a)}
+                    x2={64 + 63 * Math.cos(a)}
+                    y2={64 + 63 * Math.sin(a)}
+                    className={i / 60 <= progress && progress > 0 ? 'stroke-accent' : 'stroke-line'}
+                    strokeWidth={major ? 1.1 : 0.6}
+                  />
+                );
+              })}
+              <circle cx="64" cy="64" r={r} className="stroke-sunken" strokeWidth="5" fill="none" />
               <circle
                 cx="64"
                 cy="64"
-                r={radius}
-                className="stroke-sunken"
-                strokeWidth="7"
-                fill="none"
-              />
-              {/* Animated Progress Arc */}
-              <circle
-                cx="64"
-                cy="64"
-                r={radius}
+                r={r}
                 className="stroke-accent-fill transition-[stroke-dashoffset] duration-500"
-                strokeWidth="7"
+                strokeWidth="5"
                 strokeLinecap="round"
                 fill="none"
+                transform="rotate(-90 64 64)"
                 strokeDasharray={circumference}
-                strokeDashoffset={strokeDashoffset}
+                strokeDashoffset={circumference * (1 - progress)}
               />
             </svg>
-
-            {/* Centered Digital Countdown */}
-            <div className="absolute inset-0 flex flex-col items-center justify-center font-mono">
-              <span className="text-fg text-2xl font-bold tracking-tight">{timeStr}</span>
-              <span className="text-faint mt-0.5 text-[10px] tracking-wider uppercase">
-                {mode === 'work' ? 'Sprint' : 'Rest'}
+            <div className="absolute inset-0 flex flex-col items-center justify-center">
+              <span className="text-faint font-mono text-[10px] tracking-[0.2em] uppercase">
+                {mode === 'work' ? 'Focus' : 'Break'}
+              </span>
+              <span
+                className="text-fg mt-1 font-mono text-4xl font-bold tracking-tight tabular-nums"
+                aria-live="polite"
+              >
+                {time}
               </span>
             </div>
           </div>
 
-          {/* Interactive Play/Pause/Reset Controls */}
-          <div className="mt-4 flex items-center gap-2 font-mono text-xs">
+          <div className="flex items-center gap-2 font-mono text-xs">
             <button
               type="button"
               onClick={() => setRunning(!running)}
-              className="bg-surface border-line hover:border-fg text-fg rounded-sm border px-3 py-1 transition-colors"
+              className={`rounded-sm border px-5 py-1.5 transition-colors ${
+                running
+                  ? 'border-line text-fg bg-surface hover:border-fg'
+                  : 'bg-accent-fill text-accent-on-fill border-transparent font-semibold'
+              }`}
             >
               {running ? 'Pause' : 'Start'}
             </button>
@@ -124,79 +131,91 @@ export default function RestStage({ href }: Props): React.ReactElement {
               type="button"
               onClick={() => {
                 setRunning(false);
-                setSeconds(mode === 'work' ? 25 * 60 : 5 * 60);
+                setSeconds(LENGTH[mode]);
               }}
-              className="text-faint hover:text-fg px-2.5 py-1 transition-colors"
+              className="text-faint hover:text-fg px-2.5 py-1.5 transition-colors"
             >
               Reset
             </button>
           </div>
         </div>
 
-        {/* Ergonomics & Web Worker Resilience Card */}
-        <div className="space-y-3 font-mono text-xs">
-          <div className="border-line bg-surface/80 rounded-sm border p-3.5">
-            <div className="mb-2 flex items-center gap-2">
-              <span className="text-accent font-semibold">⚡ Unthrottled Precision</span>
-              <span className="text-faint text-[10px]">· Tab Minimised</span>
-            </div>
-            <p className="text-muted text-[12px] leading-relaxed">
-              Browsers put background tabs to sleep and throttle timers to 1 Hz or zero. Rest
-              Reminder uses an isolated Web Worker heartbeat, keeping deadline precision down to the
-              exact millisecond regardless of window state.
-            </p>
+        {/* ── Plan ──────────────────────────────────────────────────── */}
+        <div className="flex min-w-0 flex-col gap-6">
+          <div className="flex gap-1.5">
+            {(['work', 'break'] as const).map((m) => (
+              <button
+                key={m}
+                type="button"
+                onClick={() => switchMode(m)}
+                aria-pressed={mode === m}
+                className={`rounded-sm px-3 py-1 font-mono text-xs transition-colors ${
+                  mode === m ? 'bg-fg text-ground' : 'bg-raised text-muted hover:text-fg'
+                }`}
+              >
+                {m === 'work' ? '25 min focus' : '5 min break'}
+              </button>
+            ))}
           </div>
 
-          <div className="border-line bg-surface/80 rounded-sm border p-3.5">
-            <span className="text-faint mb-2 block text-[10px] uppercase">Rest Checklist</span>
-            <ul className="text-muted space-y-1.5 text-[12px]">
-              <li className="flex items-center gap-2">
-                <span className="text-[var(--c-ok)]">✓</span>
-                <span>
-                  <strong>20-20-20 Rule:</strong> Look 20 feet away for 20 seconds
+          <div>
+            <p className="eyebrow text-[10px]">Next two hours</p>
+            <div className="relative mt-3">
+              <div className="flex h-9 gap-[2px]">
+                {Array.from({ length: CYCLES_SHOWN }, (_, c) => (
+                  <React.Fragment key={c}>
+                    <span className="bg-raised h-full rounded-l-sm" style={{ flex: LENGTH.work }} />
+                    <span
+                      className="bg-accent h-full rounded-r-sm"
+                      style={{ flex: LENGTH.break }}
+                    />
+                  </React.Fragment>
+                ))}
+              </div>
+              <span
+                className="bg-fg absolute -top-1.5 -bottom-1.5 w-[2px] rounded-full transition-[left] duration-500"
+                style={{ left: `${(intoCycle / (CYCLE * CYCLES_SHOWN)) * 100}%` }}
+                aria-hidden="true"
+              />
+            </div>
+            <div className="text-faint mt-2 flex justify-between font-mono text-[10px] tabular-nums">
+              {Array.from({ length: CYCLES_SHOWN + 1 }, (_, i) => (
+                <span key={i}>
+                  {now === null ? '--:--' : clock(now + (i * CYCLE - intoCycle) * 1000)}
                 </span>
-              </li>
-              <li className="flex items-center gap-2">
-                <span className="text-[var(--c-ok)]">✓</span>
-                <span>
-                  <strong>Shoulder & Neck:</strong> Release trapped trapezius tension
-                </span>
-              </li>
-              <li className="flex items-center gap-2">
-                <span className="text-[var(--c-ok)]">✓</span>
-                <span>
-                  <strong>Hydration:</strong> Stand and sip water
-                </span>
-              </li>
-            </ul>
+              ))}
+            </div>
+            <div className="text-muted mt-3 flex gap-4 font-mono text-[10px]">
+              <span className="flex items-center gap-1.5">
+                <span className="bg-raised inline-block size-2.5 rounded-[2px]" /> focus
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span className="bg-accent inline-block size-2.5 rounded-[2px]" /> break
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span className="bg-fg inline-block h-2.5 w-[2px]" /> now
+              </span>
+            </div>
           </div>
+
+          <dl className="border-line grid grid-cols-2 border-y">
+            <div className="border-line border-r py-3 pr-3">
+              <dt className="eyebrow text-[10px]">Next break</dt>
+              <dd className="text-fg mt-1 font-mono text-xl font-semibold tabular-nums">
+                {now === null ? '--:--' : toBreak === 0 ? 'now' : clock(now + toBreak * 1000)}
+              </dd>
+            </div>
+            <div className="py-3 pl-4">
+              <dt className="eyebrow text-[10px]">Back to work</dt>
+              <dd className="text-fg mt-1 font-mono text-xl font-semibold tabular-nums">
+                {now === null ? '--:--' : clock(now + toWork * 1000)}
+              </dd>
+            </div>
+          </dl>
         </div>
       </div>
 
-      {/* ── Footer CTA ─────────────────────────────────────────────────── */}
-      <div className="border-line flex flex-wrap items-center justify-between gap-4 border-t pt-4">
-        <p className="text-muted font-mono text-xs">
-          Customizable intervals, 6 acoustic chime presets, desktop notifications, and zero
-          tracking.
-        </p>
-
-        <a
-          href={href}
-          className="bg-accent-fill text-accent-on-fill inline-flex items-center gap-2 rounded-sm px-4 py-2 font-mono text-xs font-semibold transition-opacity hover:opacity-90"
-        >
-          <span>Open Rest Reminder</span>
-          <svg viewBox="0 0 16 16" aria-hidden="true" className="size-3.5">
-            <path
-              d="M3 8 H13 M9 4 L13 8 L9 12"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.6"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
-        </a>
-      </div>
+      <OpenTool href={href} label="Open Rest Reminder" more="Keeps time in background tabs" />
     </div>
   );
 }

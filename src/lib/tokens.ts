@@ -49,6 +49,23 @@ const RATES = {
 
 type Klass = keyof typeof RATES;
 
+/** Structural overhead every message carries beyond its raw text, in tokens. */
+const OVERHEAD = 3;
+
+/**
+ * Where an estimate's tokens come from: the fractional tokens charged to each
+ * character class, plus the fixed overhead. Their sum, rounded, is
+ * `estimateTokens(text).tokens`.
+ */
+export interface TokenBreakdown {
+  readonly prose: number;
+  readonly digits: number;
+  readonly symbols: number;
+  readonly cjk: number;
+  readonly whitespace: number;
+  readonly overhead: number;
+}
+
 /** Classify a single code point into a pricing class. */
 function classify(ch: string): Klass {
   if (/\s/.test(ch)) return 'whitespace';
@@ -70,28 +87,8 @@ export function estimateTokens(text: string): TokenEstimate {
     return { tokens: 0, margin: 0, characters: 0, charactersNoSpaces: 0, words: 0, lines: 0 };
   }
 
-  // Tally characters per class, then convert each tally at its own rate.
-  const tally: Record<Klass, number> = {
-    prose: 0,
-    digits: 0,
-    symbols: 0,
-    cjk: 0,
-    whitespace: 0,
-  };
-
-  // Iterate by code point so surrogate pairs (emoji) count as one character.
-  for (const ch of text) {
-    tally[classify(ch)] += 1;
-  }
-
-  let tokens = 0;
-  for (const klass of Object.keys(tally) as Klass[]) {
-    tokens += tally[klass] / RATES[klass];
-  }
-
-  // Every message carries a small structural overhead beyond its raw text.
-  tokens += 3;
-
+  const parts = tokenBreakdown(text);
+  const tokens = Object.values(parts).reduce((sum, t) => sum + t, 0);
   const words = text.trim() === '' ? 0 : text.trim().split(/\s+/).length;
 
   return {
@@ -101,6 +98,27 @@ export function estimateTokens(text: string): TokenEstimate {
     charactersNoSpaces: [...text].filter((c) => !/\s/.test(c)).length,
     words,
     lines: text.split('\n').length,
+  };
+}
+
+/**
+ * Split an estimate by character class: tally the characters of each class,
+ * then charge each tally at its own rate. Empty input costs nothing, not even
+ * the overhead.
+ */
+export function tokenBreakdown(text: string): TokenBreakdown {
+  const tally: Record<Klass, number> = { prose: 0, digits: 0, symbols: 0, cjk: 0, whitespace: 0 };
+  // Iterate by code point so surrogate pairs (emoji) count as one character.
+  for (const ch of text) {
+    tally[classify(ch)] += 1;
+  }
+  return {
+    prose: tally.prose / RATES.prose,
+    digits: tally.digits / RATES.digits,
+    symbols: tally.symbols / RATES.symbols,
+    cjk: tally.cjk / RATES.cjk,
+    whitespace: tally.whitespace / RATES.whitespace,
+    overhead: text.length === 0 ? 0 : OVERHEAD,
   };
 }
 

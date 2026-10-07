@@ -1,170 +1,125 @@
-import React, { useState } from 'react';
+import React, { useId, useMemo, useState } from 'react';
+import { findTransform, textStats, TRANSFORMS } from '../../../lib/string-kit';
+import { Button, CopyButton, num, PasteButton, TextArea } from '../ui';
+import OpenTool from './OpenTool';
 
-interface TransformPreset {
-  id: string;
-  name: string;
-  inputTitle: string;
-  outputTitle: string;
-  input: string;
-  output: string;
-  savings: string;
-  detail: string;
+/**
+ * String Kit on the showcase screen: one input, and the transforms people
+ * reach for most, applied live by the real engine in `lib/string-kit`, each
+ * with its own copy button. Grouped the way the full tool groups them, so the
+ * screen reads as two short lists rather than one long one.
+ */
+
+const SAMPLE = 'parse HTTP response v2';
+
+/** Ids are from `TRANSFORMS` in `lib/string-kit`, shown in this order. */
+const GROUPS = [
+  { title: 'Case', ids: ['camel', 'pascal', 'snake', 'kebab', 'constant'] },
+  { title: 'Encode', ids: ['base64-encode', 'url-encode', 'html-escape', 'hex'] },
+] as const;
+
+const MORE = TRANSFORMS.length - GROUPS.reduce((n, g) => n + g.ids.length, 0);
+
+function apply(id: string, input: string): { name: string; output: string } | undefined {
+  const transform = findTransform(id);
+  if (!transform) return undefined;
+  try {
+    return { name: transform.name, output: transform.run(input) };
+  } catch {
+    return { name: transform.name, output: '' };
+  }
 }
-
-const PRESETS: TransformPreset[] = [
-  {
-    id: 'html-md',
-    name: 'HTML → Clean Markdown',
-    inputTitle: 'Raw Scraped HTML (With Ads & Nav)',
-    outputTitle: 'Stripped Markdown for Context Window',
-    input: `<article class="post-content">
-  <div class="ad-banner tracking">Sponsored</div>
-  <h1>Agent Evaluation Harness</h1>
-  <p>To measure <strong>hallucination</strong> in production, track <a href="/benchmark">score distributions</a>.</p>
-  <nav class="share-widget"><button>Tweet</button></nav>
-</article>`,
-    output: `# Agent Evaluation Harness
-
-To measure **hallucination** in production, track [score distributions](/benchmark).`,
-    savings: '-68% tokens saved (strips boilerplate DOM)',
-    detail: 'Sanitizes DOM trees, preserves semantic text & links, strips tracking scripts.',
-  },
-  {
-    id: 'case',
-    name: 'Identifier Case Studio',
-    inputTitle: 'Raw Input Text / Role Name',
-    outputTitle: 'Multi-Case Transformed Identifiers',
-    input: `applied ML agent benchmark runner v2`,
-    output: `kebab-case:    applied-ml-agent-benchmark-runner-v2
-snake_case:    applied_ml_agent_benchmark_runner_v2
-PascalCase:    AppliedMlAgentBenchmarkRunnerV2
-SCREAMING:     APPLIED_ML_AGENT_BENCHMARK_RUNNER_V2`,
-    savings: 'Instant normalization for APIs & code generation',
-    detail: 'Clean boundary detection handles camelCase, acronyms, and punctuation.',
-  },
-  {
-    id: 'clean',
-    name: 'Text Normalizer & Dedup',
-    inputTitle: 'Messy Terminal Log / OCR Text',
-    outputTitle: 'Sanitized Output Text',
-    input: `[INFO] \u001b[32mBuild completed\u001b[0m in 1.42s...  \n\n\n\n\tModel latency: 120ms\t\t\n   Trailing spaces removed   `,
-    output: `[INFO] Build completed in 1.42s...
-Model latency: 120ms
-Trailing spaces removed`,
-    savings: '-42% token waste from unneeded whitespace & escapes',
-    detail: 'Strips ANSI escape sequences, collapses excessive blank lines, normalizes tabs.',
-  },
-];
 
 interface Props {
   href: string;
 }
 
 export default function StringStage({ href }: Props): React.ReactElement {
-  const [activePreset, setActivePreset] = useState(0);
-  const preset = PRESETS[activePreset] ?? PRESETS[0]!;
+  const id = useId();
+  const [text, setText] = useState(SAMPLE);
+  const stats = useMemo(() => textStats(text), [text]);
+
+  const groups = useMemo(
+    () =>
+      GROUPS.map((g) => ({
+        title: g.title,
+        rows: g.ids.flatMap((tid) => {
+          const result = apply(tid, text);
+          return result ? [{ id: tid, ...result }] : [];
+        }),
+      })),
+    [text],
+  );
 
   return (
-    <div className="space-y-6">
-      {/* ── Preset Switcher & Efficiency Badge ─────────────────────────── */}
-      <div className="border-line flex flex-wrap items-center justify-between gap-4 border-b pb-4">
-        <div className="flex items-center gap-1.5">
-          <span className="text-faint mr-2 font-mono text-[11px] tracking-wider uppercase">
-            Transform:
-          </span>
-          {PRESETS.map((p, idx) => (
-            <button
-              key={p.id}
-              type="button"
-              onClick={() => setActivePreset(idx)}
-              className={`rounded px-2.5 py-1 font-mono text-xs transition-colors ${
-                idx === activePreset
-                  ? 'bg-accent-fill text-accent-on-fill font-medium'
-                  : 'bg-raised text-muted hover:text-fg'
-              }`}
-            >
-              {p.name}
-            </button>
+    <div className="flex min-h-0 flex-1 flex-col gap-5">
+      <div className="grid flex-1 gap-6 lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.4fr)]">
+        {/* ── Input ─────────────────────────────────────────────────── */}
+        <div className="flex min-w-0 flex-col gap-2.5">
+          <div className="flex items-center justify-between gap-3">
+            <label htmlFor={id} className="eyebrow text-[11px]">
+              Input
+            </label>
+            <div className="flex gap-2">
+              <PasteButton onPaste={setText} />
+              <Button variant="quiet" onClick={() => setText('')} disabled={text === ''}>
+                Clear
+              </Button>
+            </div>
+          </div>
+          <TextArea
+            id={id}
+            value={text}
+            onChange={setText}
+            rows={5}
+            placeholder="Type or paste text…"
+          />
+
+          <dl className="border-line mt-1 grid grid-cols-2 border-t">
+            {[
+              ['Characters', stats.chars],
+              ['UTF-8 bytes', stats.bytes],
+              ['Words', stats.words],
+              ['Lines', stats.lines],
+            ].map(([label, value]) => (
+              <div
+                key={label}
+                className="border-line border-b py-2.5 odd:border-r odd:pr-3 even:pl-3"
+              >
+                <dt className="eyebrow text-[10px]">{label}</dt>
+                <dd className="text-fg mt-1 font-mono text-base font-semibold tabular-nums">
+                  {num(Number(value))}
+                </dd>
+              </div>
+            ))}
+          </dl>
+        </div>
+
+        {/* ── Live transforms ───────────────────────────────────────── */}
+        <div className="flex min-w-0 flex-col gap-4">
+          {groups.map((group) => (
+            <section key={group.title}>
+              <p className="eyebrow eyebrow-marked text-[10px]">{group.title}</p>
+              <ul className="divide-line border-line mt-2 divide-y border-y">
+                {group.rows.map((row) => (
+                  <li
+                    key={row.id}
+                    className="group hover:bg-raised/50 grid grid-cols-[7.5rem_minmax(0,1fr)_auto] items-center gap-3 px-2 py-1 transition-colors"
+                  >
+                    <span className="text-faint font-mono text-[11px]">{row.name}</span>
+                    <code className="text-fg truncate font-mono text-[12.5px]" title={row.output}>
+                      {row.output || '—'}
+                    </code>
+                    <CopyButton text={row.output} />
+                  </li>
+                ))}
+              </ul>
+            </section>
           ))}
         </div>
-
-        <div className="flex items-center gap-2 font-mono text-xs text-[var(--c-ok)]">
-          <span className="size-2 rounded-full bg-[var(--c-ok)]" />
-          <span className="font-semibold">{preset.savings}</span>
-        </div>
       </div>
 
-      {/* ── Side-by-Side Dual Pane Workbench ──────────────────────────── */}
-      <div className="grid gap-4 md:grid-cols-2">
-        {/* Input Pane */}
-        <div className="border-line bg-surface/80 flex flex-col overflow-hidden rounded-sm border">
-          <div className="border-line bg-raised/30 flex items-center justify-between border-b px-3 py-2">
-            <span className="text-faint font-mono text-[11px] uppercase">{preset.inputTitle}</span>
-            <span className="text-alert font-mono text-[10px]">Unprocessed Input</span>
-          </div>
-          <div className="min-h-[10rem] flex-1 overflow-x-auto bg-[var(--c-ground)]/40 p-3.5">
-            <pre className="text-muted font-mono text-xs leading-relaxed whitespace-pre-wrap">
-              <code>{preset.input}</code>
-            </pre>
-          </div>
-        </div>
-
-        {/* Output Pane */}
-        <div className="border-line bg-surface/80 flex flex-col overflow-hidden rounded-sm border">
-          <div className="border-line bg-raised/30 flex items-center justify-between border-b px-3 py-2">
-            <span className="text-faint font-mono text-[11px] uppercase">{preset.outputTitle}</span>
-            <span className="font-mono text-[10px] text-[var(--c-ok)]">Clean Result</span>
-          </div>
-          <div className="bg-surface min-h-[10rem] flex-1 overflow-x-auto p-3.5">
-            <pre className="text-fg font-mono text-xs leading-relaxed whitespace-pre-wrap">
-              <code>{preset.output}</code>
-            </pre>
-          </div>
-        </div>
-      </div>
-
-      {/* ── 30+ Text Transforms Summary Shelf ──────────────────────────── */}
-      <div className="flex flex-wrap items-center gap-2 font-mono text-xs">
-        <span className="text-faint">Included 30+ transforms:</span>
-        {[
-          'Markdown to HTML',
-          'Slugify',
-          'Base64 encode/decode',
-          'URL codec',
-          'JSON format',
-          'Word count',
-          'Diff clean',
-        ].map((t) => (
-          <span
-            key={t}
-            className="border-line bg-surface text-muted rounded-sm border px-2 py-0.5 text-[11px]"
-          >
-            {t}
-          </span>
-        ))}
-      </div>
-
-      {/* ── Footer CTA ─────────────────────────────────────────────────── */}
-      <div className="border-line flex flex-wrap items-center justify-between gap-4 border-t pt-4">
-        <p className="text-muted font-mono text-xs">{preset.detail}</p>
-
-        <a
-          href={href}
-          className="bg-accent-fill text-accent-on-fill inline-flex items-center gap-2 rounded-sm px-4 py-2 font-mono text-xs font-semibold transition-opacity hover:opacity-90"
-        >
-          <span>Open String Kit</span>
-          <svg viewBox="0 0 16 16" aria-hidden="true" className="size-3.5">
-            <path
-              d="M3 8 H13 M9 4 L13 8 L9 12"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.6"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
-        </a>
-      </div>
+      <OpenTool href={href} label="Open String Kit" more={`${MORE} more transforms`} />
     </div>
   );
 }

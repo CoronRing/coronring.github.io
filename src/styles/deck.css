@@ -311,7 +311,8 @@
     font-stretch: 118%;
     font-size: clamp(2.25rem, 7vw, 8.5rem);
     line-height: 0.86;
-    letter-spacing: -0.01em;
+    letter-spacing: var(--display-tracking);
+    word-spacing: var(--display-word-gap);
     text-align: right;
     text-transform: uppercase;
     text-wrap: balance;

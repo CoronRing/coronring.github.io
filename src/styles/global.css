@@ -126,7 +126,8 @@
     font-family: var(--font-display);
     font-weight: 700;
     font-stretch: 118%;
-    letter-spacing: -0.005em;
+    letter-spacing: var(--display-tracking);
+    word-spacing: var(--display-word-gap);
     line-height: 0.92;
     text-transform: uppercase;
     text-wrap: balance;
@@ -780,7 +781,8 @@
   font-weight: 700;
   font-stretch: 118%;
   text-transform: uppercase;
-  letter-spacing: -0.005em;
+  letter-spacing: var(--display-tracking);
+  word-spacing: var(--display-word-gap);
   line-height: 1.05;
   text-wrap: balance;
   font-size: 1.5rem;

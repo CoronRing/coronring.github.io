@@ -258,6 +258,10 @@
   }
 
   @media (min-width: 64rem) {
+    /* Stretch, not start: in a column flexbox a start-aligned child shrinks to its content. */
+    .tools-pin {
+      align-items: stretch;
+    }
     .tools-band {
       min-height: 290vh;
     }
@@ -275,6 +279,12 @@
   .tool-stage-panel {
     animation: tool-stage-in var(--dur-reveal) var(--ease-out) both;
   }
+
+  /*
+   * Every stage has one height from lg (`lg:h-[35rem]` on the panel in
+   * ToolShowcase.tsx, a utility so nothing in the flex column overrides it), so
+   * switching tools never resizes the panel and typing never moves the page.
+   */
 }
 
 @keyframes tool-stage-in {

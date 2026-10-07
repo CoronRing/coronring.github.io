@@ -174,7 +174,7 @@ export default function ToolShowcase({ indexHref }: Props): React.ReactElement {
   return (
     <div ref={bandRef} className="tools-band">
       <div className="tools-pin w-full">
-        <div className="kit shadow-panel border-line grid gap-0 border lg:grid-cols-[minmax(0,19rem)_minmax(0,1fr)]">
+        <div className="kit shadow-panel border-line grid w-full gap-0 border lg:grid-cols-[minmax(0,19rem)_minmax(0,1fr)]">
           {/* ── Left Rail / Roster ────────────────────────────────────── */}
           <div
             role="tablist"
@@ -283,7 +283,10 @@ export default function ToolShowcase({ indexHref }: Props): React.ReactElement {
             </div>
 
             {/* Dynamic Stage Body */}
-            <div key={currentTool.id} className="tool-stage-panel min-w-0 flex-1 p-4 sm:p-6 lg:p-7">
+            <div
+              key={currentTool.id}
+              className="tool-stage-panel flex min-w-0 flex-col p-4 sm:p-6 lg:h-[35rem] lg:overflow-y-auto lg:p-7"
+            >
               {active === 0 && <TokenStage href={currentTool.href} />}
               {active === 1 && <McpStage href={currentTool.href} />}
               {active === 2 && <StringStage href={currentTool.href} />}

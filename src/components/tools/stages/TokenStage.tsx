@@ -1,350 +1,149 @@
-import React, { useState } from 'react';
+import React, { useId, useMemo, useState } from 'react';
+import { estimateTokens, tokenBreakdown, type TokenBreakdown } from '../../../lib/tokens';
+import { Button, num, PasteButton, TextArea } from '../ui';
+import OpenTool from './OpenTool';
 
-interface SamplePrompt {
-  id: string;
-  name: string;
-  text: string;
-  tokens: Array<{ text: string; color: string }>;
-  charCount: number;
-  tokenCount: number;
+/**
+ * Token Counter on the showcase screen: the real estimator from `lib/tokens`
+ * over a prefilled, pasteable box. The readout shows the estimate, where its
+ * tokens come from (the estimator charges each character class its own rate),
+ * and how much of three common context windows the text would fill. No model
+ * picker and no price table; those are the full tool's job.
+ */
+
+const SAMPLE = `Summarise the attached transcript in five bullets.
+Focus on where the agent failed, and quote the tool call that caused it.
+
+def score(run: dict) -> float:
+    return run["passed"] / max(run["total"], 1)`;
+
+const CLASSES: readonly { key: keyof TokenBreakdown; label: string }[] = [
+  { key: 'prose', label: 'Prose' },
+  { key: 'symbols', label: 'Symbols' },
+  { key: 'digits', label: 'Digits' },
+  { key: 'whitespace', label: 'Whitespace' },
+  { key: 'cjk', label: 'CJK' },
+  { key: 'overhead', label: 'Overhead' },
+];
+
+const WINDOWS = [
+  { label: '32K', size: 32_000 },
+  { label: '200K', size: 200_000 },
+  { label: '1M', size: 1_000_000 },
+] as const;
+
+function percent(part: number, whole: number): string {
+  if (part === 0) return '0%';
+  const p = (part / whole) * 100;
+  if (p < 0.01) return '<0.01%';
+  return p < 1 ? `${p.toFixed(2)}%` : `${p.toFixed(1)}%`;
 }
-
-const SAMPLES: SamplePrompt[] = [
-  {
-    id: 'agent',
-    name: 'Agent Prompt',
-    text: 'Summarize the attached transcript in 5 concise bullets. Focus on agent failure modes.',
-    tokens: [
-      {
-        text: 'Sum',
-        color: 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/25',
-      },
-      { text: 'mar', color: 'bg-cyan-500/15 text-cyan-600 dark:text-cyan-400 border-cyan-500/25' },
-      { text: 'ize', color: 'bg-sky-500/15 text-sky-600 dark:text-sky-400 border-sky-500/25' },
-      {
-        text: ' the',
-        color: 'bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 border-indigo-500/25',
-      },
-      {
-        text: ' attached',
-        color: 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/25',
-      },
-      {
-        text: ' transcript',
-        color: 'bg-rose-500/15 text-rose-600 dark:text-rose-400 border-rose-500/25',
-      },
-      {
-        text: ' in',
-        color: 'bg-purple-500/15 text-purple-600 dark:text-purple-400 border-purple-500/25',
-      },
-      {
-        text: ' 5',
-        color: 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/25',
-      },
-      {
-        text: ' concise',
-        color: 'bg-cyan-500/15 text-cyan-600 dark:text-cyan-400 border-cyan-500/25',
-      },
-      {
-        text: ' bullets',
-        color: 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/25',
-      },
-      { text: '.', color: 'bg-zinc-500/15 text-zinc-600 dark:text-zinc-400 border-zinc-500/25' },
-      {
-        text: ' Focus',
-        color: 'bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 border-indigo-500/25',
-      },
-      {
-        text: ' on',
-        color: 'bg-purple-500/15 text-purple-600 dark:text-purple-400 border-purple-500/25',
-      },
-      {
-        text: ' agent',
-        color: 'bg-rose-500/15 text-rose-600 dark:text-rose-400 border-rose-500/25',
-      },
-      {
-        text: ' failure',
-        color: 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/25',
-      },
-      { text: ' modes', color: 'bg-sky-500/15 text-sky-600 dark:text-sky-400 border-sky-500/25' },
-      { text: '.', color: 'bg-zinc-500/15 text-zinc-600 dark:text-zinc-400 border-zinc-500/25' },
-    ],
-    charCount: 86,
-    tokenCount: 17,
-  },
-  {
-    id: 'code',
-    name: 'Python Schema',
-    text: 'def calculate_context_budget(used: int, limit: int = 128000) -> float:',
-    tokens: [
-      { text: 'def', color: 'bg-rose-500/15 text-rose-600 dark:text-rose-400 border-rose-500/25' },
-      {
-        text: ' calculate',
-        color: 'bg-cyan-500/15 text-cyan-600 dark:text-cyan-400 border-cyan-500/25',
-      },
-      { text: '_context', color: 'bg-sky-500/15 text-sky-600 dark:text-sky-400 border-sky-500/25' },
-      {
-        text: '_budget',
-        color: 'bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 border-indigo-500/25',
-      },
-      { text: '(', color: 'bg-zinc-500/15 text-zinc-600 dark:text-zinc-400 border-zinc-500/25' },
-      {
-        text: 'used',
-        color: 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/25',
-      },
-      { text: ':', color: 'bg-zinc-500/15 text-zinc-600 dark:text-zinc-400 border-zinc-500/25' },
-      {
-        text: ' int',
-        color: 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/25',
-      },
-      { text: ',', color: 'bg-zinc-500/15 text-zinc-600 dark:text-zinc-400 border-zinc-500/25' },
-      {
-        text: ' limit',
-        color: 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/25',
-      },
-      { text: ':', color: 'bg-zinc-500/15 text-zinc-600 dark:text-zinc-400 border-zinc-500/25' },
-      {
-        text: ' int',
-        color: 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/25',
-      },
-      {
-        text: ' =',
-        color: 'bg-purple-500/15 text-purple-600 dark:text-purple-400 border-purple-500/25',
-      },
-      { text: ' 128', color: 'bg-sky-500/15 text-sky-600 dark:text-sky-400 border-sky-500/25' },
-      { text: '000', color: 'bg-cyan-500/15 text-cyan-600 dark:text-cyan-400 border-cyan-500/25' },
-      { text: ')', color: 'bg-zinc-500/15 text-zinc-600 dark:text-zinc-400 border-zinc-500/25' },
-      {
-        text: ' ->',
-        color: 'bg-purple-500/15 text-purple-600 dark:text-purple-400 border-purple-500/25',
-      },
-      {
-        text: ' float',
-        color: 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/25',
-      },
-      { text: ':', color: 'bg-zinc-500/15 text-zinc-600 dark:text-zinc-400 border-zinc-500/25' },
-    ],
-    charCount: 71,
-    tokenCount: 19,
-  },
-  {
-    id: 'rag',
-    name: 'RAG Chunk',
-    text: 'Model Context Protocol (MCP) standardizes how AI applications provide tools to LLMs.',
-    tokens: [
-      {
-        text: 'Model',
-        color: 'bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 border-indigo-500/25',
-      },
-      { text: ' Context', color: 'bg-sky-500/15 text-sky-600 dark:text-sky-400 border-sky-500/25' },
-      {
-        text: ' Protocol',
-        color: 'bg-cyan-500/15 text-cyan-600 dark:text-cyan-400 border-cyan-500/25',
-      },
-      { text: ' (', color: 'bg-zinc-500/15 text-zinc-600 dark:text-zinc-400 border-zinc-500/25' },
-      {
-        text: 'MCP',
-        color: 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/25',
-      },
-      { text: ')', color: 'bg-zinc-500/15 text-zinc-600 dark:text-zinc-400 border-zinc-500/25' },
-      {
-        text: ' standard',
-        color: 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/25',
-      },
-      { text: 'izes', color: 'bg-rose-500/15 text-rose-600 dark:text-rose-400 border-rose-500/25' },
-      {
-        text: ' how',
-        color: 'bg-purple-500/15 text-purple-600 dark:text-purple-400 border-purple-500/25',
-      },
-      { text: ' AI', color: 'bg-sky-500/15 text-sky-600 dark:text-sky-400 border-sky-500/25' },
-      {
-        text: ' applications',
-        color: 'bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 border-indigo-500/25',
-      },
-      {
-        text: ' provide',
-        color: 'bg-cyan-500/15 text-cyan-600 dark:text-cyan-400 border-cyan-500/25',
-      },
-      {
-        text: ' tools',
-        color: 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/25',
-      },
-      {
-        text: ' to',
-        color: 'bg-purple-500/15 text-purple-600 dark:text-purple-400 border-purple-500/25',
-      },
-      { text: ' LL', color: 'bg-rose-500/15 text-rose-600 dark:text-rose-400 border-rose-500/25' },
-      {
-        text: 'Ms',
-        color: 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/25',
-      },
-      { text: '.', color: 'bg-zinc-500/15 text-zinc-600 dark:text-zinc-400 border-zinc-500/25' },
-    ],
-    charCount: 84,
-    tokenCount: 17,
-  },
-];
-
-const MODELS = [
-  {
-    name: 'Claude 3.5 Sonnet',
-    inPrice: 3.0,
-    outPrice: 15.0,
-    provider: 'Anthropic',
-    barWidth: '92%',
-  },
-  { name: 'GPT-4o', inPrice: 2.5, outPrice: 10.0, provider: 'OpenAI', barWidth: '78%' },
-  { name: 'Gemini 1.5 Pro', inPrice: 1.25, outPrice: 5.0, provider: 'Google', barWidth: '46%' },
-  {
-    name: 'Llama 3.3 70B',
-    inPrice: 0.59,
-    outPrice: 0.79,
-    provider: 'Meta / Groq',
-    barWidth: '22%',
-  },
-];
 
 interface Props {
   href: string;
 }
 
 export default function TokenStage({ href }: Props): React.ReactElement {
-  const [selectedSample, setSelectedSample] = useState(0);
-  const sample = SAMPLES[selectedSample] ?? SAMPLES[0]!;
+  const id = useId();
+  const [text, setText] = useState(SAMPLE);
+  const estimate = useMemo(() => estimateTokens(text), [text]);
+  const parts = useMemo(() => tokenBreakdown(text), [text]);
+  const largest = Math.max(...CLASSES.map((c) => parts[c.key]), 1e-9);
 
   return (
-    <div className="space-y-6">
-      {/* ── Top Bar: Presets & Live Counters ──────────────────────────── */}
-      <div className="border-line flex flex-wrap items-center justify-between gap-4 border-b pb-4">
-        <div className="flex items-center gap-1.5">
-          <span className="text-faint mr-2 font-mono text-[11px] tracking-wider uppercase">
-            Sample:
-          </span>
-          {SAMPLES.map((s, idx) => (
-            <button
-              key={s.id}
-              type="button"
-              onClick={() => setSelectedSample(idx)}
-              className={`rounded px-2.5 py-1 font-mono text-xs transition-colors ${
-                idx === selectedSample
-                  ? 'bg-accent-fill text-accent-on-fill font-medium'
-                  : 'bg-raised text-muted hover:text-fg'
-              }`}
-            >
-              {s.name}
-            </button>
-          ))}
-        </div>
-
-        <div className="flex items-center gap-4 font-mono text-xs">
-          <div className="flex items-baseline gap-1.5">
-            <span className="text-faint">Tokens:</span>
-            <span className="text-accent text-sm font-semibold">{sample.tokenCount}</span>
+    <div className="flex min-h-0 flex-1 flex-col gap-5">
+      <div className="grid flex-1 gap-5 lg:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)]">
+        {/* ── Input ─────────────────────────────────────────────────── */}
+        <div className="flex min-w-0 flex-col gap-2.5">
+          <div className="flex items-center justify-between gap-3">
+            <label htmlFor={id} className="eyebrow text-[11px]">
+              Input
+            </label>
+            <div className="flex gap-2">
+              <PasteButton onPaste={setText} />
+              <Button variant="quiet" onClick={() => setText('')} disabled={text === ''}>
+                Clear
+              </Button>
+            </div>
           </div>
-          <div className="flex items-baseline gap-1.5">
-            <span className="text-faint">Characters:</span>
-            <span className="text-fg font-semibold">{sample.charCount}</span>
-          </div>
-          <div className="hidden items-baseline gap-1.5 sm:flex">
-            <span className="text-faint">Ratio:</span>
-            <span className="text-muted">
-              {(sample.charCount / sample.tokenCount).toFixed(1)} c/t
-            </span>
+          <TextArea
+            id={id}
+            value={text}
+            onChange={setText}
+            rows={11}
+            placeholder="Paste a prompt…"
+          />
+          <div className="text-faint flex gap-4 font-mono text-[11px] tabular-nums">
+            <span>{num(estimate.characters)} chars</span>
+            <span>{num(estimate.words)} words</span>
+            <span>{num(estimate.lines)} lines</span>
           </div>
         </div>
-      </div>
 
-      {/* ── Visual Token Breakdown Chip Cloud ─────────────────────────── */}
-      <div className="border-line bg-surface/60 rounded-sm border p-4">
-        <div className="mb-3 flex items-center justify-between">
-          <p className="eyebrow text-[11px]">BPE Token Segmentation</p>
-          <span className="text-faint font-mono text-[10px]">
-            {sample.tokenCount} tokens parsed
-          </span>
-        </div>
-        <div className="flex flex-wrap gap-1.5 font-mono text-xs leading-relaxed select-text sm:text-[13px]">
-          {sample.tokens.map((tok, i) => (
-            <span
-              key={`${tok.text}-${i}`}
-              className={`inline-flex items-center rounded-sm border px-1.5 py-0.5 transition-transform hover:scale-105 ${tok.color}`}
-              title={`Token #${i + 1}: "${tok.text}"`}
-            >
-              {tok.text}
-            </span>
-          ))}
-        </div>
-      </div>
+        {/* ── Readout ───────────────────────────────────────────────── */}
+        <div className="border-line bg-raised/40 flex min-w-0 flex-col gap-5 border p-5">
+          <div>
+            <p className="eyebrow text-[10px]">Estimated tokens</p>
+            <div className="mt-2 flex items-baseline gap-2.5">
+              <span className="text-fg text-5xl leading-none font-semibold tracking-tight">
+                {num(estimate.tokens)}
+              </span>
+              <span className="text-faint font-mono text-xs">± {num(estimate.margin)}</span>
+            </div>
+          </div>
 
-      {/* ── Multi-Model Price Catalogue Breakdown ───────────────────────── */}
-      <div className="space-y-3">
-        <div className="flex items-center justify-between">
-          <p className="eyebrow text-[11px]">Catalogue Pricing (2,400+ Models Indexed)</p>
-          <span className="text-faint font-mono text-[10px]">$ / Million Tokens (Input)</span>
-        </div>
+          <div>
+            <p className="eyebrow text-[10px]">Where they come from</p>
+            <ul className="mt-3 space-y-1.5">
+              {CLASSES.map((c) => {
+                const value = parts[c.key];
+                return (
+                  <li
+                    key={c.key}
+                    className={`grid grid-cols-[5.5rem_minmax(0,1fr)_2.5rem] items-center gap-3 font-mono text-[11px] ${
+                      value === 0 ? 'opacity-40' : ''
+                    }`}
+                  >
+                    <span className="text-muted">{c.label}</span>
+                    <span className="bg-sunken h-1.5 overflow-hidden rounded-full">
+                      <span
+                        className="bg-accent block h-full rounded-full transition-[width] duration-300"
+                        style={{ width: `${(value / largest) * 100}%` }}
+                      />
+                    </span>
+                    <span className="text-fg text-right tabular-nums">{value.toFixed(1)}</span>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
 
-        <div className="grid gap-2 sm:grid-cols-2">
-          {MODELS.map((model) => {
-            const costPer1k = ((sample.tokenCount * model.inPrice) / 1000).toFixed(4);
-            return (
-              <div
-                key={model.name}
-                className="group border-line bg-surface/80 hover:border-fg rounded-sm border p-3 transition-colors"
-              >
-                <div className="flex items-center justify-between">
-                  <span className="text-fg font-mono text-xs font-semibold">{model.name}</span>
-                  <span className="text-faint font-mono text-[10px]">{model.provider}</span>
-                </div>
-
-                <div className="mt-2.5 flex items-baseline justify-between font-mono text-xs">
-                  <span className="text-muted">
-                    ${model.inPrice.toFixed(2)}{' '}
-                    <span className="text-faint text-[10px]">/ MTok</span>
+          <div className="mt-auto">
+            <p className="eyebrow text-[10px]">Context window used</p>
+            <ul className="mt-3 space-y-2">
+              {WINDOWS.map((w) => (
+                <li
+                  key={w.label}
+                  className="grid grid-cols-[2.75rem_minmax(0,1fr)_3.75rem] items-center gap-3 font-mono text-[11px]"
+                >
+                  <span className="text-muted">{w.label}</span>
+                  <span className="bg-sunken h-1.5 overflow-hidden rounded-full">
+                    <span
+                      className="bg-fg block h-full min-w-[2px] rounded-full transition-[width] duration-300"
+                      style={{ width: `${Math.min(100, (estimate.tokens / w.size) * 100)}%` }}
+                    />
                   </span>
-                  <span className="text-accent font-semibold">
-                    ${costPer1k} <span className="text-faint text-[10px]">/ call</span>
+                  <span className="text-fg text-right tabular-nums">
+                    {percent(estimate.tokens, w.size)}
                   </span>
-                </div>
-
-                {/* Relative price gauge */}
-                <div className="bg-sunken mt-2 h-1 w-full overflow-hidden rounded-full">
-                  <div
-                    className="bg-accent-fill h-full transition-all duration-500"
-                    style={{ width: model.barWidth }}
-                  />
-                </div>
-              </div>
-            );
-          })}
+                </li>
+              ))}
+            </ul>
+          </div>
         </div>
       </div>
 
-      {/* ── Context Headroom & Footer CTA ──────────────────────────────── */}
-      <div className="border-line flex flex-wrap items-center justify-between gap-4 border-t pt-4">
-        <div className="text-muted flex items-center gap-3 font-mono text-xs">
-          <span className="size-2 rounded-full bg-[var(--c-ok)]" />
-          <span>
-            128k context window: <strong className="text-fg">0.01% used</strong>
-          </span>
-          <span className="text-faint hidden sm:inline">· 127,983 headroom</span>
-        </div>
-
-        <a
-          href={href}
-          className="bg-accent-fill text-accent-on-fill inline-flex items-center gap-2 rounded-sm px-4 py-2 font-mono text-xs font-semibold transition-opacity hover:opacity-90"
-        >
-          <span>Open Full Token Counter</span>
-          <svg viewBox="0 0 16 16" aria-hidden="true" className="size-3.5">
-            <path
-              d="M3 8 H13 M9 4 L13 8 L9 12"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.6"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
-        </a>
-      </div>
+      <OpenTool href={href} label="Open Token Counter" more="Prices for 2,400 models" />
     </div>
   );
 }

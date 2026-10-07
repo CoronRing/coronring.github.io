@@ -114,6 +114,14 @@
   --prose-max: 36rem; /* deliberately narrow — one paragraph, not an essay */
   --gutter: 1.25rem;
 
+  /*
+   * Display-face spacing. Archivo at 118% width is already wide, so at the
+   * default tracking letters drift apart and the word gaps read as one more
+   * letter. Tighter letters and wider word gaps make a title scan as words.
+   */
+  --display-tracking: -0.03em;
+  --display-word-gap: 0.14em;
+
   /* ── Motion ───────────────────────────────────────────────────────── */
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
   --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);

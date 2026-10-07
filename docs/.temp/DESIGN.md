@@ -1,13 +1,45 @@
 # coronring.github.io — Design Document
 
-**Version:** 0.16.0
-**Status:** Complete — posts can carry charts and a header graphic
+**Version:** 0.17.0
+**Status:** Complete — the tools band runs real tools, and titles read as words
 **Last updated:** 2026-10-06
 **Owner:** Guan Zheng Huang (`CoronRing`)
 
 > This document covers the Astro site only. The site is now one of three
 > deployables in this repository, and anything crossing the boundary between
 > them belongs in [`../SYSTEM.md`](../SYSTEM.md).
+>
+> **v0.17.0** — the tools band runs the tools. Three of the five stages were
+> canned screens with invented numbers, a stale model list and paragraphs
+> nobody reads, and MCP claimed a stdio transport a browser cannot open. Each
+> stage is now an input or a sample on the left and a readout on the right:
+>
+> - **Token Counter** runs `lib/tokens` live: the estimate as a hero figure,
+>   where the tokens come from (the estimator's own per-class charges, now
+>   exported as `tokenBreakdown`), and the share of 32K, 200K and 1M windows.
+> - **String Kit** runs `lib/string-kit` live: text stats under the input, and
+>   Case and Encode groups with a copy button per row.
+> - **Rest Reminder** keeps its dial, adds a two-hour strip of focus and break
+>   blocks with a now marker, and the clock times of the next break and return.
+>   Times exist only after mount, so hydration never sees a server clock.
+> - **MCP Tester** shows one labelled sample run as the tool reports it: its
+>   own check names with pass/warn icons, and the selected check's request or
+>   response in the 2026-07-28 shape (`server/discover`, `_meta`, Streamable
+>   HTTP).
+>
+> Every stage has one height from lg (`lg:h-[35rem]` on the panel), so switching
+> tools never resizes the panel; it must be a utility on the element, because
+> the panel is a flex item and `flex-1` overrode a `height` set in the
+> components layer. The kit also stretches to the band's width: the pinned band
+> is a column flexbox, and `align-items: start` had shrunk it to its content,
+> which left the right side empty and let typing change its width. Stage ids
+> use React's `useId`, and `OpenTool` is the one shared footer.
+> `components/tools/showcase.ts` is no longer imported by anything.
+>
+> Display-face spacing moved to two tokens, `--display-tracking` (-0.03em) and
+> `--display-word-gap` (0.14em), used by `.display`, post `h2`s and the deck's
+> ghost type. At the old -0.005em the 118%-wide letters drifted apart and word
+> gaps read as one more letter.
 >
 > **v0.16.0** — charts in posts. A post written as MDX imports figure
 > components from `src/components/posts/`. `Figure` is the frame (a sentence
@@ -1185,9 +1217,11 @@ not a menu, it is a wall, and nothing in it moved or showed what any of the tool
 actually did — a visitor scanning it learned that there were ten of something.
 
 It is now the same shape as the deck at the top of the page: a roster on the
-left, and on the right a screen that plays the selected tool, its input typed out
-and its output arriving row by row, on a loop. The site has one way of showing
-you a thing that runs.
+left, and on the right a screen for the selected tool. Where the tool is small
+enough (Token Counter, String Kit) the screen is a live mini version over the
+real engine, prefilled and pasteable, with no settings; Rest Reminder shows its
+working dial; the others show a sample. A stage carries controls, results and
+one link, never a paragraph: the tool's own page is where it explains itself.
 
 The screens are data (`components/tools/showcase.ts`), kept out of the registry
 for the reason `deck/frames.ts` is kept out of the projects collection: the

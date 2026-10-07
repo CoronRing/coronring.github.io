@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import OpenTool from './OpenTool';
 
 export interface OtherToolItem {
   slug: string;
@@ -86,7 +87,7 @@ export default function OtherStage({ indexHref }: Props): React.ReactElement {
   const filtered = OTHER_TOOLS.filter((t) => filter === 'all' || t.group === filter);
 
   return (
-    <div className="space-y-6">
+    <div className="flex min-h-0 flex-1 flex-col gap-5">
       {/* ── Filter Bar & Suite Count ───────────────────────────────────── */}
       <div className="border-line flex flex-wrap items-center justify-between gap-4 border-b pb-4">
         <div className="flex items-center gap-1.5">
@@ -116,11 +117,11 @@ export default function OtherStage({ indexHref }: Props): React.ReactElement {
           ))}
         </div>
 
-        <span className="text-faint font-mono text-xs">7 remaining utilities · 11 total live</span>
+        <span className="text-faint font-mono text-xs">7 more · all in the browser</span>
       </div>
 
       {/* ── Visual Mini-Grid ───────────────────────────────────────────── */}
-      <div className="grid max-h-[19rem] gap-3 overflow-y-auto pr-1 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="grid min-h-0 flex-1 content-start gap-3 overflow-y-auto pr-1 sm:grid-cols-2 lg:grid-cols-3">
         {filtered.map((item) => (
           <a
             key={item.slug}
@@ -149,30 +150,7 @@ export default function OtherStage({ indexHref }: Props): React.ReactElement {
         ))}
       </div>
 
-      {/* ── Footer CTA: Full Suite Index ───────────────────────────────── */}
-      <div className="border-line flex flex-wrap items-center justify-between gap-4 border-t pt-4">
-        <p className="text-muted font-mono text-xs">
-          Need the whole toolkit? The full index includes detailed roadmaps, network safety audits,
-          and upcoming tools.
-        </p>
-
-        <a
-          href={indexHref}
-          className="bg-accent-fill text-accent-on-fill inline-flex items-center gap-2 rounded-sm px-4 py-2 font-mono text-xs font-semibold transition-opacity hover:opacity-90"
-        >
-          <span>Explore All 11 Tools</span>
-          <svg viewBox="0 0 16 16" aria-hidden="true" className="size-3.5">
-            <path
-              d="M3 8 H13 M9 4 L13 8 L9 12"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.6"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
-        </a>
-      </div>
+      <OpenTool href={indexHref} label="See all 11 tools" />
     </div>
   );
 }
