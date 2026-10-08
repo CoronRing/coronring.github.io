@@ -1,13 +1,33 @@
 # coronring.github.io — Design Document
 
-**Version:** 0.17.0
-**Status:** Complete — the tools band runs real tools, and titles read as words
-**Last updated:** 2026-10-06
+**Version:** 0.20.0
+**Status:** Complete — the posts band becomes a wheel, and every post has its own light
+**Last updated:** 2026-10-07
 **Owner:** Guan Zheng Huang (`CoronRing`)
 
 > This document covers the Astro site only. The site is now one of three
 > deployables in this repository, and anything crossing the boundary between
 > them belongs in [`../SYSTEM.md`](../SYSTEM.md).
+>
+> **v0.20.0** — the posts band scales, and every post has a colour. The band featured the newest post and put every other one in a strip below, so each new post made it taller or the strip longer. It is now two halves: the **presented** post on the left (category, date, title and summary over its cover, all links to the post, with a yellow corner chip on the cover) and the **wheel** on the right, a column of the newest eight covers on the rim of a wheel that bulges toward the presented side. The presented post has been taken out of the wheel at the **seam**, marked by a yellow pointer: as the wheel turns, the cover reaching the seam slides out toward the presented side and fades, its neighbours close over the gap, and the presented side swaps to it. The wheel is virtual, not a scrolling box: one unbounded position in posts, every cover placed by its distance around a ring of repeated sets, so it has no ends. Mouse wheel and trackpad (a notch per post, settling on the nearest), drag with a short glide, arrows, arrow keys and clicks all move it; it takes the scroll while the pointer is over it. "All N posts" moved into the heading like every other band's onward link, and the "Read post" button is gone. Below `md` it is a scroll-snap row with titles under the covers.
+>
+> **Post tints** (`lib/post-tint.ts`). Each post's hue is hashed from its title, in OKLCH at one lightness and chroma so no post is brighter than another, with orange through yellow-green left out so a tint never competes with the hazard yellow. A hue too close to one of the three posts published before it steps around by the golden angle; posts are assigned oldest first, so a new post never recolours an old one. `PostCover` screens three soft pools of the hue and its neighbours over the cover's dark ground, the way the backdrop draws its aurora, so each cover reads as a dim light on a dark wall. The same hue is the supporting colour around the cover: the category line, the presented cover's edge and glow, and the wheel card's number tab.
+>
+> A second post, introducing Railtracks, joined the collection with its own 1200×630 cover in the first post's template.
+>
+> **v0.19.0** — a second polish pass, from review feedback.
+>
+> - **One yellow for marks.** Light mode used the olive `--c-accent` for bars, borders and strokes as well as text, so the rail's marker was bright yellow while the Myself bar beside it was brown. Every non-text use (fills, bars, borders, strokes, rings) now uses `--c-accent-fill`; olive stays for **text** (legibility) and for **focus** borders and rings, because a yellow focus indicator on white fails visibility (§5.2).
+> - **Myself.** Agent systems now leads with 20 agents in production, Railtracks as the first agentic framework in Canada, and 5+ years. "Systems and hardware" became **Background**: the UofT MScAC (AI) and UBC Computer Engineering, with each school's mark, and the top-1% standing. A proof row leads with a figure _or_ a logo; logos are single-colour SVGs in `public/media/logos/`, drawn through a CSS mask in the text colour, with their aspect ratio read from the file's `viewBox` at build time. The credit line is optional.
+> - **Dark surfaces.** `--c-surface` #131315 → #1b1b1e, `--c-raised` #1c1c1f → #242428, `--c-line` #2a2a2e → #303035, so panels (the tools kit, the chat) read as objects on the floor rather than holes in it. The floor grid's `--grid-alpha` dropped from 1 to 0.5.
+> - **The veil** (§4.2) has a contour-line field, a percentage counter driven by real milestones, a 0.88s floor and a 720ms fade. It was never blocked: measured live, a cold first visit showed it for about 0.8s, and only once per session. A reload now counts as a new arrival and shows it again.
+> - **Tools band.** The heading moved into the pinned screen (as Myself's did), the stage height follows the viewport (`clamp(35rem, 100dvh - 19rem, 54rem)`), the roster dropped its subtitles for a per-tool icon (`components/tools/ToolIcon.tsx`, also on `/tools`), and a yellow "All N tools" button sits under the roster. `--shell-max` went from 88rem to 100rem so the kit uses a large monitor; every band widens together so headings stay aligned.
+> - **Rail links land on the band.** `html { scroll-padding-top: 5rem }` applied on desktop, where there is no top bar, and sections stacked their own margin on it, so a rail click stopped 80px short. Padding is now 3.5rem (the phone bar) and 0 from lg, and same-page section links re-check their landing after the smooth scroll ends, correcting once if a hydrating island moved the target (`Sidebar.astro`, `initSectionLinks`).
+> - **Posts are a band** (§3), after Tools, with a rail entry; they left the notes list. See `components/posts/PostsBand.astro`.
+>
+> **v0.18.0** — Myself is a glance, and onward links look like controls. The Myself band carried two and three resume bullets per capability, each four lines long, with the role and company repeated row after row. Each capability is now one sentence, and its evidence is two or three proof rows: a figure in the display face (`90%`, `0.85`, `93%`), one line, and a mono credit built from the collection (`role · shortName · years`). The capabilities became an accordion with all three names on screen, replacing the unlabelled bars, and the heading moved inside the pinned screen so the band is centred as one composition instead of opening on a 180px gap (§6.3). Experience entries gained an optional `shortName`.
+>
+> Onward links ("All projects", "Full resume", "All tools") were 12px mono in the muted colour, and project cards signalled "open me" only with a faint 15px corner arrow. Section links are now `.cta-outline`, the deck's "Open blueprint" shape in the text colour; cards end in a labelled "Open blueprint" row; the deck's "All projects" and the notes list got real-size arrows. The primary `Button` referenced two tokens that never existed (`--c-accent-contrast`, `accent-hover`), so the 404 page's main button was white on yellow; it now uses the accent-fill pair.
 >
 > **v0.17.0** — the tools band runs the tools. Three of the five stages were
 > canned screens with invented numbers, a stale model list and paragraphs
@@ -359,8 +379,9 @@ The home page flow, as of v0.11.0:
 ```
 #top        The deck — a title card, then six frames over one exhibit  (§6.1)
 #work       Selected work — the card gallery
-#resume     Myself — three capabilities, scroll-advanced, with evidence
+#resume     Myself — three capabilities, scroll-advanced, with proof
 #tools      The dev kit — a roster and a screen that plays one tool    (§12.2)
+#posts      Writing — a presented post and a wheel of the newest eight
             Contact, over a decorative instance of the corona
 #ask        The assistant                                             (§6.2)
 #resources  Notes and references, last
@@ -427,11 +448,15 @@ through a light veil, light theme through a dark one (`--veil-bg` / `--veil-fg`
 flip with the palette). The reveal is a deliberate curtain rather than a fade-in
 from the page's own background.
 
+What is on it: a dim survey-map field of contour lines (`public/media/veil/contours.svg`, drawn by `scripts/generate-veil-contours.mjs` and used as a CSS mask, so one file serves both tones and is fetched only while the veil shows); a percentage counter top-left beside a yellow bar; the mark and wordmark right of centre over a long hairline that fills with the same percentage, and a slogan under it. The counter's numerals are `--veil-accent`: yellow on the dark veil, ink on the light one.
+
+The percentage is real progress, not a timer. It eases toward a target that moves at each milestone (HTML parsed 45, `load` 78 or 100, exhibit ready 100), creeps slowly while it waits, and never passes 92 until everything has reported in.
+
 Four behaviours stop it becoming an annoyance:
 
 1. **Fails open.** `hidden` in markup; only unhidden by the pre-paint script.
-2. **Once per session.** This is an MPA — veiling every navigation would be intolerable. A `sessionStorage` flag limits it to the first view. `?veil` on the URL overrides that, which is the only way to see it twice without a new tab.
-3. **Floor and ceiling.** ~500 ms floor stops it strobing on a warm cache; a ceiling guarantees it lifts even if nothing ever reports in.
+2. **Once per arrival.** This is an MPA, and veiling every navigation would be intolerable. A `sessionStorage` flag limits it to the first view of a visit; a **reload** counts as a new arrival (read from the Navigation Timing entry's `type`) and shows it again. `?veil` on the URL forces it.
+3. **Floor and ceiling.** A 0.88 s floor lets the counter run visibly instead of strobing on a warm cache (with the 720 ms fade, a warm load is on screen about 1.7 s); a ceiling (2.5 s, or 7 s while waiting on an exhibit) guarantees it lifts even if nothing ever reports in.
 4. **Reduced motion skips it entirely.**
 
 #### What it waits for
@@ -496,10 +521,7 @@ inline script applies the stored choice before first render.
 | `--c-accent-fill`          | `#fffa00` | `#fffa00` |
 | `--c-alert`                | `#be1414` | `#ff3b3b` |
 
-**The accent splits into two tokens.** Raw `#fffa00` as text on white is
-illegible, so light mode uses a darkened olive for text and strokes while
-_fills_ keep the pure hue with ink on top — the hazard-tape pairing the
-reference uses. Dark mode uses the pure hue for both.
+**The accent splits into two tokens, by job.** Raw `#fffa00` as text on white is illegible, so light mode sets **text** in a darkened olive (`--c-accent`). Everything that is a **mark** rather than a word (fills, bars, active borders, strokes, progress) uses the pure hue (`--c-accent-fill`) in both themes, with ink on top where it carries text: the hazard-tape pairing the reference uses. Consistency of the mark across the page outranks its contrast on white. The one exception is **focus**: focus borders and rings stay on `--c-accent`, because a yellow focus indicator on a light ground is not visible enough to do its job. Dark mode uses the pure hue for all three.
 
 Yellow is rationed: the active nav border, the eyebrow marker, one CTA, the
 carousel's active segment.
@@ -536,7 +558,8 @@ Rules now:
 | Deck readout      | Per frame: title, **one** metadata pair, one paragraph, one link |
 | Deck stage        | At most **three** control groups (§6.1)                          |
 | Project index     | One row per project: number, name, one line, stack, arrow        |
-| Capabilities      | A **carousel** — one pillar visible at a time                    |
+| Capabilities      | All names visible, **one** expanded; one sentence and ≤3 proofs  |
+| Proof row         | A figure, one line, one credit. Full bullets live on `/resume`   |
 | Interior masthead | Eyebrow, title, one sentence                                     |
 | Footer            | A build stamp. The rail already carries sitemap, socials, CTA.   |
 
@@ -913,23 +936,15 @@ entirely while `#ask` is on screen.
 
 ## 6.3 Myself
 
-`src/components/resume/Capabilities.tsx`. Three things I do, and for each of
-them the work that is the evidence for it.
+`src/components/resume/Capabilities.tsx`. Three things I do, and for each of them the proof. It is the glance, not the resume: `/resume` carries every bullet in full, so nothing here runs past a line or two.
 
-It is one island rather than two because the panel and the column beside it are
-the same selection: picking "agent systems" has to change both, or the column is
-a static list of jobs sitting next to a claim it does not support. The evidence
-names an experience entry and which of its highlights belongs to this
-capability — the role, the organisation and the dates come from the collection,
-so editing a resume entry still edits this section and the only thing decided in
-the page is what supports what.
+**One sentence per capability, two or three proofs each.** A proof is a figure set in the display face (`90%`, `1st`, `0.85`), one line saying what it measures, and a mono credit (`Applied ML Engineer · Railtown AI · 2023–2025`). The figure and line are written in the page, condensed from an experience highlight; the credit is built from the entry the proof names, using the entry's optional `shortName` so it fits on one line. Feedback on the previous version was that the band was too much text: it showed full resume bullets, four lines each, with the role and company repeated on every row.
 
-From `lg` the band is 235vh with its content pinned, and the panel advances one
-capability per third of the pinned range, so the section reads itself out to
-someone who only scrolls. The indicator is still a control, and clicking it
-**scrolls** rather than setting state: setting state directly would be undone by
-the scroll handler on the next frame, and scrolling makes the two agree by
-construction. Below `lg` there is no pin and the indicator is the only control.
+**All three names stay on screen.** The capabilities are an accordion: every title is visible, the active one is in the text colour with its sentence and tags expanded under it and the olive/yellow left bar the rail and the tools roster use, and the others are faint and clickable. A row of unlabelled bars used to stand in for the names, which asked a visitor to guess what was behind them. Height animates through `grid-template-rows`, so nothing has a fixed size.
+
+It is one island rather than two because the list and the proof column are the same selection: picking "agent systems" has to change both.
+
+From `lg` the section is the band (`.cap-band`, 235vh) and its screen (`.cap-pin`) is sticky and centred, **heading included**: with the heading outside the pin, the band opened on a centred block 180px below its own title. The island finds the band with `closest('.cap-band')`, so the heading can be static Astro markup inside the pin without crossing the island boundary. The selection advances one capability per third of the pinned range. Clicking a name **scrolls** rather than setting state: setting state directly would be undone by the scroll handler on the next frame. Below `lg` there is no pin and a click sets the selection.
 
 The heading is "Myself".
 
@@ -1523,6 +1538,9 @@ so the behaviour is unchanged.
 | Generate and commit the price table rather than fetching LiteLLM live   | Hermetic builds, a reviewable diff on every price change, and no third-party request from a visitor's browser                                         |
 | No server-side proxy for the MCP tester                                 | An open request forwarder is an SSRF pivot; direct-from-tab also makes `localhost` endpoints testable                                                 |
 | Tool engines in `src/lib/`, never in the island                         | Each was tested standalone before any UI existed; keeps the components short enough to read                                                           |
+| Marks in the pure yellow in both themes, olive only for text and focus  | Asked for: the same element was yellow in one place and brown in the next. Focus stays olive because it must be seen                                  |
+| Posts as a band of their own, after Tools                               | Writing is work; as rows in the notes list it read as a link dump. Takes a seventh rail entry                                                         |
+| Onward links as outlined buttons, not mono text                         | At 12px mono in the muted colour, "Full resume" and "All tools" read as captions; the way deeper is the one control every band has                    |
 | Vertical rail over horizontal header                                    | Nav persists through a full-height hero; gives the asymmetric edge the reference relies on                                                            |
 | Contrast veil rather than a matching one                                | A same-tone loader is a blank screen; the opposite tone makes the reveal an event                                                                     |
 | Veil once per session                                                   | An MPA that veils every navigation is unusable                                                                                                        |
@@ -1568,6 +1586,7 @@ so the behaviour is unchanged.
 | Masthead cut to a name and a job title                                  | Location, a positioning sentence and a status block naming the deck's own mechanics were all text in front of the exhibit                             |
 | The assistant as a band on the home page                                | The one surface that answers questions should not be the one you have to navigate away to reach                                                       |
 | The dock nudges once, then withdraws                                    | Nobody clicks a button labelled "Ask". Once a session, gone in 15 s if ignored, and never over the in-page assistant                                  |
+| Posts as a fixed-size wheel, not a growing list                         | A band that grows with every post punishes writing more; a wheel that never ends says "there is more" without the page getting longer                 |
 | Cards restored for `#work`                                              | The manifest was faster to skim and duller to look at; the cover art is generated, so an entry is a picture from the day it is added                  |
 
 ---

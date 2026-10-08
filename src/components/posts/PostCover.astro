@@ -1,0 +1,71 @@
+---
+/**
+ * PostCover — a post's cover at any size, lit in the post's tint.
+ *
+ * The image is the post's `image` (the 1200×630 social preview); a post
+ * without one gets the generated `CoverArt`, on the same dark ground so every
+ * cover sits on one wall. Over it, the tint's light pools (`lib/post-tint`)
+ * are screened in, which can only lighten: the dark ground picks up a dim
+ * coloured light and the type and line work stay as drawn.
+ */
+import type { CollectionEntry } from 'astro:content';
+import CoverArt from '../ui/CoverArt.astro';
+import type { PostTint } from '../../lib/post-tint';
+import { href } from '../../lib/url';
+
+interface Props {
+  post: CollectionEntry<'posts'>;
+  tint: PostTint;
+  class?: string;
+}
+
+const { post, tint, class: className } = Astro.props;
+---
+
+<span class:list={['post-cover', className]}>
+  {
+    post.data.image ? (
+      <img
+        src={href(post.data.image)}
+        alt=""
+        width="1200"
+        height="630"
+        loading="lazy"
+        decoding="async"
+        draggable="false"
+        class="post-cover-img"
+      />
+    ) : (
+      <span class="post-cover-art">
+        <CoverArt seed={post.id} />
+      </span>
+    )
+  }
+  <span class="post-cover-light" style={`background: ${tint.glow}`} aria-hidden="true"></span>
+</span>
+
+<style>
+  .post-cover {
+    position: relative;
+    display: block;
+    aspect-ratio: 1200 / 630;
+    overflow: hidden;
+    background: #0b0b0c;
+  }
+  .post-cover-img,
+  .post-cover-art {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  .post-cover-art {
+    color: #d8d8dc;
+  }
+  .post-cover-light {
+    position: absolute;
+    inset: 0;
+    mix-blend-mode: screen;
+    pointer-events: none;
+  }
+</style>

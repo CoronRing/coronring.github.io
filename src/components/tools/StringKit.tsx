@@ -460,7 +460,7 @@ function TransformMode({
                     onClick={() => onPick(entry.id)}
                     className={`rounded-sm border px-2 py-1 font-mono text-[11px] transition-colors ${
                       entry.id === transform.id
-                        ? 'border-[var(--c-accent)] bg-[var(--c-accent-soft)] text-[var(--c-accent)]'
+                        ? 'border-[var(--c-accent-fill)] bg-[var(--c-accent-soft)] text-[var(--c-accent)]'
                         : 'border-[var(--c-line)] text-[var(--c-text-muted)] hover:border-[var(--c-line-strong)] hover:text-[var(--c-text)]'
                     }`}
                   >

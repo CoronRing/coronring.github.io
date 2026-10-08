@@ -116,6 +116,8 @@ const experience = defineCollection({
   loader: glob({ base: './src/content/experience', pattern: '**/*.{md,mdx}' }),
   schema: z.object({
     organization: z.string(),
+    /** Compact name for one-line credits, e.g. "Railtown AI". Falls back to `organization`. */
+    shortName: z.string().optional(),
     role: z.string(),
     start: z.coerce.date(),
     /** Omit for a current position; the UI renders "Present". */

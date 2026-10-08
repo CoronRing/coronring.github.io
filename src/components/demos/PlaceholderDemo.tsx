@@ -23,7 +23,7 @@ export default function PlaceholderDemo({ title }: DemoProps): React.ReactElemen
       <button
         type="button"
         onClick={() => setCount((c) => c + 1)}
-        className="inline-flex h-10 items-center rounded-md border border-[var(--c-line)] bg-[var(--c-raised)] px-4 font-mono text-sm transition-colors hover:border-[var(--c-accent)] hover:text-[var(--c-accent)]"
+        className="inline-flex h-10 items-center rounded-md border border-[var(--c-line)] bg-[var(--c-raised)] px-4 font-mono text-sm transition-colors hover:border-[var(--c-accent-fill)] hover:text-[var(--c-accent)]"
       >
         hydrated · {count}
       </button>

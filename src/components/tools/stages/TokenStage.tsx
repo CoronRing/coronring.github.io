@@ -107,7 +107,7 @@ export default function TokenStage({ href }: Props): React.ReactElement {
                     <span className="text-muted">{c.label}</span>
                     <span className="bg-sunken h-1.5 overflow-hidden rounded-full">
                       <span
-                        className="bg-accent block h-full rounded-full transition-[width] duration-300"
+                        className="bg-accent-fill block h-full rounded-full transition-[width] duration-300"
                         style={{ width: `${(value / largest) * 100}%` }}
                       />
                     </span>

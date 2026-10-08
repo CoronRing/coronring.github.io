@@ -52,16 +52,9 @@ const {
 
   {
     moreHref && (
-      <a
-        href={href(moreHref)}
-        class="group text-muted hover:text-accent inline-flex items-center gap-2 font-mono text-xs whitespace-nowrap transition-colors"
-      >
+      <a href={href(moreHref)} class="cta-outline">
         {moreLabel ?? 'See all'}
-        <Icon
-          name="arrow-right"
-          size={14}
-          class="transition-transform duration-[var(--dur-base)] group-hover:translate-x-1"
-        />
+        <Icon name="arrow-right" size={15} />
       </a>
     )
   }

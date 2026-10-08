@@ -32,6 +32,7 @@ export type IconName =
   | 'grid'
   | 'file-text'
   | 'book'
+  | 'pen'
   | 'message-circle';
 
 /** Stroke-based paths, rendered with `fill="none"`. */
@@ -49,6 +50,7 @@ export const STROKE_ICONS: Partial<Record<IconName, string>> = {
   home: 'M4 10.5 12 4l8 6.5V19a1 1 0 0 1-1 1h-4v-6H9v6H5a1 1 0 0 1-1-1v-8.5Z',
   grid: 'M4 4h6v6H4V4Zm10 0h6v6h-6V4ZM4 14h6v6H4v-6Zm10 0h6v6h-6v-6Z',
   'file-text': 'M6 3h8l4 4v14H6V3Zm8 0v4h4M9 12h6M9 16h6',
+  pen: 'M12 20h9M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z',
   book: 'M4 5.5A1.5 1.5 0 0 1 5.5 4H19v14H5.5A1.5 1.5 0 0 0 4 19.5v-14ZM4 19.5A1.5 1.5 0 0 1 5.5 18H19v2.5H5.5A1.5 1.5 0 0 1 4 19.5Z',
   menu: 'M4 7h16M4 12h16M4 17h16',
   close: 'm6 6 12 12M18 6 6 18',

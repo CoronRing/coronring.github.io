@@ -171,7 +171,7 @@ export function Tabs<T extends string>({
             {isSelected && (
               <span
                 aria-hidden="true"
-                className="absolute inset-x-0 -bottom-px h-[2px] bg-[var(--c-accent-fill)] shadow-[0_0_8px_var(--c-accent)]"
+                className="absolute inset-x-0 -bottom-px h-[2px] bg-[var(--c-accent-fill)] shadow-[0_0_8px_var(--c-accent-fill)]"
               />
             )}
           </button>
@@ -307,7 +307,7 @@ export function Button({
     primary:
       'border-transparent bg-[var(--c-accent-fill)] text-[var(--c-accent-on-fill)] font-bold shadow-xs hover:brightness-95 active:scale-[0.98]',
     ghost:
-      'border-[var(--c-line)] bg-[var(--c-surface)] text-[var(--c-text)] hover:border-[var(--c-accent)] hover:text-[var(--c-accent)] hover:bg-[var(--c-accent-soft)] active:scale-[0.98]',
+      'border-[var(--c-line)] bg-[var(--c-surface)] text-[var(--c-text)] hover:border-[var(--c-accent-fill)] hover:text-[var(--c-accent)] hover:bg-[var(--c-accent-soft)] active:scale-[0.98]',
     quiet:
       'border-transparent text-[var(--c-text-muted)] hover:bg-[var(--c-raised)] hover:text-[var(--c-text)] active:scale-[0.98]',
     danger:
@@ -411,7 +411,7 @@ export function TextArea({
         onDragLeave={accept ? () => setOver(false) : undefined}
         onDrop={onDrop}
         className={`w-full resize-y border-0 bg-[var(--c-sunken)] p-3.5 font-mono text-[12.5px] leading-relaxed text-[var(--c-text)] placeholder:text-[var(--c-text-faint)] focus:ring-1 focus:ring-[var(--c-accent)] focus:outline-none focus:ring-inset ${
-          over ? 'ring-2 ring-[var(--c-accent)] ring-inset' : ''
+          over ? 'ring-2 ring-[var(--c-accent-fill)] ring-inset' : ''
         } ${className}`}
       />
       {over && (
@@ -434,7 +434,7 @@ const BADGE_TONE: Record<Tone, string> = {
   warn: 'text-[var(--c-warn)] border-[var(--c-warn)] bg-[var(--c-warn)]/10',
   alert: 'text-[var(--c-alert)] border-[var(--c-alert)] bg-[var(--c-alert)]/10',
   idle: 'text-[var(--c-text-faint)] border-[var(--c-line)] bg-[var(--c-surface)]',
-  busy: 'text-[var(--c-accent)] border-[var(--c-accent)] bg-[var(--c-accent-soft)]',
+  busy: 'text-[var(--c-accent)] border-[var(--c-accent-fill)] bg-[var(--c-accent-soft)]',
   accent:
     'text-[var(--c-accent-on-fill)] border-transparent bg-[var(--c-accent-fill)] font-semibold',
 };

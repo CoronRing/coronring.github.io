@@ -560,7 +560,7 @@ export default function RestReminder(): React.ReactElement {
                 className={`rounded-[2px] px-2.5 py-1 font-mono text-[11px] font-medium transition-colors ${
                   selected
                     ? 'bg-[var(--c-accent-fill)] font-bold text-[var(--c-accent-on-fill)] shadow-xs'
-                    : 'border border-[var(--c-line)] bg-[var(--c-surface)] text-[var(--c-text-muted)] hover:border-[var(--c-accent)] hover:text-[var(--c-text)]'
+                    : 'border border-[var(--c-line)] bg-[var(--c-surface)] text-[var(--c-text-muted)] hover:border-[var(--c-accent-fill)] hover:text-[var(--c-text)]'
                 }`}
               >
                 {preset.label}

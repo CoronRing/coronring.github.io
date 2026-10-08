@@ -1,5 +1,6 @@
 ---
 organization: UBC SALT Lab, ECE Department
+shortName: UBC SALT Lab
 role: Undergraduate Researcher
 start: 2024-10-01
 end: 2025-04-01

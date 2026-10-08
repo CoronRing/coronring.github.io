@@ -347,13 +347,13 @@ export default function AgentStage({ active }: Props): React.ReactElement {
                   {held && (
                     <span
                       aria-hidden="true"
-                      className="border-accent deck-ping absolute top-1/2 left-1/2 -mt-8 -ml-8 size-16 rounded-full border"
+                      className="border-accent-fill deck-ping absolute top-1/2 left-1/2 -mt-8 -ml-8 size-16 rounded-full border"
                     />
                   )}
                   <span
                     className={`relative block border px-2.5 py-1.5 font-mono text-[10px] tracking-[0.12em] whitespace-nowrap transition-colors duration-[var(--dur-base)] ${
                       held
-                        ? 'border-accent bg-accent-fill text-accent-on-fill font-semibold'
+                        ? 'border-accent-fill bg-accent-fill text-accent-on-fill font-semibold'
                         : visited
                           ? 'border-line-strong bg-surface text-fg'
                           : node.side

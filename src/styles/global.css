@@ -58,10 +58,18 @@
 
   html {
     scroll-behavior: smooth;
-    scroll-padding-top: 5rem;
+    /* Clears the phone's fixed top bar (h-14). From lg the bar is gone and the
+       rail sits at the side, so an anchor lands flush with the viewport top. */
+    scroll-padding-top: 3.5rem;
     -webkit-text-size-adjust: 100%;
     text-size-adjust: 100%;
     color-scheme: light;
+  }
+
+  @media (min-width: 64rem) {
+    html {
+      scroll-padding-top: 0;
+    }
   }
 
   @media (prefers-color-scheme: dark) {
@@ -158,6 +166,45 @@
     flex: none;
   }
 
+  /* ── Onward links ───────────────────────────────────────────────── */
+
+  /*
+   * The way to the next level of detail ("Full resume", "All tools"). An
+   * outlined button in the text colour, the same shape as the deck's "Open
+   * blueprint", so every way deeper into the site looks like one thing and
+   * reads as a control at a glance. It inverts on hover rather than turning
+   * yellow, because yellow is rationed (see DESIGN.md §5.2).
+   */
+  .cta-outline {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.625rem;
+    height: 2.75rem;
+    padding-inline: 1.25rem;
+    border: var(--hairline) solid var(--c-line-strong);
+    background: color-mix(in oklab, var(--c-ground) 60%, transparent);
+    color: var(--c-text);
+    font-size: 0.875rem;
+    font-weight: 600;
+    white-space: nowrap;
+    transition:
+      background-color var(--dur-base) var(--ease-out),
+      border-color var(--dur-base) var(--ease-out),
+      color var(--dur-base) var(--ease-out);
+  }
+  .cta-outline:hover,
+  .cta-outline:focus-visible {
+    border-color: var(--c-text);
+    background: var(--c-text);
+    color: var(--c-ground);
+  }
+  .cta-outline svg {
+    transition: transform var(--dur-base) var(--ease-out);
+  }
+  .cta-outline:hover svg {
+    transform: translateX(3px);
+  }
+
   /* ── Layout ─────────────────────────────────────────────────────── */
 
   /*
@@ -207,7 +254,7 @@
     position: absolute;
     width: 11px;
     height: 11px;
-    border-color: var(--c-accent);
+    border-color: var(--c-accent-fill);
     opacity: 0.8;
     pointer-events: none;
   }
@@ -369,6 +416,7 @@
     z-index: 100;
     display: grid;
     place-items: center;
+    overflow: hidden;
     background: var(--veil-bg);
     color: var(--veil-fg);
     transition:
@@ -381,41 +429,129 @@
     pointer-events: none;
   }
 
-  /* The veil wipes upward off the top edge as it fades. */
+  /* The contour field: a mask over the foreground colour, kept very dim. */
+  .veil-contours {
+    position: absolute;
+    inset: 0;
+    background-color: var(--veil-fg);
+    opacity: 0.07;
+    mask: var(--veil-contours) center / cover no-repeat;
+  }
+
+  /* ── The counter, top left ──────────────────────────────────────── */
+  .veil-counter {
+    position: absolute;
+    top: clamp(1.25rem, 4vh, 2.5rem);
+    left: clamp(1.25rem, 3vw, 2.5rem);
+    display: flex;
+    align-items: stretch;
+    gap: 1rem;
+  }
+  .veil-counter-bar {
+    width: 0.5rem;
+    background: var(--c-accent-fill);
+  }
+  .veil-pct {
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-stretch: 118%;
+    font-size: clamp(2.5rem, 6vw, 4.25rem);
+    line-height: 1;
+    letter-spacing: var(--display-tracking);
+    font-variant-numeric: tabular-nums;
+    color: var(--veil-accent);
+  }
+  .veil-pct-sign {
+    margin-left: 0.08em;
+    font-size: 0.55em;
+  }
+  .veil-status {
+    margin-top: 0.5rem;
+    font-family: var(--font-mono);
+    font-size: 0.6875rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    opacity: 0.6;
+  }
+
+  /* ── The mark, right of centre ──────────────────────────────────── */
   .veil-inner {
+    position: relative;
+    width: min(34rem, 100% - 2.5rem);
+    margin-left: min(18vw, 16rem);
     transition:
       transform var(--dur-veil) var(--ease-out),
       opacity calc(var(--dur-veil) * 0.5) var(--ease-out);
   }
-  .veil[data-done='true'] .veil-inner {
+  @media (max-width: 47.999rem) {
+    .veil-inner {
+      margin-left: 0;
+    }
+  }
+  /* The whole composition wipes upward as the veil fades. */
+  .veil[data-done='true'] :is(.veil-inner, .veil-counter) {
     transform: translateY(-1.25rem);
     opacity: 0;
   }
+  .veil-counter {
+    transition:
+      transform var(--dur-veil) var(--ease-out),
+      opacity calc(var(--dur-veil) * 0.5) var(--ease-out);
+  }
 
-  /* Indeterminate progress sweep. */
-  @keyframes veil-sweep {
-    0% {
-      transform: translateX(-100%);
-    }
-    100% {
-      transform: translateX(400%);
-    }
+  .veil-brand {
+    display: flex;
+    align-items: center;
+    gap: 1.25rem;
   }
-  .veil-bar {
+  .veil-word {
+    font-size: clamp(2rem, 4.5vw, 3.25rem);
+  }
+  .veil-meta {
+    margin-top: 0.5rem;
+    font-family: var(--font-mono);
+    font-size: 0.625rem;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    opacity: 0.6;
+  }
+  .veil-marker {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-top: 2.75rem;
+  }
+  .veil-marker .veil-meta {
+    margin-top: 0;
+  }
+  .veil-marker-tri {
+    width: 0.875rem;
+    height: 0.75rem;
+    background: var(--c-accent-fill);
+    clip-path: polygon(0 0, 100% 0, 50% 100%);
+  }
+
+  /* The long hairline, filled by the same percentage as the counter. */
+  .veil-line {
     position: relative;
-    overflow: hidden;
-    width: 7.5rem;
-    height: 2px;
-    background: color-mix(in srgb, var(--veil-fg) 18%, transparent);
+    height: 1px;
+    margin-top: 0.875rem;
+    margin-right: -20vw;
+    background: color-mix(in srgb, var(--veil-fg) 22%, transparent);
   }
-  .veil-bar::after {
-    content: '';
+  .veil-line > span {
     position: absolute;
-    inset-block: 0;
-    left: 0;
-    width: 25%;
-    background: var(--veil-fg);
-    animation: veil-sweep 1.05s var(--ease-in-out) infinite;
+    inset: -1px 0;
+    background: var(--c-accent-fill);
+    transform: scaleX(0);
+    transform-origin: left;
+  }
+  .veil-slogan {
+    margin-top: 1rem;
+    font-size: 1rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
   }
 }
 
@@ -561,7 +697,7 @@
     transform var(--dur-base) var(--ease-out);
 }
 .ask-hail:hover {
-  border-color: var(--c-accent);
+  border-color: var(--c-accent-fill);
   transform: translateY(-2px);
 }
 
@@ -717,7 +853,7 @@
 }
 
 .doc-prose blockquote {
-  border-left: 3px solid var(--c-accent);
+  border-left: 3px solid var(--c-accent-fill);
   background-color: var(--c-sunken);
   padding: 0.6rem 1rem;
   margin: 1rem 0;
@@ -866,7 +1002,7 @@
 }
 
 .post-prose blockquote {
-  border-left: 2px solid var(--c-accent);
+  border-left: 2px solid var(--c-accent-fill);
   padding-left: 1rem;
   margin: 1.5rem 0;
   color: var(--c-text-muted);

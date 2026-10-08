@@ -367,14 +367,14 @@ export default function ParticleWaveDemo({ title }: DemoProps): React.ReactEleme
             });
           }}
           disabled={source.key === 'corona'}
-          className="rounded-sm border border-[var(--c-line)] px-2.5 py-1 font-mono text-[10px] text-[var(--c-text-muted)] transition-colors hover:border-[var(--c-accent)] hover:text-[var(--c-accent)] disabled:border-[var(--c-accent)] disabled:text-[var(--c-accent)]"
+          className="rounded-sm border border-[var(--c-line)] px-2.5 py-1 font-mono text-[10px] text-[var(--c-text-muted)] transition-colors hover:border-[var(--c-accent-fill)] hover:text-[var(--c-accent)] disabled:border-[var(--c-accent-fill)] disabled:text-[var(--c-accent)]"
         >
           CoronRing mark
         </button>
         <button
           type="button"
           onClick={() => fileInputRef.current?.click()}
-          className="rounded-sm border border-[var(--c-line)] px-2.5 py-1 font-mono text-[10px] text-[var(--c-text-muted)] transition-colors hover:border-[var(--c-accent)] hover:text-[var(--c-accent)]"
+          className="rounded-sm border border-[var(--c-line)] px-2.5 py-1 font-mono text-[10px] text-[var(--c-text-muted)] transition-colors hover:border-[var(--c-accent-fill)] hover:text-[var(--c-accent)]"
         >
           Upload image…
         </button>

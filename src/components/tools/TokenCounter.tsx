@@ -459,7 +459,7 @@ function ModelPicker(props: PickerProps): React.ReactElement {
               onClick={() => props.onToggleCap(cap)}
               className={`rounded-sm border px-1.5 py-0.5 font-mono text-[10px] transition-colors ${
                 active
-                  ? 'border-[var(--c-accent)] bg-[var(--c-accent-soft)] text-[var(--c-accent)]'
+                  ? 'border-[var(--c-accent-fill)] bg-[var(--c-accent-soft)] text-[var(--c-accent)]'
                   : 'border-[var(--c-line)] text-[var(--c-text-muted)] hover:text-[var(--c-text)]'
               }`}
             >
@@ -495,7 +495,7 @@ function ModelPicker(props: PickerProps): React.ReactElement {
                   aria-hidden="true"
                   className={`size-3 shrink-0 border ${
                     active
-                      ? 'border-[var(--c-accent)] bg-[var(--c-accent-fill)]'
+                      ? 'border-[var(--c-accent-fill)] bg-[var(--c-accent-fill)]'
                       : 'border-[var(--c-line-strong)]'
                   }`}
                 />

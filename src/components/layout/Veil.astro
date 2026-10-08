@@ -1,5 +1,7 @@
 ---
 import Mark from '../ui/Mark.astro';
+import { SITE } from '../../data/site';
+import { href } from '../../lib/url';
 
 interface Props {
   /**
@@ -12,32 +14,39 @@ interface Props {
 
 const { hold = false } = Astro.props;
 /**
- * Veil — the contrast-wipe loading screen.
+ * Veil — the contrast loading screen.
  *
  * The whole point is tonal opposition: the dark theme opens through a *light*
- * veil, the light theme through a *dark* one (`--veil-bg` / `--veil-fg` flip
- * with the palette in tokens.css). The reveal reads as a deliberate curtain
- * rather than a fade-in from the page's own background.
+ * veil, the light theme through a *dark* one (`--veil-*` flip with the palette
+ * in tokens.css). The reveal reads as a deliberate curtain rather than a
+ * fade-in from the page's own background.
+ *
+ * ## What is on it
+ *
+ * A survey-map field of contour lines (`public/media/veil/contours.svg`, drawn
+ * by `scripts/generate-veil-contours.mjs`, used as a mask so one file serves
+ * both tones and is only fetched while the veil is shown); a percentage
+ * counter top-left with the yellow bar beside it; the mark and wordmark right
+ * of centre over a long hairline that fills with the same percentage.
+ *
+ * The percentage is real progress, not a timer: it eases toward a target that
+ * moves at each milestone (HTML parsed, `load`, the exhibit reporting in) and
+ * creeps slowly while it waits, so it never stalls and never claims 100 before
+ * the page is actually ready.
  *
  * ## What it waits for
  *
- * `load` is not enough on its own. It fires when the document's subresources
- * are done, which on the home page is well before the deck island has
- * hydrated, fetched its point cloud and started the engine — so the veil lifted
- * onto a bare "Starting engine…" line, which is the opposite of what a loading
- * screen is for.
- *
- * So a page that owns something slow passes `hold`, and the veil additionally
- * waits for a `coronring:exhibit-ready` event on `window`. `ParticleStage`
- * fires it on failure as well as on success: a veil that outlives a broken
- * engine is worse than no veil.
+ * `load` is not enough on its own. On the home page it fires before the deck
+ * island has hydrated, fetched its point cloud and started the engine, so the
+ * veil would lift onto a bare "Starting engine…" line. A page that owns
+ * something slow passes `hold`, and the veil additionally waits for a
+ * `coronring:exhibit-ready` event on `window`. `ParticleStage` fires it on
+ * failure as well as on success: a veil that outlives a broken engine is worse
+ * than no veil.
  *
  * `hold` is a prop rather than something the script looks for in the document,
- * because the decision has to be made **synchronously**, when the script runs.
- * A slow load is exactly the case this exists for, and on a slow load nothing
- * below this point in the body has been parsed yet — so a version that read the
- * page hit its own ceiling before it ever discovered it should have been
- * waiting.
+ * because the decision has to be made **synchronously**, when the script runs:
+ * on a slow load nothing below this point in the body has been parsed yet.
  *
  * Four behaviours that keep it from becoming an annoyance:
  *
@@ -45,15 +54,17 @@ const { hold = false } = Astro.props;
  *     by the inline pre-paint script. No JS, no veil, content visible. While
  *     it is up the root is `overflow: hidden`; `coronring:veil-lifted` fires
  *     on the way out so anything that needed the scrollport can act.
- *  2. **Once per session.** This is a multi-page app — veiling on every
- *     internal navigation would be intolerable. A sessionStorage flag limits
- *     it to the first page view of a visit. `?veil` on the URL overrides that,
- *     which is the only way to see it twice without a new tab.
- *  3. **Floor and ceiling.** A ~500ms floor stops it strobing on a warm cache.
- *     A 2.5s ceiling guarantees it lifts even if `load` never fires, raised to
- *     7s while waiting on an exhibit so a slow connection is covered and a hung
- *     one is still bounded.
- *  4. **Reduced motion skips it entirely** — a full-screen wipe is exactly the
+ *  2. **Once per arrival.** This is a multi-page app; veiling every internal
+ *     navigation would be intolerable. A sessionStorage flag limits it to the
+ *     first page view of a visit, and a **reload** counts as a new arrival
+ *     (read from the Navigation Timing entry), so refreshing shows it again.
+ *     `?veil` on the URL forces it.
+ *  3. **Floor and ceiling.** A 0.88s floor lets the counter run visibly instead
+ *     of strobing on a warm cache. The floor and the counter's easing are the
+ *     only padding; everything else on it is waiting for the page. A 2.5s ceiling guarantees it lifts even if
+ *     `load` never fires, raised to 7s while waiting on an exhibit so a slow
+ *     connection is covered and a hung one is still bounded.
+ *  4. **Reduced motion skips it entirely**: a full-screen wipe is exactly the
  *     kind of motion that setting is asking us not to do.
  */
 ---
@@ -65,13 +76,35 @@ const { hold = false } = Astro.props;
   aria-live="polite"
   aria-label="Loading"
   data-hold={hold ? '' : undefined}
+  style={`--veil-contours: url("${href('/media/veil/contours.svg')}")`}
   hidden
 >
-  <div class="veil-inner flex flex-col items-center gap-6">
-    <Mark size={44} spinning weight={1.5} />
+  <div class="veil-contours" aria-hidden="true"></div>
 
-    <span class="font-mono text-[10px] tracking-[0.32em] uppercase opacity-70">CoronRing</span>
-    <div class="veil-bar" aria-hidden="true"></div>
+  <div class="veil-counter" aria-hidden="true">
+    <span class="veil-counter-bar"></span>
+    <div>
+      <p class="veil-pct"><span data-veil-pct>0</span><span class="veil-pct-sign">%</span></p>
+      <p class="veil-status" data-veil-status>Loading</p>
+    </div>
+  </div>
+
+  <div class="veil-inner">
+    <div class="veil-brand">
+      <Mark size={64} weight={1.6} />
+      <div>
+        <p class="veil-word display">CoronRing</p>
+        <p class="veil-meta">{SITE.name} · {SITE.role}</p>
+      </div>
+    </div>
+
+    <div class="veil-marker" aria-hidden="true">
+      <span class="veil-marker-tri"></span>
+      <span class="veil-meta">Agent systems / Evaluation / Infrastructure</span>
+    </div>
+
+    <div class="veil-line" aria-hidden="true"><span data-veil-fill></span></div>
+    <p class="veil-slogan">Systems that act / Built to stay up</p>
   </div>
 </div>
 
@@ -84,6 +117,9 @@ const { hold = false } = Astro.props;
     // Respect reduced-motion, and only veil the first view of a session.
     var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     var forced = /(^|[?&])veil($|[=&])/.test(location.search);
+    /* A reload is a fresh arrival, not an internal navigation: show it again. */
+    var nav = performance.getEntriesByType && performance.getEntriesByType('navigation')[0];
+    var reloaded = nav ? nav.type === 'reload' : false;
     var seen = false;
     try {
       seen = sessionStorage.getItem(KEY) === '1';
@@ -91,7 +127,7 @@ const { hold = false } = Astro.props;
       /* Private mode: treat as unseen; the floor/ceiling still bound it. */
     }
 
-    if (reduce || (seen && !forced)) {
+    if (reduce || (seen && !forced && !reloaded)) {
       el.remove();
       return;
     }
@@ -99,8 +135,12 @@ const { hold = false } = Astro.props;
     el.hidden = false;
     document.documentElement.style.overflow = 'hidden';
 
+    var pctEl = el.querySelector('[data-veil-pct]');
+    var statusEl = el.querySelector('[data-veil-status]');
+    var fillEl = el.querySelector('[data-veil-fill]');
+
     var start = Date.now();
-    var MIN = 500;
+    var MIN = 880;
     var MAX = 2500;
     /* Long enough to cover a cold engine on a slow line, short enough that a
        hung one still lets the page go. */
@@ -111,7 +151,46 @@ const { hold = false } = Astro.props;
     var exhibitReady = false;
     /* Read from our own element, so the ceiling is right from the first tick. */
     var held = el.hasAttribute('data-hold');
-    var ceiling = setTimeout(lift, held ? MAX_HELD : MAX);
+    var ceiling = setTimeout(
+      function () {
+        target = 100;
+        shown = 100;
+        render();
+        lift();
+      },
+      held ? MAX_HELD : MAX,
+    );
+
+    /* Progress: `target` moves at milestones, `shown` eases toward it. */
+    var shown = 0;
+    var target = 12;
+    var ready = false;
+
+    function milestone(value, label) {
+      if (value > target) target = value;
+      if (label && statusEl) statusEl.textContent = label;
+    }
+
+    function render() {
+      var n = Math.min(100, Math.floor(shown));
+      if (pctEl) pctEl.textContent = String(n);
+      if (fillEl) fillEl.style.transform = 'scaleX(' + n / 100 + ')';
+    }
+
+    function tick() {
+      if (lifted) return;
+      /* Creep while waiting, but never into the last stretch on credit. */
+      var cap = ready ? 100 : 92;
+      if (target < cap) target = Math.min(cap, target + 0.17);
+      var gap = target - shown;
+      shown += gap > 0 ? Math.max(gap * 0.17, Math.min(gap, 0.5)) : 0;
+      render();
+      if (ready && shown >= 99.5 && Date.now() - start >= MIN) {
+        lift();
+        return;
+      }
+      requestAnimationFrame(tick);
+    }
 
     function lift() {
       if (lifted) return;
@@ -134,10 +213,11 @@ const { hold = false } = Astro.props;
       }, 1000);
     }
 
-    /** Lift once everything being waited on has arrived, no sooner than MIN. */
+    /** Everything being waited on has arrived: run the counter out to 100. */
     function settle() {
       if (!loaded || (held && !exhibitReady)) return;
-      setTimeout(lift, Math.max(0, MIN - (Date.now() - start)));
+      ready = true;
+      milestone(100, 'Ready');
     }
 
     window.addEventListener('coronring:exhibit-ready', function () {
@@ -145,12 +225,20 @@ const { hold = false } = Astro.props;
       settle();
     });
 
+    function onReady() {
+      milestone(45, 'Loading page');
+    }
     function onLoad() {
       loaded = true;
+      milestone(held ? 78 : 100, held ? 'Starting engine' : 'Ready');
       settle();
     }
 
+    if (document.readyState !== 'loading') onReady();
+    else document.addEventListener('DOMContentLoaded', onReady, { once: true });
     if (document.readyState === 'complete') onLoad();
     else window.addEventListener('load', onLoad, { once: true });
+
+    requestAnimationFrame(tick);
   })();
 </script>

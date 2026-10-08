@@ -34,8 +34,8 @@ const {
 
 const VARIANT = {
   primary:
-    'bg-accent text-[var(--c-accent-contrast)] border-transparent hover:bg-accent-hover font-medium',
-  secondary: 'bg-surface text-fg border-line hover:border-[var(--c-accent)] hover:text-accent',
+    'bg-accent-fill text-accent-on-fill border-transparent hover:opacity-85 font-semibold transition-opacity',
+  secondary: 'bg-surface text-fg border-line hover:border-[var(--c-accent-fill)] hover:text-accent',
   ghost: 'bg-transparent text-muted border-transparent hover:text-fg hover:bg-raised',
 } as const;
 

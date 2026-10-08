@@ -344,7 +344,7 @@ function Pane({
           <Button onClick={onSample} variant="quiet">
             Sample
           </Button>
-          <label className="cursor-pointer rounded-sm border border-[var(--c-line)] bg-[var(--c-surface)] px-2 py-0.5 font-mono text-[10.5px] text-[var(--c-text-muted)] transition-colors hover:border-[var(--c-accent)] hover:text-[var(--c-accent)]">
+          <label className="cursor-pointer rounded-sm border border-[var(--c-line)] bg-[var(--c-surface)] px-2 py-0.5 font-mono text-[10.5px] text-[var(--c-text-muted)] transition-colors hover:border-[var(--c-accent-fill)] hover:text-[var(--c-accent)]">
             File
             <input
               type="file"

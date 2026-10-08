@@ -1,0 +1,771 @@
+---
+/**
+ * PostsBand — the home page's writing section.
+ *
+ * Posts are first-class work, so they get a band of their own rather than rows
+ * in the notes list. The band has two halves: the **presented** post on the
+ * left (date, title and summary over its cover, all links to the post) and
+ * the **wheel** on the right, a column of covers that turns on its own. The
+ * wheel is the picker; the presented side is the destination.
+ *
+ * ## The wheel
+ *
+ * Covers sit on the rim of a wheel that bulges toward the presented side: the
+ * ones nearest the middle are closest, the rest recede right, shrink and fade.
+ * The middle is a **seam** marked by a yellow pointer. The post being
+ * presented has been taken out of the wheel there: as the wheel turns, the
+ * cover arriving at the seam slides out toward the presented side and fades,
+ * the covers either side close up over the gap it leaves, and the presented
+ * side swaps to that post, its cover arriving from the right.
+ *
+ * It is a virtual wheel, not a scrolling box. Position is one number, `pos`,
+ * counted in posts and unbounded in both directions; every cover is placed
+ * from its distance to `pos` around a ring of `copies` sets, so the wheel has
+ * no ends to reach. Input only moves `target`, and `pos` eases toward it each
+ * frame:
+ *
+ * - **Mouse wheel and trackpad** over it turn it, a notch per post, and
+ *   settle on the nearest post when the input stops. It takes the scroll
+ *   while the pointer is over it, so the page does not move underneath.
+ * - **Drag** (finger, pen or mouse) follows the pointer and keeps a little of
+ *   the release speed.
+ * - **Arrows** under the cover, the **arrow keys** while the wheel has focus,
+ *   and a **click** on a cover step it.
+ *
+ * The wheel's covers are buttons out of the tab order and hidden from
+ * assistive tech, because most of them are duplicates; keyboard and screen
+ * reader users get the same thing from the arrows, the focusable wheel itself
+ * and the links on the presented side.
+ *
+ * ## Colour
+ *
+ * Every post has a tint (`lib/post-tint`), hashed from its title. It lights
+ * the cover's dark ground (`PostCover`) and is the supporting colour around
+ * it: the category line, the presented cover's edge and glow, and the number
+ * tab on its wheel card.
+ *
+ * ## Scaling
+ *
+ * The wheel holds the newest `limit` posts (eight by default) whatever the
+ * size of the archive, so the band is the same height with two posts or two
+ * hundred. Everything older is behind "All N posts" in the heading, where
+ * every other band keeps its onward link.
+ *
+ * ## Fallbacks
+ *
+ * Without JavaScript the first post is presented and the wheel is a plain
+ * scrolling column. Below `md` there is no wheel: the covers become a
+ * scroll-snap row with titles underneath, which a thumb handles better. With
+ * reduced motion the wheel jumps instead of easing.
+ *
+ * The yellow column on the far left is the band's signature, a full-height
+ * fill with the mark and the word set vertically. It is decoration
+ * (`aria-hidden`) and drops out below `lg`.
+ */
+import type { CollectionEntry } from 'astro:content';
+import Mark from '../ui/Mark.astro';
+import Icon from '../ui/Icon.astro';
+import SectionHead from '../ui/SectionHead.astro';
+import Reveal from '../ui/Reveal.astro';
+import PostCover from './PostCover.astro';
+import { assignTints, type PostTint } from '../../lib/post-tint';
+import { href } from '../../lib/url';
+
+interface Props {
+  /** Every published post, newest first. */
+  posts: readonly CollectionEntry<'posts'>[];
+  index: string;
+  headingId: string;
+  /** How many of the newest posts the wheel holds. */
+  limit?: number;
+}
+
+const { posts, index, headingId, limit = 8 } = Astro.props;
+const deck = posts.slice(0, limit);
+const [first] = deck;
+const multiple = deck.length > 1;
+
+/* Tints from every post, so a post's colour never depends on what is shown. */
+const tints = assignTints(
+  posts.map((p) => ({ id: p.id, title: p.data.title, published: p.data.published })),
+);
+function tintOf(post: CollectionEntry<'posts'>): PostTint {
+  const tint = tints.get(post.id);
+  if (!tint) throw new Error(`No tint for post "${post.id}"`);
+  return tint;
+}
+
+/**
+ * Covers on the ring. Four and a half are visible each side of the seam, so
+ * the ring needs at least ten; a short list is repeated until it has them.
+ */
+const RING_MIN = 10;
+const copies = multiple ? Math.ceil(RING_MIN / deck.length) : 0;
+const ring = Array.from({ length: copies }, () => deck.map((post, i) => ({ post, i }))).flat();
+
+/** `2026-10-06`, the meta-line format the reference uses. */
+function isoDay(d: Date): string {
+  return d.toISOString().slice(0, 10);
+}
+
+/** The first tag reads as a category: `llm-evaluation` → `LLM evaluation`. */
+function category(post: CollectionEntry<'posts'>): string {
+  const tag = post.data.tags[0];
+  if (!tag) return 'Post';
+  const words = tag.split('-').join(' ');
+  return words.replace(/\bllm\b/i, 'LLM').replace(/^./, (c) => c.toUpperCase());
+}
+
+/** `01`, `02`: the counter's two-digit format. */
+function pad(n: number): string {
+  return String(n).padStart(2, '0');
+}
+---
+
+{
+  first && (
+    <div class="grid gap-10 lg:grid-cols-[7rem_minmax(0,1fr)] lg:gap-16">
+      {/* ── The column ─────────────────────────────────────────── */}
+      <div
+        aria-hidden="true"
+        class="bg-accent-fill text-accent-on-fill relative hidden min-h-[36rem] flex-col items-center justify-between overflow-visible py-8 lg:flex"
+      >
+        <Mark size={132} weight={1.4} class="posts-mark -mx-8" />
+        <span class="posts-vertical display text-[2.75rem] leading-none">Posts</span>
+        <span class="flex w-full flex-col items-center gap-3">
+          <span class="text-lg font-semibold">Latest</span>
+          <span class="h-0.5 w-10 bg-current" />
+          <span class="font-mono text-[9px] tracking-[0.2em] uppercase opacity-70">CoronRing</span>
+        </span>
+      </div>
+
+      <div class="min-w-0">
+        <Reveal>
+          <SectionHead
+            index={index}
+            eyebrow="Posts"
+            title="Field notes"
+            headingId={headingId}
+            moreHref="/blog"
+            moreLabel={posts.length > 1 ? `All ${posts.length} posts` : 'All posts'}
+          />
+        </Reveal>
+
+        <Reveal>
+          {/* ── md and up: presented post and wheel ──────────────── */}
+          <div
+            class:list={[
+              'posts-deck mt-12 hidden gap-8 md:grid xl:gap-12',
+              multiple && 'md:grid-cols-[minmax(0,1fr)_clamp(12rem,24%,18rem)]',
+            ]}
+            data-posts-deck
+            data-count={deck.length}
+          >
+            <div class="min-w-0">
+              {/* Every heading in one cell; only the presented one shows. */}
+              <div class="posts-stack">
+                {deck.map((post, i) => (
+                  <div
+                    class="posts-head"
+                    data-slide={i}
+                    data-active={i === 0 ? '' : undefined}
+                    style={`--tint: ${tintOf(post).color}`}
+                  >
+                    <p class="text-muted flex flex-wrap items-center gap-x-5 gap-y-1 text-sm">
+                      <span class="posts-tint-text inline-flex items-center gap-2">
+                        <span class="posts-tint-dot" aria-hidden="true" />
+                        {category(post)}
+                      </span>
+                      <time
+                        class="font-mono tabular-nums"
+                        datetime={post.data.published.toISOString()}
+                      >
+                        {isoDay(post.data.published)}
+                      </time>
+                    </p>
+                    <h3 class="mt-2 text-xl leading-snug font-normal sm:text-2xl">
+                      <a
+                        href={href(`/blog/${post.id}`)}
+                        class="hover:text-accent transition-colors"
+                      >
+                        {post.data.title}
+                      </a>
+                    </h3>
+                    <p class="text-muted mt-3 line-clamp-2 max-w-[72ch] text-[15px] leading-relaxed">
+                      {post.data.summary}
+                    </p>
+                  </div>
+                ))}
+              </div>
+              <div class="border-line mt-5 border-t" />
+
+              {/* The covers, stacked the same way. */}
+              <div class="posts-stack mt-8">
+                {deck.map((post, i) => (
+                  <a
+                    href={href(`/blog/${post.id}`)}
+                    class="posts-shown group"
+                    data-slide={i}
+                    data-active={i === 0 ? '' : undefined}
+                    tabindex={i === 0 ? undefined : -1}
+                    aria-label={`Read: ${post.data.title}`}
+                    style={`--tint: ${tintOf(post).color}`}
+                  >
+                    <PostCover post={post} tint={tintOf(post)} class="posts-shown-cover" />
+                    <span class="posts-open bg-accent-fill text-accent-on-fill" aria-hidden="true">
+                      <Icon name="arrow-up-right" size={18} />
+                    </span>
+                  </a>
+                ))}
+              </div>
+
+              {multiple && (
+                <div class="mt-6 flex items-center gap-4">
+                  <div class="border-line flex border">
+                    <button
+                      type="button"
+                      data-dir="-1"
+                      aria-label="Previous post"
+                      class="posts-arrow"
+                    >
+                      <Icon name="arrow-left" size={16} />
+                    </button>
+                    <button
+                      type="button"
+                      data-dir="1"
+                      aria-label="Next post"
+                      class="posts-arrow border-line border-l"
+                    >
+                      <Icon name="arrow-right" size={16} />
+                    </button>
+                  </div>
+                  <p class="text-muted font-mono text-xs tabular-nums" aria-live="polite">
+                    <span class="text-fg" data-current>
+                      01
+                    </span>{' '}
+                    / {pad(deck.length)}
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {multiple && (
+              <div
+                class="posts-wheel"
+                data-wheel
+                tabindex="0"
+                aria-label="Posts wheel. Scroll, drag, or use the arrow keys to change the post shown."
+              >
+                <ul class="posts-wheel-list">
+                  {ring.map(({ post, i }, k) => (
+                    <li class="posts-wheel-item" data-k={k} style={`--tint: ${tintOf(post).color}`}>
+                      <button
+                        type="button"
+                        tabindex="-1"
+                        aria-hidden="true"
+                        class="posts-wheel-card"
+                      >
+                        <PostCover post={post} tint={tintOf(post)} />
+                        <span class="posts-wheel-num">{pad(i + 1)}</span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+                <span class="posts-seam" aria-hidden="true">
+                  <span class="posts-seam-tri" />
+                </span>
+              </div>
+            )}
+          </div>
+
+          {/* ── Phones: a scroll-snap row ────────────────────────── */}
+          <ul class="posts-row mt-10 md:hidden">
+            {deck.map((post) => (
+              <li class="posts-row-item" style={`--tint: ${tintOf(post).color}`}>
+                <a href={href(`/blog/${post.id}`)} class="group block">
+                  <PostCover post={post} tint={tintOf(post)} class="posts-row-cover" />
+                  <p class="posts-tint-text mt-3 font-mono text-[10px] tracking-wide uppercase tabular-nums">
+                    {category(post)} · {isoDay(post.data.published)}
+                  </p>
+                  <p class="group-hover:text-accent mt-1.5 text-[15px] leading-snug transition-colors">
+                    {post.data.title}
+                  </p>
+                </a>
+              </li>
+            ))}
+          </ul>
+        </Reveal>
+      </div>
+    </div>
+  )
+}
+
+<script>
+  /** Wheel input, in pixels of scroll per post: one mouse notch is one post. */
+  const NOTCH = 100;
+  /** Gap between covers on the wheel, px. The wheel's layout lives here, not in CSS. */
+  const GAP = 18;
+  /** Covers farther than this from the seam, in posts, are not drawn. */
+  const VISIBLE = 4.5;
+  /** Arc depth is reached this many posts out. */
+  const ARC_REACH = 3;
+  /** Easing time constant, ms: how quickly `pos` closes on `target`. */
+  const EASE_MS = 110;
+  /** How long a released drag keeps gliding at its release speed, ms. */
+  const GLIDE_MS = 110;
+  /** A drag released after resting this long, ms, does not glide. */
+  const STILL_MS = 60;
+  /** Pointer travel before a press becomes a drag, px. */
+  const DRAG_SLOP = 6;
+
+  /** 0 at the seam, rising smoothly to 1 at one post out. */
+  function smoothstep(a: number): number {
+    return a >= 1 ? 1 : a * a * (3 - 2 * a);
+  }
+
+  function initPostDecks(): void {
+    document.querySelectorAll<HTMLElement>('[data-posts-deck]').forEach((deck) => {
+      if (deck.dataset.ready !== undefined) return;
+      const wheel = deck.querySelector<HTMLElement>('[data-wheel]');
+      if (!wheel) return;
+      deck.dataset.ready = '';
+
+      const count = Number(deck.dataset.count) || 1;
+      const items = Array.from(wheel.querySelectorAll<HTMLElement>('[data-k]'));
+      const ring = items.length;
+      const slides = Array.from(deck.querySelectorAll<HTMLElement>('[data-slide]'));
+      const current = deck.querySelector<HTMLElement>('[data-current]');
+      const reduce = window.matchMedia('(prefers-reduced-motion: reduce)');
+
+      /* Geometry, re-read on resize. */
+      let height = 0;
+      let pitch = 0;
+      let room = 0;
+      let popPx = 0;
+
+      /* Position on the ring, in posts. Unbounded; only differences matter. */
+      let pos = 0;
+      let target = 0;
+      let shown = -1;
+      let raf = 0;
+      let last = 0;
+      let idle = 0;
+
+      let drag: {
+        id: number;
+        y0: number;
+        p0: number;
+        moved: boolean;
+        lastY: number;
+        lastT: number;
+        speed: number;
+      } | null = null;
+      let swallowClick = false;
+
+      wheel.dataset.live = '';
+
+      function measure(): void {
+        const sample = items[0];
+        if (!sample) return;
+        height = sample.offsetHeight;
+        pitch = height + GAP;
+        room = Math.max(0, wheel!.clientWidth - sample.offsetLeft - sample.offsetWidth);
+        popPx = sample.offsetLeft + 16;
+      }
+
+      /** Signed distance from `from` to ring slot `k`, the short way round. */
+      function offset(k: number, from: number): number {
+        let d = (k - from) % ring;
+        if (d < -ring / 2) d += ring;
+        else if (d >= ring / 2) d -= ring;
+        return d;
+      }
+
+      function present(i: number): void {
+        if (i === shown) return;
+        shown = i;
+        for (const el of slides) {
+          const on = Number(el.dataset.slide) === i;
+          el.toggleAttribute('data-active', on);
+          if (el.tagName === 'A') el.tabIndex = on ? 0 : -1;
+        }
+        if (current) current.textContent = String(i + 1).padStart(2, '0');
+      }
+
+      function render(): void {
+        if (!pitch) return;
+        items.forEach((el, k) => {
+          const d = offset(k, pos);
+          const a = Math.abs(d);
+          if (a > VISIBLE) {
+            el.style.visibility = 'hidden';
+            return;
+          }
+          el.style.visibility = '';
+          /* Close the gap: neighbours sit half a pitch from the seam, not one. */
+          const settled = smoothstep(a);
+          const y = pitch * Math.sign(d) * (a - 0.5 * settled);
+          const pop = 1 - settled;
+          const out = Math.min(Math.abs(y) / pitch, ARC_REACH);
+          const arc = (room * (1 - Math.cos(out * 0.5))) / (1 - Math.cos(ARC_REACH * 0.5));
+          const x = arc - pop * popPx;
+          const scale = (1 - out * 0.06) * (1 - pop * 0.1);
+          const fade = Math.max(0, 1 - out * 0.2) * (1 - pop);
+          el.style.transform = `translate3d(${x.toFixed(1)}px, ${(y - height / 2).toFixed(1)}px, 0) scale(${scale.toFixed(3)})`;
+          el.style.opacity = fade.toFixed(3);
+          el.style.zIndex = String(10 - Math.round(out));
+        });
+        const k = Math.round(pos);
+        present((((k % ring) + ring) % ring) % count);
+      }
+
+      function tick(now: number): void {
+        const dt = Math.min(64, now - last);
+        last = now;
+        if (!drag?.moved) {
+          const k = reduce.matches ? 1 : 1 - Math.exp(-dt / EASE_MS);
+          pos += (target - pos) * k;
+          if (Math.abs(target - pos) < 0.0005) pos = target;
+        }
+        render();
+        raf = pos !== target || drag?.moved ? requestAnimationFrame(tick) : 0;
+      }
+
+      function kick(): void {
+        if (raf) return;
+        last = performance.now();
+        raf = requestAnimationFrame(tick);
+      }
+
+      function step(dir: number): void {
+        target = Math.round(target) + dir;
+        kick();
+      }
+
+      /* Mouse wheel and trackpad: turn freely, then settle on a post. */
+      wheel.addEventListener(
+        'wheel',
+        (event) => {
+          event.preventDefault();
+          const unit = event.deltaMode === 1 ? 33 : event.deltaMode === 2 ? NOTCH * 4 : 1;
+          const delta =
+            Math.abs(event.deltaY) >= Math.abs(event.deltaX) ? event.deltaY : event.deltaX;
+          target += (delta * unit) / NOTCH;
+          clearTimeout(idle);
+          idle = window.setTimeout(() => {
+            target = Math.round(target);
+            kick();
+          }, 140);
+          kick();
+        },
+        { passive: false },
+      );
+
+      /* Drag: follow the pointer, then glide a little and settle. */
+      wheel.addEventListener('pointerdown', (event) => {
+        if (event.button !== 0 || !pitch) return;
+        drag = {
+          id: event.pointerId,
+          y0: event.clientY,
+          p0: pos,
+          moved: false,
+          lastY: event.clientY,
+          lastT: event.timeStamp,
+          speed: 0,
+        };
+      });
+      wheel.addEventListener('pointermove', (event) => {
+        if (!drag || event.pointerId !== drag.id) return;
+        const dy = event.clientY - drag.y0;
+        if (!drag.moved && Math.abs(dy) > DRAG_SLOP) {
+          drag.moved = true;
+          wheel.setPointerCapture(event.pointerId);
+          kick();
+        }
+        if (!drag.moved) return;
+        const dt = Math.max(1, event.timeStamp - drag.lastT);
+        /* Smoothed, so one jittery sample does not decide the glide. */
+        drag.speed = 0.6 * ((drag.lastY - event.clientY) / pitch / dt) + 0.4 * drag.speed;
+        drag.lastY = event.clientY;
+        drag.lastT = event.timeStamp;
+        pos = target = drag.p0 - dy / pitch;
+      });
+      const release = (event: PointerEvent): void => {
+        if (!drag || event.pointerId !== drag.id) return;
+        swallowClick = drag.moved;
+        /* A pointer that stopped before letting go has no speed left to glide on. */
+        const still = event.timeStamp - drag.lastT > STILL_MS;
+        if (drag.moved) target = Math.round(pos + (still ? 0 : drag.speed * GLIDE_MS));
+        drag = null;
+        kick();
+      };
+      wheel.addEventListener('pointerup', release);
+      wheel.addEventListener('pointercancel', release);
+
+      /* A click on a cover brings it to the seam. */
+      items.forEach((el, k) => {
+        el.querySelector('button')?.addEventListener('click', () => {
+          if (swallowClick) {
+            swallowClick = false;
+            return;
+          }
+          target = Math.round(target) + Math.round(offset(k, Math.round(target)));
+          kick();
+        });
+      });
+
+      wheel.addEventListener('keydown', (event) => {
+        const dir = { ArrowUp: -1, ArrowLeft: -1, ArrowDown: 1, ArrowRight: 1 }[event.key];
+        if (!dir) return;
+        event.preventDefault();
+        step(dir);
+      });
+      deck.querySelectorAll<HTMLButtonElement>('[data-dir]').forEach((button) => {
+        button.addEventListener('click', () => step(Number(button.dataset.dir)));
+      });
+
+      /* The deck is display: none below md, so geometry can arrive later. */
+      new ResizeObserver(() => {
+        measure();
+        render();
+      }).observe(wheel);
+      measure();
+      render();
+    });
+  }
+  initPostDecks();
+  document.addEventListener('astro:page-load', initPostDecks);
+</script>
+
+<style>
+  /* The mark overhangs the column, as the reference's tower overhangs its bar. */
+  /* Global: the svg is rendered by Mark, outside this component's scope. The
+     core is yellow everywhere else, so on the yellow column it turns ink. */
+  :global(.posts-mark) {
+    flex: none;
+  }
+  :global(.posts-mark circle) {
+    fill: currentColor;
+  }
+  .posts-vertical {
+    writing-mode: vertical-rl;
+    transform: rotate(180deg);
+  }
+
+  /* ── Tint ───────────────────────────────────────────────────── */
+  /* Mixed toward the text colour, so the same tint reads on either theme. */
+  .posts-tint-text {
+    color: color-mix(in oklab, var(--tint) 72%, var(--c-text));
+  }
+  .posts-tint-dot {
+    width: 0.5rem;
+    height: 0.5rem;
+    background: var(--tint);
+  }
+
+  /* ── Presented side ─────────────────────────────────────────── */
+  .posts-stack {
+    display: grid;
+    grid-template-areas: 'stack';
+  }
+  .posts-head,
+  .posts-shown {
+    grid-area: stack;
+    visibility: hidden;
+    opacity: 0;
+    transition:
+      opacity var(--dur-slow) var(--ease-out),
+      transform var(--dur-slow) var(--ease-out),
+      visibility 0s linear var(--dur-slow);
+  }
+  /* The outgoing cover sinks in place; the incoming one arrives from the
+     wheel's side. Two directions need an animation, not a transition. */
+  .posts-shown {
+    position: relative;
+    display: block;
+    transform: scale(0.97);
+    transform-origin: 100% 50%;
+  }
+  .posts-head[data-active],
+  .posts-shown[data-active] {
+    visibility: visible;
+    opacity: 1;
+    transform: none;
+    transition: opacity var(--dur-slow) var(--ease-out);
+  }
+  .posts-shown[data-active] {
+    animation: posts-arrive var(--dur-slow) var(--ease-out);
+  }
+  @keyframes posts-arrive {
+    from {
+      opacity: 0;
+      transform: translateX(3rem) scale(0.96);
+    }
+  }
+  /* The tint as a dim light on the wall behind the cover, and along its edge. */
+  .posts-shown :global(.posts-shown-cover) {
+    border: var(--hairline) solid color-mix(in oklab, var(--tint) 45%, var(--c-line));
+    box-shadow: 0 2.5rem 6rem -2.5rem color-mix(in oklab, var(--tint) 45%, transparent);
+  }
+  .posts-shown :global(.posts-shown-cover img) {
+    transition: transform var(--dur-slow) var(--ease-out);
+  }
+  .posts-shown:hover :global(.posts-shown-cover img) {
+    transform: scale(1.02);
+  }
+  .posts-open {
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    display: grid;
+    place-items: center;
+    width: 2.75rem;
+    height: 2.75rem;
+    transition: transform var(--dur-base) var(--ease-out);
+  }
+  .posts-shown:hover .posts-open,
+  .posts-shown:focus-visible .posts-open {
+    transform: translate(-0.25rem, -0.25rem);
+  }
+
+  /* ── The wheel ──────────────────────────────────────────────── */
+  .posts-wheel {
+    --wheel-pad: 1.75rem;
+    --wheel-room: 2.25rem;
+    position: relative;
+    min-height: 24rem;
+    overflow: hidden;
+    outline: none;
+    mask-image: linear-gradient(to bottom, transparent, #000 12%, #000 88%, transparent);
+  }
+  .posts-wheel[data-live] {
+    touch-action: none;
+    user-select: none;
+    cursor: grab;
+  }
+  .posts-wheel[data-live]:active {
+    cursor: grabbing;
+  }
+  /* Without the script: a plain scrolling column. */
+  .posts-wheel-list {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    align-content: start;
+    gap: 1rem;
+    padding-left: var(--wheel-pad);
+    padding-right: var(--wheel-room);
+    overflow-y: auto;
+  }
+  .posts-wheel[data-live] .posts-wheel-list {
+    display: block;
+    padding: 0;
+    overflow: visible;
+  }
+  .posts-wheel[data-live] .posts-wheel-item {
+    position: absolute;
+    top: 50%;
+    left: var(--wheel-pad);
+    width: calc(100% - var(--wheel-pad) - var(--wheel-room));
+    transform-origin: 100% 50%;
+    will-change: transform, opacity;
+  }
+  .posts-wheel-card {
+    position: relative;
+    display: block;
+    width: 100%;
+    border: var(--hairline) solid color-mix(in oklab, var(--tint) 30%, var(--c-line));
+    cursor: inherit;
+  }
+  .posts-wheel-num {
+    position: absolute;
+    top: 0;
+    left: 0;
+    padding: 0.2rem 0.45rem;
+    background: var(--tint);
+    color: #0b0b0c;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: 600;
+    line-height: 1.2;
+  }
+
+  /* The seam: where the presented post left the wheel. */
+  .posts-seam {
+    position: absolute;
+    top: 50%;
+    left: 0;
+    right: var(--wheel-room);
+    height: 1px;
+    background: linear-gradient(
+      to right,
+      var(--c-accent-fill),
+      color-mix(in oklab, var(--c-line-strong) 70%, transparent) 30%,
+      transparent
+    );
+    pointer-events: none;
+    z-index: 20;
+  }
+  .posts-seam-tri {
+    position: absolute;
+    top: 50%;
+    left: 0;
+    width: 0.75rem;
+    height: 0.875rem;
+    transform: translateY(-50%);
+    background: var(--c-accent-fill);
+    clip-path: polygon(100% 0, 100% 100%, 0 50%);
+  }
+  .posts-wheel:focus-visible .posts-seam-tri {
+    outline: 2px solid var(--c-accent);
+    outline-offset: 3px;
+  }
+
+  .posts-arrow {
+    display: grid;
+    place-items: center;
+    width: 2.75rem;
+    height: 2.5rem;
+    color: var(--c-text-muted);
+    transition:
+      color var(--dur-fast) var(--ease-out),
+      background-color var(--dur-fast) var(--ease-out);
+  }
+  .posts-arrow:hover {
+    color: var(--c-text);
+    background: var(--c-raised);
+  }
+
+  /* ── Phones ─────────────────────────────────────────────────── */
+  /* Scoped to the width it is for: this file's styles are unlayered, so a
+     `display` here would beat Tailwind's `md:hidden` at every width. */
+  @media (max-width: 47.99rem) {
+    .posts-row {
+      display: grid;
+      grid-auto-flow: column;
+      grid-auto-columns: 82%;
+      gap: 1rem;
+      overflow-x: auto;
+      scroll-snap-type: x mandatory;
+      scrollbar-width: none;
+    }
+    .posts-row::-webkit-scrollbar {
+      display: none;
+    }
+  }
+  .posts-row-item {
+    scroll-snap-align: start;
+    min-width: 0;
+  }
+  .posts-row-item :global(.posts-row-cover) {
+    border: var(--hairline) solid color-mix(in oklab, var(--tint) 35%, var(--c-line));
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .posts-head,
+    .posts-shown {
+      transition: none;
+      animation: none;
+    }
+  }
+</style>

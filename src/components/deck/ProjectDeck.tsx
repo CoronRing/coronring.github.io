@@ -502,9 +502,23 @@ export default function ProjectDeck({
                 )}
                 <a
                   href={indexHref}
-                  className="text-muted hover:text-accent font-mono text-xs transition-colors"
+                  className="group text-muted hover:text-fg inline-flex h-11 items-center gap-2 text-sm font-medium transition-colors"
                 >
                   All projects
+                  <svg
+                    viewBox="0 0 16 16"
+                    aria-hidden="true"
+                    className="size-3.5 transition-transform duration-[var(--dur-base)] group-hover:translate-x-[3px]"
+                  >
+                    <path
+                      d="M3 8 H13 M9 4 L13 8 L9 12"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.6"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
                 </a>
               </div>
             </div>

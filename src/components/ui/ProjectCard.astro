@@ -78,14 +78,25 @@ const STATUS_LABEL = {
 
     <p class="text-muted mt-2.5 flex-1 text-sm leading-relaxed">{data.summary}</p>
 
-    <div class="border-line mt-5 flex items-center justify-between gap-4 border-t pt-4">
-      <ul class="text-faint flex flex-wrap gap-2 font-mono text-[10px] uppercase">
-        {data.tech.slice(0, 3).map((t) => <li>{t}</li>)}
-      </ul>
+    <ul class="text-faint mt-4 flex flex-wrap gap-x-3 gap-y-1 font-mono text-[10px] uppercase">
+      {data.tech.slice(0, 3).map((t) => <li>{t}</li>)}
+    </ul>
+
+    <!--
+      The whole card is the link; this row says so in words. A bare arrow in
+      the corner was the only cue, and at 15px in the faint colour it read as
+      decoration rather than a way in.
+    -->
+    <div
+      class="border-line group-hover:border-fg mt-5 flex items-center justify-between gap-4 border-t pt-4 transition-colors duration-[var(--dur-base)]"
+    >
+      <span class="group-hover:text-accent text-sm font-semibold transition-colors">
+        Open blueprint
+      </span>
       <Icon
-        name="arrow-up-right"
-        size={15}
-        class="text-faint group-hover:text-accent shrink-0 transition-transform duration-[var(--dur-base)] group-hover:translate-x-0.5 group-hover:-translate-y-0.5"
+        name="arrow-right"
+        size={16}
+        class="group-hover:text-accent shrink-0 transition-[color,transform] duration-[var(--dur-base)] group-hover:translate-x-1"
       />
     </div>
   </div>

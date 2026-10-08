@@ -1,11 +1,12 @@
 ---
 /**
- * Home — the deck, then five quieter bands.
+ * Home — the deck, then six quieter bands.
  *
  *   #top       The deck. Six frames, one live exhibit, edge to edge.
  *   #work      Selected work — media-led project cards
- *   #resume    Myself — three capabilities and the work behind each
+ *   #resume    Myself — three capabilities and the proof for each
  *   #tools     The dev kit, played one tool at a time
+ *   #posts     Writing, the newest post featured with its cover
  *   #ask       The assistant, in the page rather than on a page of its own
  *   #resources Notes and references, last
  *
@@ -17,6 +18,8 @@
  * The rail scroll-spies these ids (see `Sidebar.astro`). Dedicated pages still
  * exist for each and hold the full lists; this page is the tour.
  */
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { getCollection } from 'astro:content';
 import BaseLayout from '../layouts/BaseLayout.astro';
 import ParticleField from '../components/decor/ParticleField.astro';
@@ -24,14 +27,14 @@ import SectionHead from '../components/ui/SectionHead.astro';
 import ProjectDeck from '../components/deck/ProjectDeck';
 import ProjectCard from '../components/ui/ProjectCard.astro';
 import ChatPage from '../components/chat/ChatPage';
-import Capabilities, { type Pillar } from '../components/resume/Capabilities';
+import Capabilities, { type Pillar, type ProofMark } from '../components/resume/Capabilities';
 import ToolShowcase, { type ShowcaseTool } from '../components/tools/ToolShowcase';
 import Reveal from '../components/ui/Reveal.astro';
+import PostsBand from '../components/posts/PostsBand.astro';
 import Icon from '../components/ui/Icon.astro';
 import { SITE } from '../data/site';
 import { TOOLS } from '../data/tools';
 import { href } from '../lib/url';
-import { monthYear } from '../lib/format';
 
 const projects = (await getCollection('projects', (p) => !p.data.draft)).sort(
   (a, b) => a.data.order - b.data.order,
@@ -48,11 +51,14 @@ const deckProjects = projects.map((p) => ({
   href: href(`/projects/${p.id}`),
 }));
 
+/** Posts, newest first, for their own band. */
+const posts = (await getCollection('posts', (p) => !p.data.draft)).sort(
+  (a, b) => b.data.published.getTime() - a.data.published.getTime(),
+);
+
 /**
- * The notes band: blog posts and resources in one list, newest first.
- *
- * Posts link to their own page; resources keep their old behaviour (external
- * links open in a new tab, notes without a URL go to the Resources page).
+ * The notes band: resources, newest first. External links open in a new tab;
+ * notes without a URL go to the Resources page.
  */
 interface NoteRow {
   readonly key: string;
@@ -64,18 +70,8 @@ interface NoteRow {
   readonly external: boolean;
 }
 
-const postRows: NoteRow[] = (await getCollection('posts', (p) => !p.data.draft)).map((p) => ({
-  key: `post-${p.id}`,
-  label: 'post',
-  title: p.data.title,
-  summary: p.data.summary,
-  date: p.data.published,
-  href: href(`/blog/${p.id}`),
-  external: false,
-}));
-
-const resourceRows: NoteRow[] = (await getCollection('resources', (r) => !r.data.draft)).map(
-  (r) => ({
+const notes: NoteRow[] = (await getCollection('resources', (r) => !r.data.draft))
+  .map((r) => ({
     key: `resource-${r.id}`,
     label: r.data.category,
     title: r.data.title,
@@ -83,10 +79,7 @@ const resourceRows: NoteRow[] = (await getCollection('resources', (r) => !r.data
     date: r.data.updated,
     href: r.data.url ?? href('/resources'),
     external: Boolean(r.data.url),
-  }),
-);
-
-const notes = [...postRows, ...resourceRows]
+  }))
   .sort((a, b) => b.date.getTime() - a.date.getTime())
   .slice(0, 4);
 
@@ -106,20 +99,28 @@ const siteData = [
 ];
 
 /**
- * The three capabilities, and for each of them the work that is the evidence.
+ * The three capabilities, and for each of them the proof.
  *
- * `evidence` names an experience entry and which of its highlights belongs to
- * this capability, rather than restating either. The role, the organisation and
- * the dates come from the collection, so editing a resume entry still edits
- * this section, and the only thing decided here is what supports what.
+ * This band is the glance, not the resume: each proof is a figure or a logo and
+ * one line, condensed from what `/resume` carries in full. `entry` names the
+ * experience entry a proof comes from, so the credit under it (role,
+ * organisation, years) still comes from the collection; `credit: 'org'` drops
+ * the role, which suits a degree whose claim already names it.
  */
+type ProofSpec = {
+  claim: string;
+  entry?: string;
+  credit?: 'role' | 'org';
+} & ({ figure: string } | { logo: string; alt: string });
+
 interface PillarSpec {
   id: string;
   index: string;
   title: string;
+  /** One sentence. */
   body: string;
   tags: string[];
-  evidence: Array<{ entry: string; highlight: number }>;
+  proof: ProofSpec[];
 }
 
 const PILLAR_SPECS: PillarSpec[] = [
@@ -127,34 +128,66 @@ const PILLAR_SPECS: PillarSpec[] = [
     id: 'agents',
     index: '01',
     title: 'Agent systems',
-    body: 'Multi-step agents that plan, call tools, and recover from their own failures, with the orchestration it takes to keep them running in production.',
+    body: 'Agents that plan, call tools and recover from their own failures, built to stay up in production.',
     tags: ['Tool use', 'Orchestration', 'Evals'],
-    evidence: [
-      { entry: '02-railtown-mle', highlight: 0 },
-      { entry: '02-railtown-mle', highlight: 1 },
-      { entry: '04-railtown-ds', highlight: 1 },
+    proof: [
+      { figure: '20', claim: 'Agents delivered to production', entry: '02-railtown-mle' },
+      {
+        figure: '1st',
+        claim: 'Agentic framework in Canada: Railtracks, which I designed and built',
+        entry: '02-railtown-mle',
+      },
+      { figure: '5+', claim: 'Years of experience shipping machine learning' },
     ],
   },
   {
     id: 'evaluation',
     index: '02',
     title: 'Evaluation',
-    body: 'If it cannot be measured, it should not ship. Benchmarks that score expert systems on accuracy, hallucination, security and fairness, and the harness that keeps the scores comparable.',
+    body: 'If it cannot be measured, it should not ship. Benchmarks, and the harness that keeps scores comparable.',
     tags: ['Benchmarks', 'Hallucination', 'Safety'],
-    evidence: [
-      { entry: '02-railtown-mle', highlight: 2 },
-      { entry: '04-railtown-ds', highlight: 0 },
+    proof: [
+      {
+        figure: '100s',
+        claim:
+          'Deployed products scored by AEval for accuracy, hallucination, security and fairness',
+        entry: '02-railtown-mle',
+      },
+      {
+        figure: '91%',
+        claim: 'User preference for a multi-model ensemble in A/B tests',
+        entry: '04-railtown-ds',
+      },
     ],
   },
   {
-    id: 'systems',
+    id: 'background',
     index: '03',
-    title: 'Systems and hardware',
-    body: 'GPU programming, HDL, and vision-language models that read hardware schematics. The half of the work that runs below the model rather than on top of it.',
-    tags: ['VLM', 'CUDA', 'Verilog'],
-    evidence: [
-      { entry: '03-ubc-salt', highlight: 1 },
-      { entry: '03-ubc-salt', highlight: 0 },
+    title: 'Background',
+    body: 'A master’s in applied AI, on top of an engineering degree that started at the hardware.',
+    tags: ['MScAC', 'Computer Engineering', 'Machine learning'],
+    proof: [
+      {
+        logo: 'uoft.svg',
+        alt: 'University of Toronto',
+        claim:
+          'MScAC, Master of Science in Applied Computing, Artificial Intelligence specialization',
+        entry: '10-uoft-msc',
+        credit: 'org',
+      },
+      {
+        logo: 'ubc.svg',
+        alt: 'University of British Columbia',
+        claim: 'BASc Computer Engineering (CPEN), machine learning focus',
+        entry: '11-ubc-basc',
+        credit: 'org',
+      },
+      {
+        figure: '1%',
+        claim: 'Graduated in the top 1% of the Computer Engineering class',
+        entry: '11-ubc-basc',
+        credit: 'org',
+      },
     ],
   },
 ];
@@ -162,27 +195,50 @@ const PILLAR_SPECS: PillarSpec[] = [
 const experience = await getCollection('experience');
 const byId = new Map(experience.map((e) => [e.id, e]));
 
+/**
+ * The credit under a proof, from the collection:
+ * `"Applied ML Engineer · Railtown AI · 2023–2025"`, or with `'org'`,
+ * `"University of Toronto · 2025–2026"`.
+ */
+function credit(entryId: string, mode: 'role' | 'org'): string | undefined {
+  const entry = byId.get(entryId);
+  if (!entry) throw new Error(`Myself: no experience entry "${entryId}"`);
+  const { role, organization, shortName, start, end } = entry.data;
+  const from = start.getUTCFullYear();
+  const to = end ? end.getUTCFullYear() : 'Present';
+  const years = from === to ? String(from) : `${from}–${to}`;
+  return mode === 'org'
+    ? [organization, years].join(' · ')
+    : [role, shortName ?? organization, years].join(' · ');
+}
+
+/**
+ * A logo under `public/media/logos/`, with its aspect ratio read from the
+ * file's own `viewBox` so a replaced logo never needs a matching code change.
+ */
+function logo(file: string, alt: string): ProofMark {
+  const svg = readFileSync(join(process.cwd(), 'public', 'media', 'logos', file), 'utf8');
+  const box = /viewBox="([^"]+)"/
+    .exec(svg)?.[1]
+    ?.trim()
+    .split(/[\s,]+/)
+    .map(Number);
+  const [, , w, h] = box ?? [];
+  if (!w || !h) throw new Error(`Myself: ${file} has no usable viewBox`);
+  return { kind: 'logo', src: href(`/media/logos/${file}`), alt, ratio: w / h };
+}
+
 const PILLARS: Pillar[] = PILLAR_SPECS.map((spec) => ({
   id: spec.id,
   index: spec.index,
   title: spec.title,
   body: spec.body,
   tags: spec.tags,
-  evidence: spec.evidence.flatMap((ref) => {
-    const entry = byId.get(ref.entry);
-    const note = entry?.data.highlights[ref.highlight];
-    if (!entry || !note) return [];
-    return [
-      {
-        role: entry.data.role,
-        organization: entry.data.organization,
-        period: `${monthYear(entry.data.start)} – ${
-          entry.data.end ? monthYear(entry.data.end) : 'Present'
-        }`,
-        note,
-      },
-    ];
-  }),
+  proof: spec.proof.map((p) => ({
+    mark: 'figure' in p ? { kind: 'figure', text: p.figure } : logo(p.logo, p.alt),
+    claim: p.claim,
+    source: p.entry ? credit(p.entry, p.credit ?? 'role') : undefined,
+  })),
 }));
 
 /** Plain data for the tools island. */
@@ -218,11 +274,7 @@ const showcaseTools: ShowcaseTool[] = liveTools.map((t) => ({
       project id, so an entry is a picture from the day it is added instead of
       a grey box waiting on a screenshot. */
   }
-  <section
-    id="work"
-    aria-labelledby="work-h"
-    class="border-line scroll-mt-16 border-t py-24 lg:py-32"
-  >
+  <section id="work" aria-labelledby="work-h" class="border-line border-t py-24 lg:py-32">
     <div class="shell">
       <Reveal>
         <SectionHead
@@ -249,30 +301,33 @@ const showcaseTools: ShowcaseTool[] = liveTools.map((t) => ({
 
   {
     /* ══ 02 · Myself ═══════════════════════════════════════════════
-      Three capabilities, and the work that is the evidence for each. The
-      panel advances as the band scrolls past, so the section reads itself out
-      to a visitor who only scrolls; the indicator scrubs it for one who
-      would rather drive. See `components/resume/Capabilities.tsx`. */
+      Three capabilities, and the proof for each. The selection advances as
+      the band scrolls past, so the section reads itself out to a visitor who
+      only scrolls; the names are controls for one who would rather drive.
+      The heading sits inside the pinned screen so the whole band is centred
+      as one composition. See `components/resume/Capabilities.tsx`. */
   }
   <section
     id="resume"
     aria-labelledby="resume-h"
-    class="border-line scroll-mt-16 border-t py-24 lg:pt-32 lg:pb-0"
+    class="border-line cap-band border-t py-24 lg:py-0"
   >
-    <div class="shell">
-      <Reveal>
-        <SectionHead
-          index="02"
-          eyebrow="Experience"
-          title="Myself"
-          headingId="resume-h"
-          moreHref="/resume"
-          moreLabel="Full resume"
-        />
-      </Reveal>
+    <div class="cap-pin">
+      <div class="shell">
+        <Reveal>
+          <SectionHead
+            index="02"
+            eyebrow="Experience"
+            title="Myself"
+            headingId="resume-h"
+            moreHref="/resume"
+            moreLabel="Full resume"
+          />
+        </Reveal>
 
-      <div class="mt-14">
-        <Capabilities client:visible pillars={PILLARS} label="Capabilities" />
+        <div class="mt-12">
+          <Capabilities client:visible pillars={PILLARS} label="Capabilities" />
+        </div>
       </div>
     </div>
   </section>
@@ -280,30 +335,50 @@ const showcaseTools: ShowcaseTool[] = liveTools.map((t) => ({
   {
     /* ══ 03 · Tools ════════════════════════════════════════════════
       One instrument rather than ten cards: a roster, and a screen that plays
-      whichever tool is held. See `components/tools/ToolShowcase.tsx`. */
+      whichever tool is held. The heading sits inside the pinned screen, as in
+      Myself, so heading and kit are one composition and the kit can take the
+      height that would otherwise be empty above it.
+      See `components/tools/ToolShowcase.tsx`. */
   }
   <section
     id="tools"
     aria-labelledby="tools-h"
-    class="border-line scroll-mt-16 border-t py-24 lg:pt-32 lg:pb-0"
+    class="border-line tools-band border-t py-24 lg:py-0"
   >
-    <div class="shell">
-      <Reveal>
-        <SectionHead
-          index="03"
-          eyebrow="Tools"
-          title="AI dev kit, on the web"
-          headingId="tools-h"
-          moreHref="/tools"
-          moreLabel="All tools"
-        />
-      </Reveal>
+    <div class="tools-pin">
+      <div class="shell">
+        <Reveal>
+          <SectionHead
+            index="03"
+            eyebrow="Tools"
+            title="AI dev kit, on the web"
+            headingId="tools-h"
+            moreHref="/tools"
+            moreLabel="All tools"
+          />
+        </Reveal>
 
-      <div class="mt-12">
-        <ToolShowcase client:visible tools={showcaseTools} indexHref={href('/tools')} />
+        <div class="mt-10">
+          <ToolShowcase client:visible tools={showcaseTools} indexHref={href('/tools')} />
+        </div>
       </div>
     </div>
   </section>
+
+  {
+    /* ══ 04 · Posts ════════════════════════════════════════════════
+      Writing as a band of its own, not rows in the notes list. See
+      `components/posts/PostsBand.astro`. */
+  }
+  {
+    posts.length > 0 && (
+      <section id="posts" aria-labelledby="posts-h" class="border-line border-t py-24 lg:py-32">
+        <div class="shell">
+          <PostsBand posts={posts} index="04" headingId="posts-h" />
+        </div>
+      </section>
+    )
+  }
 
   {
     /* ══ Contact ═══════════════════════════════════════════════════
@@ -312,7 +387,7 @@ const showcaseTools: ShowcaseTool[] = liveTools.map((t) => ({
   }
   <section
     aria-labelledby="contact-h"
-    class="border-line relative scroll-mt-16 overflow-hidden border-t py-24 lg:py-32"
+    class="border-line relative overflow-hidden border-t py-24 lg:py-32"
   >
     {
       /*
@@ -363,21 +438,17 @@ const showcaseTools: ShowcaseTool[] = liveTools.map((t) => ({
     </div>
   </section>
   {
-    /* ══ 04 · Ask ══════════════════════════════════════════════════
+    /* ══ 05 · Ask ══════════════════════════════════════════════════
       The assistant belongs in the page: the one part of the site that
       answers questions should not be the one part you have to navigate away
       to reach. `client:visible`, so it costs nothing until it is scrolled
       to. `/chat` still exists for a full-page conversation. */
   }
-  <section
-    id="ask"
-    aria-labelledby="ask-h"
-    class="border-line scroll-mt-16 border-t py-24 lg:py-32"
-  >
+  <section id="ask" aria-labelledby="ask-h" class="border-line border-t py-24 lg:py-32">
     <div class="shell">
       <Reveal>
         <SectionHead
-          index="04"
+          index="05"
           eyebrow="Assistant"
           title="Ask about any of this"
           headingId="ask-h"
@@ -392,18 +463,18 @@ const showcaseTools: ShowcaseTool[] = liveTools.map((t) => ({
     </div>
   </section>
 
-  {/* ══ 05 · Resources ════════════════════════════════════════════ */}
+  {/* ══ 06 · Resources ════════════════════════════════════════════ */}
   {
     notes.length > 0 && (
       <section
         id="resources"
         aria-labelledby="resources-h"
-        class="border-line scroll-mt-16 border-t py-24 lg:py-32"
+        class="border-line border-t py-24 lg:py-32"
       >
         <div class="shell">
           <Reveal>
             <SectionHead
-              index="05"
+              index="06"
               eyebrow="Resources"
               title="Notes and references"
               headingId="resources-h"
@@ -421,7 +492,9 @@ const showcaseTools: ShowcaseTool[] = liveTools.map((t) => ({
                   rel={entry.external ? 'noopener noreferrer' : undefined}
                   class="group hover:text-accent flex items-baseline gap-5 py-5 transition-colors"
                 >
-                  <span class="text-faint font-mono text-[10px] uppercase">{entry.label}</span>
+                  <span class="text-faint w-16 shrink-0 font-mono text-[10px] uppercase">
+                    {entry.label}
+                  </span>
                   <span class="min-w-0 flex-1">
                     <span class="block text-base">{entry.title}</span>
                     <span class="text-muted mt-1 block text-sm leading-relaxed">
@@ -430,8 +503,8 @@ const showcaseTools: ShowcaseTool[] = liveTools.map((t) => ({
                   </span>
                   <Icon
                     name={entry.external ? 'arrow-up-right' : 'arrow-right'}
-                    size={14}
-                    class="text-faint group-hover:text-accent shrink-0 transition-colors"
+                    size={18}
+                    class="text-muted group-hover:text-accent shrink-0 self-center transition-[color,transform] duration-[var(--dur-base)] group-hover:translate-x-1"
                   />
                 </a>
               </Reveal>

@@ -49,7 +49,7 @@ function Turn({ message }: { message: ChatMessage }): ReactElement {
             <a
               key={citation.route}
               href={citation.route}
-              className="border-line text-muted hover:border-accent hover:text-accent rounded-[2px] border px-1.5 py-0.5 font-mono text-[10px] transition-colors"
+              className="border-line text-muted hover:border-accent-fill hover:text-accent rounded-[2px] border px-1.5 py-0.5 font-mono text-[10px] transition-colors"
             >
               {citation.title}
             </a>
@@ -158,7 +158,7 @@ export default function Conversation({
                     setPinned(true);
                     send(suggestion);
                   }}
-                  className="border-line text-muted hover:border-accent hover:text-accent rounded-[2px] border px-2.5 py-1.5 text-left font-mono text-[11px] transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+                  className="border-line text-muted hover:border-accent-fill hover:text-accent rounded-[2px] border px-2.5 py-1.5 text-left font-mono text-[11px] transition-colors disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {suggestion}
                 </button>

@@ -83,7 +83,7 @@ export default function RestStage({ href }: Props): React.ReactElement {
                     y1={64 + r0 * Math.sin(a)}
                     x2={64 + 63 * Math.cos(a)}
                     y2={64 + 63 * Math.sin(a)}
-                    className={i / 60 <= progress && progress > 0 ? 'stroke-accent' : 'stroke-line'}
+                    className={i / 60 <= progress && progress > 0 ? 'stroke-accent-fill' : 'stroke-line'}
                     strokeWidth={major ? 1.1 : 0.6}
                   />
                 );
@@ -166,7 +166,7 @@ export default function RestStage({ href }: Props): React.ReactElement {
                   <React.Fragment key={c}>
                     <span className="bg-raised h-full rounded-l-sm" style={{ flex: LENGTH.work }} />
                     <span
-                      className="bg-accent h-full rounded-r-sm"
+                      className="bg-accent-fill h-full rounded-r-sm"
                       style={{ flex: LENGTH.break }}
                     />
                   </React.Fragment>
@@ -190,7 +190,7 @@ export default function RestStage({ href }: Props): React.ReactElement {
                 <span className="bg-raised inline-block size-2.5 rounded-[2px]" /> focus
               </span>
               <span className="flex items-center gap-1.5">
-                <span className="bg-accent inline-block size-2.5 rounded-[2px]" /> break
+                <span className="bg-accent-fill inline-block size-2.5 rounded-[2px]" /> break
               </span>
               <span className="flex items-center gap-1.5">
                 <span className="bg-fg inline-block h-2.5 w-[2px]" /> now

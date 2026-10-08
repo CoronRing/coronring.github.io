@@ -346,7 +346,7 @@ export default function FeatherRingAgentDemo({ title: _title }: DemoProps): Reac
                       &gt; Extracted AST nodes &amp; sandbox evaluation clean.
                     </p>
                   </div>
-                  <div className="absolute right-4 bottom-3 size-2 animate-ping rounded-full bg-[var(--c-accent)]" />
+                  <div className="absolute right-4 bottom-3 size-2 animate-ping rounded-full bg-[var(--c-accent-fill)]" />
                 </div>
               </div>
             )}
@@ -362,7 +362,7 @@ export default function FeatherRingAgentDemo({ title: _title }: DemoProps): Reac
                   </div>
                   <div className="h-3 w-full overflow-hidden rounded-full border border-[var(--c-line)] bg-[var(--c-raised)]">
                     <div
-                      className="h-full bg-[var(--c-accent)] transition-all duration-500"
+                      className="h-full bg-[var(--c-accent-fill)] transition-all duration-500"
                       style={{ width: '88%' }}
                     />
                   </div>
@@ -426,7 +426,7 @@ export default function FeatherRingAgentDemo({ title: _title }: DemoProps): Reac
                     onClick={() => setActiveStep(idx)}
                     className={`cursor-pointer rounded-sm border p-2.5 transition-all ${
                       isActive
-                        ? 'border-[var(--c-accent)] bg-[var(--c-accent-soft)] shadow-sm'
+                        ? 'border-[var(--c-accent-fill)] bg-[var(--c-accent-soft)] shadow-sm'
                         : isPassed
                           ? 'border-[var(--c-line)] bg-[var(--c-raised)]/60 text-[var(--c-text-muted)]'
                           : 'border-dashed border-[var(--c-line)] opacity-50'

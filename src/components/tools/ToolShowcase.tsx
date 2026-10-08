@@ -4,6 +4,7 @@ import McpStage from './stages/McpStage';
 import StringStage from './stages/StringStage';
 import RestStage from './stages/RestStage';
 import OtherStage from './stages/OtherStage';
+import ToolIcon from './ToolIcon';
 
 export interface ShowcaseTool {
   readonly slug: string;
@@ -22,7 +23,6 @@ interface CuratedTool {
   id: string;
   index: string;
   name: string;
-  tag: string;
   slug: string;
   href: string;
   offline: boolean;
@@ -34,7 +34,6 @@ const CURATED_TOOLS: CuratedTool[] = [
     id: 'token-counter',
     index: '01',
     name: 'Token Counter',
-    tag: 'Context budget & 2,400 models',
     slug: 'token-counter',
     href: '/tools/token-counter',
     offline: false,
@@ -44,7 +43,6 @@ const CURATED_TOOLS: CuratedTool[] = [
     id: 'mcp-tester',
     index: '02',
     name: 'MCP Tester',
-    tag: 'Protocol handshake & inspector',
     slug: 'mcp-tester',
     href: '/tools/mcp-tester',
     offline: false,
@@ -54,7 +52,6 @@ const CURATED_TOOLS: CuratedTool[] = [
     id: 'string-kit',
     index: '03',
     name: 'String Kit',
-    tag: 'HTML to Markdown & 30+ transforms',
     slug: 'string-kit',
     href: '/tools/string-kit',
     offline: true,
@@ -64,7 +61,6 @@ const CURATED_TOOLS: CuratedTool[] = [
     id: 'rest-reminder',
     index: '04',
     name: 'Rest Reminder',
-    tag: 'Unthrottled ergonomic break clock',
     slug: 'rest-reminder',
     href: '/tools/rest-reminder',
     offline: true,
@@ -74,17 +70,26 @@ const CURATED_TOOLS: CuratedTool[] = [
     id: 'other',
     index: '05',
     name: 'Other Instruments',
-    tag: 'Diff, Chunking, WASM & 7 more',
     slug: 'all-tools',
     href: '/tools',
     offline: true,
-    statusLabel: '11 Live Instruments',
+    statusLabel: 'Live instruments',
   },
 ];
 
-export default function ToolShowcase({ indexHref }: Props): React.ReactElement {
+export default function ToolShowcase({ tools = [], indexHref }: Props): React.ReactElement {
   const [active, setActive] = useState(0);
-  const bandRef = useRef<HTMLDivElement>(null);
+  const rootRef = useRef<HTMLDivElement>(null);
+  /*
+   * The scroll range is the page's `.tools-band`, which also holds the section
+   * heading so the pinned screen is heading and kit together. Falls back to
+   * this island alone when rendered without that wrapper.
+   */
+  const band = useCallback(
+    (): HTMLElement | null =>
+      rootRef.current?.closest<HTMLElement>('.tools-band') ?? rootRef.current,
+    [],
+  );
   const itemRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const count = CURATED_TOOLS.length;
 
@@ -94,14 +99,14 @@ export default function ToolShowcase({ indexHref }: Props): React.ReactElement {
    * viewport to the point its bottom does.
    */
   useEffect(() => {
-    const band = bandRef.current;
-    if (!band) return;
+    const el = band();
+    if (!el) return;
     if (!window.matchMedia('(min-width: 64rem)').matches) return;
 
     let raf = 0;
     const measure = (): void => {
       raf = 0;
-      const rect = band.getBoundingClientRect();
+      const rect = el.getBoundingClientRect();
       const span = rect.height - window.innerHeight;
       if (span <= 0) return;
       // Only drive active frame when scrolling within the pinned band
@@ -121,7 +126,7 @@ export default function ToolShowcase({ indexHref }: Props): React.ReactElement {
       window.removeEventListener('resize', onScroll);
       if (raf) cancelAnimationFrame(raf);
     };
-  }, [count]);
+  }, [band, count]);
 
   /** Click on indicator or item: switch immediately and smooth scroll if desktop */
   const go = useCallback(
@@ -129,9 +134,9 @@ export default function ToolShowcase({ indexHref }: Props): React.ReactElement {
       const i = ((next % count) + count) % count;
       setActive(i);
 
-      const band = bandRef.current;
-      if (band && window.matchMedia('(min-width: 64rem)').matches) {
-        const rect = band.getBoundingClientRect();
+      const el = band();
+      if (el && window.matchMedia('(min-width: 64rem)').matches) {
+        const rect = el.getBoundingClientRect();
         const span = rect.height - window.innerHeight;
         if (span > 0) {
           const top = window.scrollY + rect.top + span * ((i + 0.1) / count);
@@ -140,7 +145,7 @@ export default function ToolShowcase({ indexHref }: Props): React.ReactElement {
       }
       if (focus) itemRefs.current[i]?.focus();
     },
-    [count],
+    [band, count],
   );
 
   const onKeyDown = useCallback(
@@ -172,8 +177,8 @@ export default function ToolShowcase({ indexHref }: Props): React.ReactElement {
   const currentTool = CURATED_TOOLS[active] ?? CURATED_TOOLS[0]!;
 
   return (
-    <div ref={bandRef} className="tools-band">
-      <div className="tools-pin w-full">
+    <div ref={rootRef} className="w-full">
+      <div className="w-full">
         <div className="kit shadow-panel border-line grid w-full gap-0 border lg:grid-cols-[minmax(0,19rem)_minmax(0,1fr)]">
           {/* ── Left Rail / Roster ────────────────────────────────────── */}
           <div
@@ -197,7 +202,7 @@ export default function ToolShowcase({ indexHref }: Props): React.ReactElement {
                     aria-selected={on}
                     tabIndex={on ? 0 : -1}
                     onClick={() => go(i)}
-                    className={`kit-item group relative flex w-full items-start gap-3 p-4 text-left transition-colors sm:p-5 ${
+                    className={`kit-item group relative flex w-full items-center gap-3 p-4 text-left transition-colors sm:px-5 lg:py-5 ${
                       on ? 'bg-raised/70' : 'hover:bg-raised/30'
                     }`}
                   >
@@ -210,26 +215,59 @@ export default function ToolShowcase({ indexHref }: Props): React.ReactElement {
                     />
 
                     <span
-                      className={`pt-0.5 font-mono text-xs tracking-wider tabular-nums transition-colors ${
+                      className={`font-mono text-xs tracking-wider tabular-nums transition-colors ${
                         on ? 'text-accent font-semibold' : 'text-faint group-hover:text-fg'
                       }`}
                     >
                       {item.index}
                     </span>
 
-                    <div className="min-w-0 flex-1">
-                      <p
-                        className={`font-mono text-sm font-medium transition-colors sm:text-base ${
-                          on ? 'text-fg font-semibold' : 'text-muted group-hover:text-fg'
-                        }`}
+                    <span
+                      className={`flex min-w-0 flex-1 items-center gap-3 transition-colors ${
+                        on ? 'text-fg' : 'text-muted group-hover:text-fg'
+                      }`}
+                    >
+                      <ToolIcon
+                        slug={item.slug}
+                        size={22}
+                        className={`shrink-0 transition-colors ${on ? 'text-accent' : ''}`}
+                      />
+                      <span
+                        className={`font-mono text-sm sm:text-base ${on ? 'font-semibold' : 'font-medium'}`}
                       >
                         {item.name}
-                      </p>
-                      <p className="text-faint mt-0.5 truncate text-xs">{item.tag}</p>
-                    </div>
+                      </span>
+                    </span>
                   </button>
                 );
               })}
+
+              {/*
+              The way to the whole kit, in the roster itself. The last stage
+              has a link too, but only for someone who scrolls that far.
+            */}
+              <div className="p-4">
+                <a
+                  href={indexHref}
+                  className="bg-accent-fill text-accent-on-fill group flex h-11 w-full items-center justify-between px-4 text-sm font-semibold transition-opacity hover:opacity-85"
+                >
+                  <span>{tools.length > 0 ? `All ${tools.length} tools` : 'All tools'}</span>
+                  <svg
+                    viewBox="0 0 16 16"
+                    aria-hidden="true"
+                    className="size-3.5 transition-transform duration-[var(--dur-base)] group-hover:translate-x-[3px]"
+                  >
+                    <path
+                      d="M3 8 H13 M9 4 L13 8 L9 12"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.6"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                </a>
+              </div>
             </div>
 
             {/* Scrub Indicator & Step Counter */}
@@ -264,6 +302,7 @@ export default function ToolShowcase({ indexHref }: Props): React.ReactElement {
             <div className="border-line bg-surface/80 flex items-center justify-between border-b px-4 py-3 backdrop-blur-xs sm:px-6">
               <div className="flex items-center gap-3">
                 <span aria-hidden="true" className="kit-led" />
+                <ToolIcon slug={currentTool.slug} size={16} className="text-fg" />
                 <span className="text-fg font-mono text-xs font-semibold tracking-wider uppercase">
                   {currentTool.name}
                 </span>
@@ -275,7 +314,7 @@ export default function ToolShowcase({ indexHref }: Props): React.ReactElement {
               <div className="text-faint flex items-center gap-2 font-mono text-[11px]">
                 <span
                   className={`size-1.5 rounded-full ${
-                    currentTool.offline ? 'bg-[var(--c-ok)]' : 'bg-accent'
+                    currentTool.offline ? 'bg-[var(--c-ok)]' : 'bg-accent-fill'
                   }`}
                 />
                 <span>{currentTool.statusLabel}</span>
@@ -285,7 +324,7 @@ export default function ToolShowcase({ indexHref }: Props): React.ReactElement {
             {/* Dynamic Stage Body */}
             <div
               key={currentTool.id}
-              className="tool-stage-panel flex min-w-0 flex-col p-4 sm:p-6 lg:h-[35rem] lg:overflow-y-auto lg:p-7"
+              className="tool-stage-panel flex min-w-0 flex-col p-4 sm:p-6 lg:h-[clamp(35rem,calc(100dvh-19rem),54rem)] lg:overflow-y-auto lg:p-8"
             >
               {active === 0 && <TokenStage href={currentTool.href} />}
               {active === 1 && <McpStage href={currentTool.href} />}

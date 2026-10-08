@@ -187,15 +187,12 @@
 /*
  * The "Myself" band.
  *
- * From lg it is taller than the screen with its content pinned, so scrolling
- * past it steps through the three capabilities. Below lg it is an ordinary
- * block and the indicator is the only control.
+ * From lg it is taller than the screen and its screen, heading included, is
+ * pinned and centred, so scrolling past it steps through the three
+ * capabilities. Below lg it is an ordinary block and the names are the only
+ * control.
  */
 @layer components {
-  .cap-pin {
-    align-items: start;
-  }
-
   @media (min-width: 64rem) {
     .cap-band {
       /* One screen per capability, plus the screen the pin itself occupies. */
@@ -207,31 +204,107 @@
       display: grid;
       min-height: 100dvh;
       align-content: center;
-      padding-block: 4rem;
+      padding-block: 5rem;
     }
   }
 
-  /* Keyed on the pillar, so a change re-enters rather than swapping text. */
-  .cap-panel > * {
-    animation: cap-in var(--dur-reveal) var(--ease-out) both;
+  /* ── The accordion ─────────────────────────────────────────────── */
+
+  .cap-item {
+    position: relative;
+    padding-block: 1.1rem;
+    padding-left: 1.5rem;
+    border-top: var(--hairline) solid var(--c-line);
   }
-  .cap-panel > *:nth-child(2) {
-    animation-delay: 60ms;
+  .cap-item:last-child {
+    border-bottom: var(--hairline) solid var(--c-line);
   }
-  .cap-panel > *:nth-child(3) {
-    animation-delay: 120ms;
+  /* The active marker: the same left bar the rail and the tools roster use. */
+  .cap-item::before {
+    content: '';
+    position: absolute;
+    inset-block: -1px;
+    left: 0;
+    width: 3px;
+    background: var(--c-accent-fill);
+    transform: scaleY(0);
+    transform-origin: top;
+    transition: transform var(--dur-base) var(--ease-out);
   }
-  .cap-panel > *:nth-child(4) {
-    animation-delay: 180ms;
+  .cap-item[data-active]::before {
+    transform: scaleY(1);
   }
 
-  .cap-evidence > * {
+  .cap-trigger {
+    display: flex;
+    width: 100%;
+    align-items: baseline;
+    gap: 1rem;
+    text-align: left;
+    cursor: pointer;
+  }
+  /* Fixed width, so the body below can indent to exactly where the title starts. */
+  .cap-index {
+    flex: none;
+    width: 1.5rem;
+    color: var(--c-text-faint);
+    transition: color var(--dur-base) var(--ease-out);
+  }
+  .cap-title {
+    color: var(--c-text-faint);
+    transition: color var(--dur-base) var(--ease-out);
+  }
+  .cap-trigger:hover .cap-title,
+  .cap-trigger:focus-visible .cap-title {
+    color: var(--c-text-muted);
+  }
+  .cap-item[data-active] .cap-index {
+    color: var(--c-accent);
+  }
+  .cap-item[data-active] .cap-title {
+    color: var(--c-text);
+  }
+
+  /* Height animates through the grid row, so no element needs a fixed size. */
+  .cap-body {
+    display: grid;
+    grid-template-rows: 0fr;
+    padding-left: 2.5rem; /* .cap-index width + .cap-trigger gap */
+    visibility: hidden;
+    transition:
+      grid-template-rows var(--dur-base) var(--ease-out),
+      visibility 0s linear var(--dur-base);
+  }
+  .cap-body > * {
+    overflow: hidden;
+  }
+  .cap-item[data-active] .cap-body {
+    grid-template-rows: 1fr;
+    visibility: visible;
+    transition: grid-template-rows var(--dur-base) var(--ease-out);
+  }
+
+  /*
+   * A school or company mark in the proof column. The file is a mask, so the
+   * mark takes the text colour in both themes. Held to the figures' cap
+   * height and never wider than the column the figures use.
+   */
+  .cap-logo {
+    display: block;
+    height: 2.75rem;
+    max-width: 6.5rem;
+    background-color: var(--c-text);
+    mask: var(--logo) left center / contain no-repeat;
+  }
+
+  /* Keyed on the pillar, so a change re-enters rather than swapping text. */
+  .cap-proof > * {
     animation: cap-in var(--dur-reveal) var(--ease-out) both;
   }
-  .cap-evidence > *:nth-child(2) {
+  .cap-proof > *:nth-child(2) {
     animation-delay: 80ms;
   }
-  .cap-evidence > *:nth-child(3) {
+  .cap-proof > *:nth-child(3) {
     animation-delay: 160ms;
   }
 }
@@ -248,20 +321,23 @@
 }
 
 /*
- * The Scroll-Pinned Tools Band.
+ * The scroll-pinned tools band.
  *
- * Sticky pin on desktop, stepping through the 5 curated tool stages as you scroll.
+ * `.tools-band` is the section in the page and `.tools-pin` its sticky screen,
+ * which holds the heading as well as the kit, so the pinned screen is one
+ * composition instead of a kit floating a screen-height below its title. The
+ * island finds the band with `closest()`. Scrolling steps through the five
+ * stages on desktop.
+ *
+ * Every stage has one height from lg, so switching tools never resizes the
+ * panel and typing never moves the page. The height is a utility on the
+ * panel in ToolShowcase.tsx (a flex item, where a components-layer height
+ * loses to flex sizing) and grows with the viewport: 100dvh less the heading,
+ * the panel's header bar and the pin's padding (about 19rem), never under
+ * 35rem and never over 54rem.
  */
 @layer components {
-  .tools-pin {
-    align-items: start;
-  }
-
   @media (min-width: 64rem) {
-    /* Stretch, not start: in a column flexbox a start-aligned child shrinks to its content. */
-    .tools-pin {
-      align-items: stretch;
-    }
     .tools-band {
       min-height: 290vh;
     }
@@ -279,12 +355,6 @@
   .tool-stage-panel {
     animation: tool-stage-in var(--dur-reveal) var(--ease-out) both;
   }
-
-  /*
-   * Every stage has one height from lg (`lg:h-[35rem]` on the panel in
-   * ToolShowcase.tsx, a utility so nothing in the flex column overrides it), so
-   * switching tools never resizes the panel and typing never moves the page.
-   */
 }
 
 @keyframes tool-stage-in {

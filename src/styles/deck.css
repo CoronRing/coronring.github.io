@@ -675,7 +675,7 @@
     border-style: dashed;
   }
   .deck-token[aria-selected='true'] .deck-token-disc {
-    border-color: var(--c-accent);
+    border-color: var(--c-accent-fill);
     transform: scale(1.08);
   }
 
@@ -935,7 +935,7 @@
     opacity: 0.55;
   }
   .deck-edge-live {
-    stroke: var(--c-accent);
+    stroke: var(--c-accent-fill);
     stroke-width: 1.5;
     opacity: 1;
     stroke-dasharray: 5 5;

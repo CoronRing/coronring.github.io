@@ -170,7 +170,7 @@ export function Chips<T extends string>({
               onClick={() => onChange(option.value)}
               className={`inline-flex items-center gap-1.5 border px-2.5 py-1.5 font-mono text-[11px] tracking-wide whitespace-nowrap transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
                 on
-                  ? 'border-accent text-accent bg-accent-soft font-semibold'
+                  ? 'border-accent-fill text-accent bg-accent-soft font-semibold'
                   : 'border-line/90 text-muted hover:border-fg hover:text-fg'
               }`}
             >

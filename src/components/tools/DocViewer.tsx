@@ -320,7 +320,7 @@ export default function DocViewer({
               href={resolvedDoc.sourceUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 rounded-sm border border-[var(--c-line)] bg-[var(--c-raised)] px-2.5 py-1 font-mono text-[11px] text-[var(--c-text-muted)] transition-colors hover:border-[var(--c-accent)] hover:text-[var(--c-accent)]"
+              className="inline-flex items-center gap-1 rounded-sm border border-[var(--c-line)] bg-[var(--c-raised)] px-2.5 py-1 font-mono text-[11px] text-[var(--c-text-muted)] transition-colors hover:border-[var(--c-accent-fill)] hover:text-[var(--c-accent)]"
             >
               {resolvedDoc.isGitHub ? 'GitHub ↗' : 'Source ↗'}
             </a>
@@ -329,7 +329,7 @@ export default function DocViewer({
                 href={resolvedDoc.rawUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 rounded-sm border border-[var(--c-line)] bg-[var(--c-raised)] px-2.5 py-1 font-mono text-[11px] text-[var(--c-text-muted)] transition-colors hover:border-[var(--c-accent)] hover:text-[var(--c-accent)]"
+                className="inline-flex items-center gap-1 rounded-sm border border-[var(--c-line)] bg-[var(--c-raised)] px-2.5 py-1 font-mono text-[11px] text-[var(--c-text-muted)] transition-colors hover:border-[var(--c-accent-fill)] hover:text-[var(--c-accent)]"
               >
                 Raw ↗
               </a>
@@ -389,7 +389,7 @@ export default function DocViewer({
                   navigateToDoc(preset.url);
                   setShowInputBar(false);
                 }}
-                className="group inline-flex items-center gap-1 rounded-sm border border-[var(--c-line)] bg-[var(--c-raised)] px-2 py-0.5 font-mono text-[10.5px] text-[var(--c-text-muted)] transition-colors hover:border-[var(--c-accent)] hover:text-[var(--c-text)]"
+                className="group inline-flex items-center gap-1 rounded-sm border border-[var(--c-line)] bg-[var(--c-raised)] px-2 py-0.5 font-mono text-[10.5px] text-[var(--c-text-muted)] transition-colors hover:border-[var(--c-accent-fill)] hover:text-[var(--c-text)]"
               >
                 <span>{preset.label}</span>
                 <span className="text-[9.5px] text-[var(--c-text-faint)] group-hover:text-[var(--c-accent)]">
@@ -509,7 +509,7 @@ export default function DocViewer({
       {/* ── Content Viewers ──────────────────────────────────────────────── */}
       {loading && (
         <div className="flex flex-col items-center justify-center rounded-md border border-[var(--c-line)] bg-[var(--c-surface)] p-16">
-          <span className="mb-3 size-5 animate-spin rounded-full border-2 border-[var(--c-accent)] border-t-transparent" />
+          <span className="mb-3 size-5 animate-spin rounded-full border-2 border-[var(--c-accent-fill)] border-t-transparent" />
           <span className="font-mono text-xs text-[var(--c-text-muted)]">
             Fetching and rendering document...
           </span>

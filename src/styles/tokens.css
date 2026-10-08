@@ -81,6 +81,8 @@
   /* ── Loading veil: DARK over the light theme (deliberate contrast). ─ */
   --veil-bg: #0a0a0b;
   --veil-fg: #f2f2f2;
+  /* The counter's numerals: yellow on the dark veil, ink on the light one. */
+  --veil-accent: #fffa00;
 
   /* ── Effects ──────────────────────────────────────────────────────── */
   --c-overlay: rgb(25 25 25 / 0.5);
@@ -109,7 +111,7 @@
   --rail-w: 4.5rem;
   --rail-w-open: 16rem;
 
-  --shell-max: 88rem;
+  --shell-max: 100rem; /* the widest band; tools and the deck use all of it on a large monitor */
   --content-max: 68rem;
   --prose-max: 36rem; /* deliberately narrow — one paragraph, not an essay */
   --gutter: 1.25rem;
@@ -129,7 +131,7 @@
   --dur-base: 220ms;
   --dur-slow: 420ms;
   --dur-reveal: 700ms;
-  --dur-veil: 900ms;
+  --dur-veil: 720ms;
 }
 
 @media (min-width: 48rem) {
@@ -151,12 +153,18 @@
  */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme='light']) {
+    /*
+     * Panels sit a clear step above the floor (#1b1b1e on #0a0a0b), so a
+     * widget reads as an object on the page rather than a hole in it. The
+     * floor grid is half strength for the same reason: it is texture, and at
+     * full strength it competed with the panels' own hairlines.
+     */
     --c-ground: #0a0a0b;
-    --c-surface: #131315;
-    --c-raised: #1c1c1f;
+    --c-surface: #1b1b1e;
+    --c-raised: #242428;
     --c-sunken: #070708;
 
-    --c-line: #2a2a2e;
+    --c-line: #303035;
     --c-line-strong: #4a4a51;
     --c-line-faint: #1a1a1d;
 
@@ -186,11 +194,12 @@
     /* Loading veil: LIGHT over the dark theme. */
     --veil-bg: #f2f2f2;
     --veil-fg: #191919;
+    --veil-accent: #191919;
 
     --c-overlay: rgb(0 0 0 / 0.72);
     --shadow-panel: 0 1px 0 rgb(255 255 255 / 0.04) inset, 0 12px 32px -18px rgb(0 0 0 / 0.9);
     --shadow-lift: 0 1px 0 rgb(255 255 255 / 0.06) inset, 0 24px 56px -22px rgb(0 0 0 / 1);
-    --grid-alpha: 1;
+    --grid-alpha: 0.5;
     --noise-alpha: 0.04;
     --bloom-alpha: 0.5;
     --deck-ghost-alpha: 0.15;
@@ -200,11 +209,11 @@
 /* Explicit dark choice must beat the light default in both directions. */
 :root[data-theme='dark'] {
   --c-ground: #0a0a0b;
-  --c-surface: #131315;
-  --c-raised: #1c1c1f;
+  --c-surface: #1b1b1e;
+  --c-raised: #242428;
   --c-sunken: #070708;
 
-  --c-line: #2a2a2e;
+  --c-line: #303035;
   --c-line-strong: #4a4a51;
   --c-line-faint: #1a1a1d;
 
@@ -232,11 +241,12 @@
 
   --veil-bg: #f2f2f2;
   --veil-fg: #191919;
+  --veil-accent: #191919;
 
   --c-overlay: rgb(0 0 0 / 0.72);
   --shadow-panel: 0 1px 0 rgb(255 255 255 / 0.04) inset, 0 12px 32px -18px rgb(0 0 0 / 0.9);
   --shadow-lift: 0 1px 0 rgb(255 255 255 / 0.06) inset, 0 24px 56px -22px rgb(0 0 0 / 1);
-  --grid-alpha: 1;
+  --grid-alpha: 0.5;
   --noise-alpha: 0.04;
   --bloom-alpha: 0.5;
   --deck-ghost-alpha: 0.15;

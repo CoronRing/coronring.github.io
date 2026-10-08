@@ -193,7 +193,7 @@ export default function ChunkVisualizer(): React.ReactElement {
                   setText(sample.text);
                   setFocus(null);
                 }}
-                className="rounded border border-[var(--c-line)] bg-[var(--c-card)] px-2 py-0.5 font-mono text-[11px] text-[var(--c-text-muted)] transition-colors hover:border-[var(--c-accent)] hover:text-[var(--c-text)]"
+                className="rounded border border-[var(--c-line)] bg-[var(--c-card)] px-2 py-0.5 font-mono text-[11px] text-[var(--c-text-muted)] transition-colors hover:border-[var(--c-accent-fill)] hover:text-[var(--c-text)]"
               >
                 {sample.label}
               </button>
@@ -227,10 +227,10 @@ export default function ChunkVisualizer(): React.ReactElement {
                 onClick={() => setFocus(focus === c.index ? null : c.index)}
                 className={`rounded px-1.5 py-0.5 font-mono text-[10.5px] transition-colors ${
                   focus === c.index
-                    ? 'bg-[var(--c-accent-fill)] font-bold text-[var(--c-accent-on-fill)] shadow-xs ring-1 ring-[var(--c-accent)]'
+                    ? 'bg-[var(--c-accent-fill)] font-bold text-[var(--c-accent-on-fill)] shadow-xs ring-1 ring-[var(--c-accent-fill)]'
                     : c.cutsSentence
                       ? 'border border-[var(--c-warn)] bg-[color-mix(in_srgb,var(--c-warn)_15%,transparent)] font-bold text-[var(--c-warn)] hover:bg-[color-mix(in_srgb,var(--c-warn)_25%,transparent)]'
-                      : 'border border-[var(--c-line)] bg-[var(--c-card)] text-[var(--c-text-muted)] hover:border-[var(--c-accent)] hover:text-[var(--c-text)]'
+                      : 'border border-[var(--c-line)] bg-[var(--c-card)] text-[var(--c-text-muted)] hover:border-[var(--c-accent-fill)] hover:text-[var(--c-text)]'
                 }`}
                 title={`Chunk #${c.index + 1} (${c.end - c.start}c, ${c.tokens} tok)`}
               >
@@ -373,7 +373,7 @@ export default function ChunkVisualizer(): React.ReactElement {
                 }}
                 className={`rounded border px-2.5 py-1.5 text-left transition-all ${
                   entry.id === strategy
-                    ? 'border-[var(--c-accent)] bg-[var(--c-accent-soft)] shadow-sm'
+                    ? 'border-[var(--c-accent-fill)] bg-[var(--c-accent-soft)] shadow-sm'
                     : 'border-[var(--c-line)] bg-[var(--c-sunken)] hover:border-[var(--c-text-muted)]'
                 }`}
               >
@@ -730,7 +730,7 @@ function SizeHistogram({
         {/* Budget marker */}
         <div
           aria-hidden="true"
-          className="pointer-events-none absolute inset-y-0 border-l border-dashed border-[var(--c-accent)]"
+          className="pointer-events-none absolute inset-y-0 border-l border-dashed border-[var(--c-accent-fill)]"
           style={{ left: `${Math.min(100, (budget / max) * 100)}%` }}
         />
         {counts.map((count, i) => (

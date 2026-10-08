@@ -734,7 +734,7 @@ function Templates({
                         onClick={() => onPick(template)}
                         className={`rounded-sm border px-2 py-1 font-mono text-[11px] transition-colors ${
                           template.pattern === active
-                            ? 'border-[var(--c-accent)] bg-[var(--c-accent-soft)] text-[var(--c-accent)]'
+                            ? 'border-[var(--c-accent-fill)] bg-[var(--c-accent-soft)] text-[var(--c-accent)]'
                             : 'border-[var(--c-line)] text-[var(--c-text-muted)] hover:border-[var(--c-line-strong)] hover:text-[var(--c-text)]'
                         }`}
                       >

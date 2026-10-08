@@ -82,14 +82,16 @@ Zod-validated in `src/content.config.ts`, so a bad field fails the build.
 
 **A blog post.** A Markdown or MDX file in `src/content/posts/`, with
 `title`, `summary` (at most 220 characters), `published`, and optionally
-`updated`, `tags`, `header` and `draft`. It renders at `/blog/<file name>`, appears on `/blog`, at
-the top of `/resources` and in the home page's notes band, and reaches the chat
+`updated`, `tags`, `header`, `image` and `draft`. It renders at `/blog/<file name>`, appears on `/blog`, at
+the top of `/resources` and in the home page's posts band (the newest eight), and reaches the chat
 assistant through the corpus on the next build. Use `##` headings: they become
 the contents list beside the post. Tables need nothing special; they scroll
 sideways on a phone. For charts, write the post as `.mdx` and import figure
 components from `src/components/posts/` (`Figure`, `LegendKey`, `StatRow`, and
 per-post charts such as `venue-advice/`); a full-width graphic under the title
-is a named `header`, registered in `src/components/posts/PostHeader.astro`.
+is a named `header`, registered in `src/components/posts/PostHeader.astro`. `image` is the cover: a
+1200×630 PNG under `public/og/`, used for social previews and on the posts band; without one the band
+draws a generated cover. Each post also gets a colour hashed from its title (`src/lib/post-tint.ts`), which lights its cover and marks its card; changing a title changes its colour.
 Visitor copy rules (no em dashes) apply, see `docs/.temp/DESIGN.md` § 12.1.
 
 **An interactive demo.** Build the island in `src/components/demos/`, register

@@ -693,7 +693,7 @@ export function BoxBreathingPacer(): React.ReactElement {
           className="relative z-10 flex size-36 flex-col items-center justify-center rounded-full border-2 bg-[var(--c-surface)] shadow-lg transition-transform duration-100 ease-out"
           style={{
             transform: `scale(${scale})`,
-            borderColor: warm ? 'var(--c-accent)' : 'var(--c-ok)',
+            borderColor: warm ? 'var(--c-accent-fill)' : 'var(--c-ok)',
           }}
         >
           <span className="font-mono text-base font-bold tracking-wider text-[var(--c-text)]">
