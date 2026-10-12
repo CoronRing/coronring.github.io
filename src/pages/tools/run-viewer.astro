@@ -1,0 +1,97 @@
+---
+/**
+ * Run Viewer tool page: Railtracks runs, drawn by the visualizer from npm.
+ */
+import ToolLayout from '../../layouts/ToolLayout.astro';
+import RunViewer from '../../components/tools/RunViewer';
+import { href } from '../../lib/url';
+---
+
+<ToolLayout slug="run-viewer">
+  <RunViewer client:load />
+
+  <Fragment slot="about">
+    <div class="grid gap-6 md:grid-cols-3">
+      <div class="hud-card p-5">
+        <h3 class="eyebrow text-accent mb-2">01 · The visualizer, live</h3>
+        <p class="text-muted text-sm leading-relaxed">
+          The map is drawn by Railtracks' own visualizer, fetched from npm when the page opens. Pick
+          the Railtracks version that wrote the log and the visualizer published alongside it is
+          chosen for you, or pick a visualizer directly.
+        </p>
+        <div class="text-faint mt-3 font-mono text-[11px]">
+          Both version lists are read from npm and PyPI on every visit.
+        </div>
+      </div>
+
+      <div class="hud-card p-5">
+        <h3 class="eyebrow text-accent mb-2">02 · Either log format</h3>
+        <p class="text-muted text-sm leading-relaxed">
+          Session files (<code>sessions/*.json</code>) open as written. Event streams (<code
+            >events/*.jsonl</code
+          >), which current Railtracks writes by default, are rebuilt into the same runs: one per
+          top-level call, every tool and model call attached to the node that made it.
+        </p>
+        <div class="text-faint mt-3 font-mono text-[11px]">
+          Checked against 210 sessions recorded in both formats: 199 identical.
+        </div>
+      </div>
+
+      <div class="hud-card p-5">
+        <h3 class="eyebrow text-accent mb-2">03 · A folder, watched</h3>
+        <p class="text-muted text-sm leading-relaxed">
+          Open a project folder and every run in it is listed, newest first. In Chrome and Edge the
+          folder stays open: new runs appear as your agent writes them, and a run in progress
+          redraws as it grows.
+        </p>
+        <div class="text-faint mt-3 font-mono text-[11px]">
+          Read access to that one folder, granted by you, revocable in the browser.
+        </div>
+      </div>
+    </div>
+
+    <div class="hud-card border-warn mt-6 border-l-2 p-5">
+      <h3 class="eyebrow text-warn mb-3">Operational Limits & Assumptions</h3>
+      <ul class="text-muted grid gap-3 text-xs leading-relaxed sm:grid-cols-2">
+        <li class="flex gap-2">
+          <span class="text-accent font-mono font-bold">·</span>
+          <span
+            ><strong>Version matching is by date:</strong> a Railtracks release does not pin a visualizer,
+            so the match is the newest one published on or before that release, which is what
+            <code>railtracks viz</code> would have downloaded that day.</span
+          >
+        </li>
+        <li class="flex gap-2">
+          <span class="text-accent font-mono font-bold">·</span>
+          <span
+            ><strong>V2 is not on npm yet:</strong> the event-stream visualizer behind
+            <code>railtracks viz --beta</code> has not been published. It appears in the list on its own
+            when it is, and the V1 visualizer draws both formats until then.</span
+          >
+        </li>
+        <li class="flex gap-2">
+          <span class="text-accent font-mono font-bold">·</span>
+          <span
+            ><strong>Middleware and context are not drawn:</strong> the V1 map has no place for them,
+            so those events are read but not shown. An event stream missing lines (a crash mid-write)
+            draws what survived.</span
+          >
+        </li>
+        <li class="flex gap-2">
+          <span class="text-accent font-mono font-bold">·</span>
+          <span
+            ><strong>Sandboxed, and restyled from outside:</strong> the visualizer runs in a frame with
+            no access to this site. The Site style recolours it through its own theme and a layer of CSS,
+            so a future build may draw parts of itself in its original colours.</span
+          >
+        </li>
+      </ul>
+    </div>
+
+    <p>
+      Railtracks is the agent framework I designed at Railtown AI. The <a
+        href={href('/blog/introducing-railtracks/')}>introduction</a
+      > covers what it records and why.
+    </p>
+  </Fragment>
+</ToolLayout>

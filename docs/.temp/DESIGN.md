@@ -1,13 +1,15 @@
 # coronring.github.io — Design Document
 
-**Version:** 0.20.0
-**Status:** Complete — the posts band becomes a wheel, and every post has its own light
-**Last updated:** 2026-10-07
+**Version:** 0.21.0
+**Status:** Complete — the Run Viewer: Railtracks runs drawn by the visualizer from npm, live
+**Last updated:** 2026-10-12
 **Owner:** Guan Zheng Huang (`CoronRing`)
 
 > This document covers the Astro site only. The site is now one of three
 > deployables in this repository, and anything crossing the boundary between
 > them belongs in [`../SYSTEM.md`](../SYSTEM.md).
+>
+> **v0.21.0** — a twelfth tool, the **Run Viewer** (`/tools/run-viewer`, §12.6). It opens a Railtracks run log and draws it with Railtracks' own visualizer, which is not bundled: it is fetched from npm through esm.sh on every visit, at a version the visitor picks, so a visualizer release appears here with no rebuild. Picking a Railtracks version selects the visualizer that release would have downloaded (by date). Both log formats open: session files as written, and event streams (`events/*.jsonl`, the current default) rebuilt into runs by `lib/railtracks/runs.ts`. A whole folder can be opened and, in Chromium, watched with `FileSystemObserver`, so new runs appear and a run in progress redraws as it grows. The visualizer runs in a sandboxed, opaque-origin frame (`public/frames/railtracks-visualizer.html`), and a **Site** style recolours it from the page's own tokens. The Railtracks post links to it.
 >
 > **v0.20.0** — the posts band scales, and every post has a colour. The band featured the newest post and put every other one in a strip below, so each new post made it taller or the strip longer. It is now two halves: the **presented** post on the left (category, date, title and summary over its cover, all links to the post, with a yellow corner chip on the cover) and the **wheel** on the right, a column of the newest eight covers on the rim of a wheel that bulges toward the presented side. The presented post has been taken out of the wheel at the **seam**, marked by a yellow pointer: as the wheel turns, the cover reaching the seam slides out toward the presented side and fades, its neighbours close over the gap, and the presented side swaps to it. The wheel is virtual, not a scrolling box: one unbounded position in posts, every cover placed by its distance around a ring of repeated sets, so it has no ends. Mouse wheel and trackpad (a notch per post, settling on the nearest), drag with a short glide, arrows, arrow keys and clicks all move it; it takes the scroll while the pointer is over it. "All N posts" moved into the heading like every other band's onward link, and the "Read post" button is gone. Below `md` it is a scroll-snap row with titles under the covers.
 >
@@ -1255,7 +1257,7 @@ where it happens to execute.
 
 ### The registry
 
-Ten live, registered in `src/data/tools.ts`. The index and `ToolLayout` both
+Twelve live, registered in `src/data/tools.ts`. The index and `ToolLayout` both
 render from that registry, so a tool cannot disagree with the index about its
 own name, summary or network behaviour.
 
@@ -1265,6 +1267,7 @@ own name, summary or network behaviour.
 | Text Diff        | `components/tools/TextDiff`        | `lib/diff`, `lib/semantic`               | opt-in embedding call    |
 | Chunk Visualizer | `components/tools/ChunkVisualizer` | `lib/chunking`                           | none                     |
 | MCP Tester       | `components/tools/McpTester`       | `lib/mcp`                                | the endpoint you name    |
+| Run Viewer       | `components/tools/RunViewer`       | `lib/railtracks/*`, `public/frames/`     | visualizer from npm      |
 | Python Runner    | `components/tools/PyRunner`        | `lib/py-runtime`, `public/py-worker.js`  | Pyodide CDN, PyPI wheels |
 | String Kit       | `components/tools/StringKit`       | `lib/html-to-markdown`, `lib/string-kit` | none                     |
 | Regex Lab        | `components/tools/RegexLab`        | `lib/regex-lab`                          | none                     |
@@ -1377,6 +1380,7 @@ the four now make requests, so the rule is restated rather than quietly broken:
    typed into it is executed locally and never transmitted. Self-hosting was
    rejected: the distribution is hundreds of megabytes, and even the core would
    be the largest thing in a repository that deploys through GitHub Pages.
+5. **A tool may load third-party code at a version the visitor picks, only inside a sandbox.** The Run Viewer fetches the Railtracks visualizer from npm (through esm.sh) unpinned, by design: the point is that it is always the current build, or the build that matched a given Railtracks release. That code never runs in the page. It runs in an iframe with `sandbox="allow-scripts"` and no `allow-same-origin`, so its origin is opaque and it cannot read this site's storage, cookies or DOM; run files reach it only by `postMessage`. The version lists are read from the npm and PyPI JSON APIs, which send `Access-Control-Allow-Origin: *`.
 
 `ToolEntry.offline` carries this into the UI: the index badges each live tool,
 and `ToolLayout` prints either the blanket privacy line or the tool's own
@@ -1470,6 +1474,41 @@ This is deliberately not the `demo:` mechanism. A demo is one island per
 project chosen from `components/demos/registry.ts` and branched explicitly in
 `DemoFrame.astro`; the console is a second, independent slot, so a project can
 have both. `particle-wave` does.
+
+---
+
+## 12.6 The Run Viewer
+
+`/tools/run-viewer`. A Railtracks run is a tree of calls, and Railtracks ships a visualizer for it (`railtracks viz`). This page draws a run with that visualizer without installing anything and without this site carrying a copy of it.
+
+### Where the visualizer comes from
+
+The visualizer is published to npm as `@railtownai/railtracks-visualizer`, a React component library. `railtracks viz` serves a separate prebuilt app from Azure blob storage, which sends no CORS headers and needs the Python server's API, so it cannot be used from a browser. The npm build is loaded at visit time:
+
+- **The version** comes from `lib/railtracks/versions.ts`, which reads the npm and PyPI JSON documents (about 27 kB each) on every visit. Versions below 2 are the V1 line (draws a session's runs); 2 and up is V2, the event-stream visualizer behind `railtracks viz --beta`, which is not on npm yet and appears in the picker on its own when it is. Picking a Railtracks version selects the newest stable visualizer published on or before that release, because `railtracks viz` downloads whatever is current rather than a pinned build. Yanked Railtracks releases are left out of the list.
+- **The bundle** is `esm.sh/<package>@<version>?bundle&deps=react@<major>,react-dom@<major>`, with React's major read from that version's own peer range. The site runs React 19 and the visualizer wants 18, which is one reason it cannot share the page. Stylesheets its graph library ships as files are pinned from the version's dependency list.
+- **The frame** (`public/frames/railtracks-visualizer.html`) is static and generic. It fetches the bundle as text, gives it a production `import.meta.env` (the published bundle reads Vite's env unguarded and throws anywhere else; filed upstream as railtracks-visualizer#281), points its root-relative imports back at esm.sh, and imports it from a blob URL. It takes React and the DOM client from the bundle's own imports, so there is never a second React.
+
+**Integration contract for future builds.** A build that exports `mountRailtracksSession(element, { session, runIndex, theme, tone })` is handed the whole session, raw events included, and owns the drawing; only then does the page send raw events, which can run to megabytes. A build without it gets the V1 path, `<Visualizer flowData={run}>`. This is the one place a V2 release could need a site change, and only if it ships under a different export.
+
+### Two log formats, one map
+
+`lib/railtracks/runs.ts`. Session files (`sessions/*.json`) already hold runs in the shape V1 draws. Event streams (`events/*.jsonl`), what Railtracks writes by default now that `save_state` is deprecated, are rebuilt: a run per top-level node call, a node per `node.creation`, an edge from the `spatial_parent_node_id` of each `node.invocation`, model calls attached to the node that made them with provider and model from `llm.creation`, and steps numbered the way the session file numbers them. A node whose `node.invocation` line is missing is treated as called when it answers.
+
+Measured against a working `.railtracks` folder holding 305 sessions in both formats: of the 210 whose event streams are complete, 199 rebuild identically (runs, nodes, edges, statuses, inputs, outputs, model calls, steps). The other 11 differ in step order when two calls share a timestamp, or in an error message's wording. The 95 that differ more have streams missing events (a node with no `node.invocation`, three model calls and two responses), which looks like a writer issue in Railtracks under concurrent sessions rather than a reader one; they draw what survived.
+
+### Folders, watched
+
+`lib/railtracks/folder.ts`. Any folder works as the starting point (project root, `.railtracks`, `data`, `sessions` or `events`): a walk of depth 4 that skips `node_modules`, `.git`, virtual envs and build output finds both kinds of file and pairs them by the session id in their names. Status and name come from a peek at the first and last 16 kB of an event stream, so listing 400 sessions does not read 400 files.
+
+- **Chromium** gets a directory handle (`showDirectoryPicker`, or a folder dropped on the panel) and watches it with `FileSystemObserver` (shipped in Chrome 133), observing the run folders found plus the picked folder. Without the observer it re-lists every 2 seconds. A change is detected by size as well as modified time: an append in the browser's private file system grows the file without moving its `lastModified`. The handle is kept in IndexedDB so the next visit can offer to reopen the folder; that is not access, and the browser asks again.
+- **Other browsers** read a folder once, through `<input webkitdirectory>`, and say that watching needs Chrome or Edge.
+
+### The Site style
+
+The frame recolours the visualizer rather than only overriding CSS. Its exported `lightTheme` and `darkTheme` are the objects it reads while rendering, inline styles included, so the frame rewrites their colour slots in place from the site palette and restores them for the Original style. Both palettes are read from the page's own `:root` and `:root[data-theme='dark']` rules by `lib/railtracks/palette.ts`, so a token change reaches the frame. A CSS layer covers what the theme does not reach, using React Flow's and Ant Design's public class names only: the faces (the site's fontsource packages, from esm.sh), 3px corners, the agent's indigo glow replaced by the hazard-yellow bar, the selected state, and the drawer. Tone follows the page (Auto) or is pinned.
+
+The V1 visualizer lays a tree out on a canvas at least 1200px wide and does not fit it to the view, so the frame measures where the nodes landed and redraws once with a starting view that centres them, zoomed out to React Flow's floor of 0.5 when the graph is wider than the frame. The frame stays hidden until then.
 
 ---
 
@@ -1586,6 +1625,9 @@ so the behaviour is unchanged.
 | Masthead cut to a name and a job title                                  | Location, a positioning sentence and a status block naming the deck's own mechanics were all text in front of the exhibit                             |
 | The assistant as a band on the home page                                | The one surface that answers questions should not be the one you have to navigate away to reach                                                       |
 | The dock nudges once, then withdraws                                    | Nobody clicks a button labelled "Ask". Once a session, gone in 15 s if ignored, and never over the in-page assistant                                  |
+| Run Viewer loads the visualizer from npm, unpinned, at visit time       | A visualizer release should reach the site with no rebuild; a picked version lets an old log be drawn by the build that matched it                    |
+| The visualizer runs in an opaque-origin sandbox, fed by `postMessage`   | It is third-party code fetched live; the sandbox also keeps its React 18, Ant Design globals and emotion styles away from the page                    |
+| Rebuild runs from event streams on the site rather than wait for V2     | New Railtracks runs only write JSONL; without the rebuild, folder mode would show almost nothing until V2 reaches npm                                 |
 | Posts as a fixed-size wheel, not a growing list                         | A band that grows with every post punishes writing more; a wheel that never ends says "there is more" without the page getting longer                 |
 | Cards restored for `#work`                                              | The manifest was faster to skim and duller to look at; the cover art is generated, so an entry is a picture from the day it is added                  |
 

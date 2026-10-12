@@ -82,7 +82,7 @@ Twenty model calls and five minutes, then it stops, every run. Anyone reading th
 
 ## The record
 
-Agents fail in ways a stack trace does not explain. The model chose the wrong tool, or the right tool with the wrong argument, or it stopped one step early. So Railtracks records each run by default, and `railtracks viz` opens a local visualizer that replays it: every node, every model call, every tool result, in order. It runs on your machine with no sign-up.
+Agents fail in ways a stack trace does not explain. The model chose the wrong tool, or the right tool with the wrong argument, or it stopped one step early. So Railtracks records each run by default, and `railtracks viz` opens a local visualizer that replays it: every node, every model call, every tool result, in order. It runs on your machine with no sign-up. To look at a run somewhere without Railtracks installed, drop its log into the [Run Viewer](/tools/run-viewer) on this site, which draws it with the same visualizer.
 
 The same record feeds evaluation. `rt.evaluations.evaluate` scores runs, so the question "did this change make the agent better?" gets a number instead of an impression. An agent you cannot measure is an agent you cannot safely change.
 

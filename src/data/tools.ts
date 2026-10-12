@@ -80,6 +80,18 @@ export const TOOLS: readonly ToolEntry[] = [
       'Sends requests to the endpoint you name, straight from this tab. No proxy, no relay, nothing stored. Tokens you paste go only to that server.',
   },
   {
+    slug: 'run-viewer',
+    name: 'Run Viewer',
+    summary: 'Open a Railtracks run and see the map of what your agent did.',
+    rationale:
+      'An agent run is a tree of calls: which agent called which tool, with what, and what came back. Railtracks records every run to disk, and this draws one with the official visualizer at the version you ran, fetched live from npm. Drop a file, or open the whole folder and watch new runs arrive while your agent is still working.',
+    status: 'live',
+    group: 'protocol',
+    offline: false,
+    network:
+      'Downloads the Railtracks visualizer from npm through esm.sh, and the version lists from npm and PyPI. Run files are read in this tab and never sent anywhere.',
+  },
+  {
     slug: 'python-runner',
     name: 'Python Runner',
     summary: 'Run Python in the tab, with real packages from PyPI.',

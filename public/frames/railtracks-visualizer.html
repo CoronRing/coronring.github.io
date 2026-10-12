@@ -1,0 +1,602 @@
+<!doctype html>
+<html lang="en" data-skin="original" data-tone="light">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex" />
+    <title>Railtracks visualizer frame</title>
+    <!--
+      The Run Viewer's sandbox. The page at /tools/run-viewer embeds this file in
+      an iframe with `sandbox="allow-scripts"`, so it runs in an opaque origin and
+      the visualizer it loads cannot reach the site's storage, cookies or DOM.
+
+      It is deliberately generic. The parent decides which build to load (from
+      npm, through esm.sh) and sends it in a `load` message; this file only knows
+      how to load an esm.sh bundle and how to draw a run with whatever the bundle
+      exports. Message shapes: src/lib/railtracks/frame-protocol.ts.
+
+      Integration contract for future visualizer builds: a build that exports
+      `mountRailtracksSession(element, { session, runIndex, theme })` is handed the
+      whole session, raw events included, and owns the drawing. A build without it
+      gets the V1 path: `<Visualizer flowData={run}>`.
+    -->
+    <style>
+      :root {
+        --rt-ground: #f7f7f8;
+        --rt-surface: #ffffff;
+        --rt-raised: #f0f0f2;
+        --rt-sunken: #ececee;
+        --rt-line: #d9d9de;
+        --rt-line-faint: #ececee;
+        --rt-text: #1b1b1e;
+        --rt-text-muted: #5c5c63;
+        --rt-text-faint: #8c8c93;
+        --rt-accent: #7a7500;
+        --rt-accent-fill: #fffa00;
+        --rt-accent-on-fill: #191919;
+        --rt-accent-soft: rgb(122 117 0 / 0.1);
+        --rt-ok: #1a7f45;
+        --rt-alert: #be1414;
+        color-scheme: light;
+      }
+      :root[data-tone='dark'] {
+        --rt-ground: #101012;
+        --rt-surface: #1b1b1e;
+        --rt-raised: #242428;
+        --rt-sunken: #070708;
+        --rt-line: #303035;
+        --rt-line-faint: #1a1a1d;
+        --rt-text: #f5f5f5;
+        --rt-text-muted: #a0a0a6;
+        --rt-text-faint: #6e6e75;
+        --rt-accent: #fffa00;
+        --rt-accent-fill: #fffa00;
+        --rt-accent-on-fill: #191919;
+        --rt-accent-soft: rgb(255 250 0 / 0.1);
+        --rt-ok: #4ade80;
+        --rt-alert: #ff3b3b;
+        color-scheme: dark;
+      }
+      html,
+      body,
+      #root {
+        margin: 0;
+        width: 100%;
+        height: 100%;
+      }
+      body {
+        background: var(--rt-ground);
+        color: var(--rt-text);
+        font-family:
+          system-ui,
+          -apple-system,
+          'Segoe UI',
+          sans-serif;
+        overflow: hidden;
+      }
+      #root > * {
+        width: 100%;
+        height: 100%;
+      }
+      /* The V1 visualizer sets an 800×600 minimum, which clips it in a narrow frame. */
+      #root > div {
+        min-width: 0 !important;
+        min-height: 0 !important;
+      }
+    </style>
+    <!--
+      Site skin. Only applies with data-skin="site". The theme recolour does most
+      of the work; these rules cover what the theme does not reach: type, corner
+      radius, the agent glow, the selected state, and the drawer from Ant Design.
+      Selectors use React Flow's and Ant Design's public class names and stable
+      attributes only, never the hashed emotion classes.
+    -->
+    <style id="site-skin">
+      [data-skin='site'] body,
+      [data-skin='site'] .react-flow,
+      [data-skin='site'] .ant-drawer,
+      [data-skin='site'] [role='dialog'][id^='radix-'] {
+        font-family: 'Inter Variable', 'Inter', system-ui, sans-serif !important;
+      }
+      [data-skin='site'] #root > div {
+        background: var(--rt-ground) !important;
+      }
+      [data-skin='site'] .react-flow__background {
+        background: var(--rt-ground) !important;
+      }
+      [data-skin='site'] .react-flow__background-pattern circle,
+      [data-skin='site'] .react-flow__background-pattern.dots {
+        fill: var(--rt-line) !important;
+      }
+
+      /* Nodes: a flat card with a hairline, square-ish like the site's panels. */
+      [data-skin='site'] .react-flow__node {
+        filter: none !important;
+      }
+      [data-skin='site'] .react-flow__node > div {
+        background: var(--rt-surface) !important;
+        border: 1px solid var(--rt-line) !important;
+        border-radius: 3px !important;
+        box-shadow: none !important;
+        transition:
+          border-color 160ms ease,
+          box-shadow 160ms ease;
+      }
+      [data-skin='site'] .react-flow__node [title] {
+        font-weight: 600;
+        letter-spacing: -0.005em;
+      }
+      [data-skin='site'] .react-flow__node > div > div:not(.react-flow__handle) > div:not(:first-child) {
+        font-family: 'JetBrains Mono Variable', 'JetBrains Mono', ui-monospace, monospace;
+        font-size: 11px;
+      }
+      /* An agent carries the hazard-yellow bar, the site's mark for "this one acts". */
+      [data-skin='site'] .react-flow__node-Agent > div {
+        box-shadow: inset 3px 0 0 var(--rt-accent-fill) !important;
+      }
+      [data-skin='site'] .react-flow__node:hover > div {
+        border-color: var(--rt-text-faint) !important;
+      }
+      [data-skin='site'] .react-flow__node.selected > div {
+        border-color: var(--rt-accent-fill) !important;
+        box-shadow:
+          0 0 0 1px var(--rt-accent-fill),
+          0 0 22px -6px var(--rt-accent-fill) !important;
+      }
+      [data-skin='site'] .react-flow__node-Agent.selected > div {
+        box-shadow:
+          inset 3px 0 0 var(--rt-accent-fill),
+          0 0 0 1px var(--rt-accent-fill),
+          0 0 22px -6px var(--rt-accent-fill) !important;
+      }
+      [data-skin='site'] .react-flow__node .lucide {
+        color: var(--rt-text-muted);
+      }
+      [data-skin='site'] .react-flow__handle {
+        width: 7px !important;
+        height: 7px !important;
+        border-radius: 1px !important;
+        border-width: 1.5px !important;
+        border-color: var(--rt-text-faint) !important;
+        background: var(--rt-surface) !important;
+      }
+      [data-skin='site'] .react-flow__node.selected .react-flow__handle {
+        border-color: var(--rt-accent-fill) !important;
+      }
+
+      /* Edges: quiet lines that light up when an end is selected. */
+      [data-skin='site'] .react-flow__edge-path {
+        stroke: var(--rt-text-faint) !important;
+        stroke-width: 1.25px !important;
+      }
+      [data-skin='site'] .react-flow__edge.selected .react-flow__edge-path,
+      [data-skin='site'] .react-flow__edge:hover .react-flow__edge-path {
+        stroke: var(--rt-accent-fill) !important;
+      }
+      [data-skin='site'] .react-flow__attribution {
+        background: transparent !important;
+        font-family: 'JetBrains Mono Variable', 'JetBrains Mono', ui-monospace, monospace;
+        font-size: 9px;
+        opacity: 0.6;
+      }
+      [data-skin='site'] .react-flow__attribution a {
+        color: var(--rt-text-faint) !important;
+      }
+
+      /* The timeline toggle and its sheet. */
+      [data-skin='site'] button[title='Open Timeline'] {
+        border-radius: 3px !important;
+        box-shadow: none !important;
+        color: var(--rt-text) !important;
+      }
+      [data-skin='site'] button[title='Open Timeline']:hover {
+        border-color: var(--rt-accent-fill) !important;
+      }
+      [data-skin='site'] [role='dialog'][id^='radix-'] {
+        box-shadow: none !important;
+      }
+      [data-skin='site'] [role='dialog'][id^='radix-'] h3 {
+        font-family: 'JetBrains Mono Variable', 'JetBrains Mono', ui-monospace, monospace;
+        font-size: 11px;
+        font-weight: 600;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+      }
+      [data-skin='site'] [role='dialog'][id^='radix-'] h3::before {
+        content: '';
+        display: inline-block;
+        width: 6px;
+        height: 6px;
+        margin-right: 8px;
+        vertical-align: 1px;
+        background: var(--rt-accent-fill);
+      }
+      [data-skin='site'] [role='dialog'][id^='radix-'] span {
+        font-family: 'JetBrains Mono Variable', 'JetBrains Mono', ui-monospace, monospace;
+        letter-spacing: 0.02em;
+      }
+
+      /* Node details drawer (Ant Design). */
+      [data-skin='site'] .ant-drawer-mask {
+        background: color-mix(in srgb, var(--rt-ground) 55%, transparent) !important;
+        backdrop-filter: blur(2px);
+      }
+      [data-skin='site'] .ant-drawer-section,
+      [data-skin='site'] .ant-drawer-content {
+        background: var(--rt-surface) !important;
+        color: var(--rt-text) !important;
+        border-left: 1px solid var(--rt-line);
+      }
+      [data-skin='site'] .ant-drawer-header {
+        background: var(--rt-raised) !important;
+        border-bottom: 1px solid var(--rt-line) !important;
+      }
+      [data-skin='site'] .ant-drawer-title {
+        font-weight: 600;
+      }
+      [data-skin='site'] .ant-drawer-body table,
+      [data-skin='site'] .ant-drawer-body pre,
+      [data-skin='site'] .ant-drawer-body code {
+        font-family: 'JetBrains Mono Variable', 'JetBrains Mono', ui-monospace, monospace !important;
+        font-size: 12px;
+      }
+      [data-skin='site'] .ant-drawer-body pre {
+        border-radius: 2px !important;
+      }
+      [data-skin='site'] .ant-drawer-body .total-row > *,
+      [data-skin='site'] .ant-drawer-body .selected-row > * {
+        background: var(--rt-raised) !important;
+        color: var(--rt-text) !important;
+      }
+      [data-skin='site'] .ant-drawer-close .lucide {
+        stroke: var(--rt-text) !important;
+      }
+      [data-skin='site'] ::selection {
+        background: var(--rt-accent-fill);
+        color: var(--rt-accent-on-fill);
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module">
+      const ESM = 'https://esm.sh';
+      const rootEl = document.getElementById('root');
+      const send = (message) => parent.postMessage(message, '*');
+
+      let mod = null;
+      let React = null;
+      let createRoot = null;
+      let reactRoot = null;
+      let mounted = null;
+      let current = null;
+      let loading = null;
+
+      /* ── Loading a build ─────────────────────────────────────────────── */
+
+      /**
+       * A published build may read Vite's `import.meta.env` unguarded, which is
+       * undefined outside Vite. Give it a production env object instead, and
+       * point the bundle's root-relative imports back at esm.sh, since it runs
+       * from a blob: URL that has no host of its own.
+       */
+      function patch(source) {
+        const env = 'const __RT_ENV__ = { MODE: "production", PROD: true, DEV: false, SSR: false, BASE_URL: "/" };\n';
+        return (
+          env +
+          source
+            .replace(/import\.meta\.env\b/g, '__RT_ENV__')
+            .replace(/(\bfrom\s*|\bimport\s*\(\s*|\bimport\s*)(["'])\/(?!\/)/g, `$1$2${ESM}/`)
+        );
+      }
+
+      async function text(url) {
+        const response = await fetch(url);
+        if (!response.ok) throw new Error(`${url} answered ${response.status}`);
+        return response.text();
+      }
+
+      async function load({ bundle, version, styles }) {
+        const started = performance.now();
+        for (const href of styles) {
+          const link = document.createElement('link');
+          link.rel = 'stylesheet';
+          link.href = href;
+          document.head.insertBefore(link, document.getElementById('site-skin'));
+        }
+
+        const entry = await text(bundle);
+        const target = /export \* from "([^"]+)"/.exec(entry)?.[1];
+        if (!target) throw new Error('esm.sh did not return a bundle for this version.');
+        const preloads = [...entry.matchAll(/import "([^"]+)"/g)].map((m) => m[1]);
+        for (const path of preloads) await import(ESM + path);
+
+        const source = await text(ESM + target);
+        const all = entry + source;
+        const reactPath = /\/react@[\w.-]+\/es20\d\d\/react\.mjs/.exec(all)?.[0];
+        const clientPath = /\/react-dom@[\w.-]+\/[^"']*\/client\.mjs/.exec(all)?.[0];
+        if (!reactPath) throw new Error('Could not find the React this build was bundled against.');
+        const reactVersion = /\/react@([\w.-]+)\//.exec(reactPath)[1];
+
+        mod = await import(URL.createObjectURL(new Blob([patch(source)], { type: 'text/javascript' })));
+        captureThemes();
+        React = (await import(ESM + reactPath)).default;
+        const client = await import(
+          clientPath ? ESM + clientPath : `${ESM}/react-dom@${reactVersion}/client?deps=react@${reactVersion}`
+        );
+        createRoot = client.createRoot ?? client.default?.createRoot;
+        if (!createRoot) throw new Error('This React has no createRoot.');
+
+        send({
+          type: 'loaded',
+          version,
+          ms: Math.round(performance.now() - started),
+          exports: Object.keys(mod).sort(),
+        });
+      }
+
+      /* ── Drawing ─────────────────────────────────────────────────────── */
+
+      /**
+       * Which site token fills each slot of the visualizer's theme. The theme
+       * follows the shadcn naming; `primary` is its one accent colour (handles,
+       * the current timeline step), so it takes the site's yellow fill.
+       */
+      const SLOTS = {
+        background: 'ground',
+        foreground: 'text',
+        card: 'surface',
+        cardForeground: 'text',
+        popover: 'surface',
+        popoverForeground: 'text',
+        primary: 'accent-fill',
+        primaryForeground: 'accent-on-fill',
+        secondary: 'raised',
+        secondaryForeground: 'text',
+        muted: 'raised',
+        mutedForeground: 'text-muted',
+        accent: 'raised',
+        accentForeground: 'text',
+        destructive: 'alert',
+        success: 'ok',
+        border: 'line',
+        mutedBorder: 'line-faint',
+        input: 'line',
+        ring: 'accent',
+      };
+
+      /** The visualizer's own theme objects, by tone, and their colours as shipped. */
+      let themes = null;
+
+      function captureThemes() {
+        themes = {};
+        for (const [tone, theme] of [['light', mod.lightTheme], ['dark', mod.darkTheme]]) {
+          if (theme?.colors) themes[tone] = { theme, shipped: structuredClone(theme.colors) };
+        }
+      }
+
+      /**
+       * The site skin recolours the visualizer's theme objects in place. They
+       * are the objects it reads while rendering, inline styles included, so
+       * this restyles far more than CSS could reach through hashed class names.
+       * The original skin puts the shipped colours back.
+       */
+      function recolourThemes(style) {
+        if (!themes) return;
+        for (const [tone, { theme, shipped }] of Object.entries(themes)) {
+          Object.assign(theme.colors, structuredClone(shipped));
+          if (style.skin !== 'site') continue;
+          const palette = style.palettes?.[tone] ?? {};
+          for (const [slot, token] of Object.entries(SLOTS)) {
+            if (palette[token]) theme.colors[slot] = palette[token];
+          }
+        }
+      }
+
+      let fontsLoaded = false;
+
+      function applyStyle(style) {
+        const html = document.documentElement;
+        html.dataset.skin = style.skin;
+        html.dataset.tone = style.tone;
+        html.removeAttribute('style');
+        if (style.skin === 'site') {
+          for (const [name, value] of Object.entries(style.palettes?.[style.tone] ?? {})) {
+            html.style.setProperty(`--rt-${name}`, value);
+          }
+          if (!fontsLoaded) {
+            // The site's own faces, from the same fontsource packages it bundles.
+            fontsLoaded = true;
+            for (const family of ['inter', 'jetbrains-mono']) {
+              const link = document.createElement('link');
+              link.rel = 'stylesheet';
+              link.href = `${ESM}/@fontsource-variable/${family}@5/index.css`;
+              document.head.appendChild(link);
+            }
+          }
+        }
+        recolourThemes(style);
+      }
+
+      const themeFor = (style) => (style.tone === 'dark' ? mod.darkTheme : mod.lightTheme);
+
+      function errorBoundary() {
+        class Boundary extends React.Component {
+          constructor(props) {
+            super(props);
+            this.state = { failed: false };
+          }
+          static getDerivedStateFromError() {
+            return { failed: true };
+          }
+          componentDidCatch(error) {
+            send({ type: 'error', stage: 'render', message: String(error?.message ?? error) });
+          }
+          render() {
+            return this.state.failed ? null : this.props.children;
+          }
+        }
+        return Boundary;
+      }
+      let Boundary = null;
+
+      function draw() {
+        if (!current || !mod) return;
+        const { session, runIndex, style } = current;
+        applyStyle(style);
+        const run = session.runs[runIndex] ?? session.runs[0];
+
+        if (typeof mod.mountRailtracksSession === 'function') {
+          if (reactRoot) {
+            reactRoot.unmount();
+            reactRoot = null;
+          }
+          const options = { session, runIndex, theme: themeFor(style), tone: style.tone };
+          if (mounted?.update) mounted.update(options);
+          else mounted = mod.mountRailtracksSession(rootEl, options);
+          send({ type: 'rendered', runId: run?.run_id ?? session.id });
+          return;
+        }
+
+        if (!run) return;
+        const Visualizer = mod.Visualizer ?? mod.AgenticFlowVisualizer;
+        if (!Visualizer) {
+          send({ type: 'error', stage: 'render', message: 'This build exports no Visualizer component.' });
+          return;
+        }
+        Boundary ??= errorBoundary();
+        reactRoot ??= createRoot(rootEl);
+
+        // A new run, or a new width, is laid out afresh and then centred.
+        const key = `${session.id}:${run.run_id}:${lastWidth}`;
+        const fresh = key !== centredKey;
+        if (fresh) {
+          centredKey = key;
+          view = { x: 0, y: 0, zoom: 1 };
+          generation += 1;
+          rootEl.style.visibility = 'hidden';
+        }
+
+        const h = React.createElement;
+        const theme = themeFor(style);
+        let tree = h(Visualizer, {
+          key: `${session.id}:${run.run_id}:${generation}`,
+          flowData: run,
+          width: '100%',
+          height: '100%',
+          showTimeline: true,
+          defaultPan: { x: view.x, y: view.y },
+          defaultZoom: view.zoom,
+        });
+        if (theme && mod.ThemeProvider) tree = h(mod.ThemeProvider, { theme }, tree);
+        // Keyed on the style too: the recoloured theme is the same object, so
+        // only a fresh mount makes the visualizer read it again.
+        reactRoot.render(
+          h(Boundary, { key: `${session.id}:${run.run_id}:${style.skin}:${style.tone}:${generation}` }, tree),
+        );
+        if (fresh) centre();
+        send({ type: 'rendered', runId: run.run_id });
+      }
+
+      /**
+       * Centring. The V1 visualizer lays a tree out on a canvas at least 1200px
+       * wide and does not fit it to the view, so in a narrower frame the graph
+       * sits off to the right, or runs off the edge. Rather than assume that
+       * number, measure where the nodes landed and draw once more with a
+       * starting view that centres them, zoomed out (to React Flow's floor of
+       * 0.5) when the graph is wider than the frame. The frame stays hidden
+       * until then, so the move is never seen.
+       */
+      const MIN_ZOOM = 0.5;
+      const GUTTER = 24;
+      let view = { x: 0, y: 0, zoom: 1 };
+      let centredKey = null;
+      let generation = 0;
+      let centreTimer;
+
+      function centre() {
+        clearTimeout(centreTimer);
+        centreTimer = setTimeout(() => {
+          const nodes = [...rootEl.querySelectorAll('.react-flow__node')];
+          const frame = rootEl.getBoundingClientRect();
+          if (nodes.length) {
+            let left = Infinity;
+            let right = -Infinity;
+            let top = Infinity;
+            for (const node of nodes) {
+              const box = node.getBoundingClientRect();
+              left = Math.min(left, box.left);
+              right = Math.max(right, box.right);
+              top = Math.min(top, box.top);
+            }
+            // Back to graph coordinates under the view it was drawn with.
+            const worldLeft = (left - frame.left - view.x) / view.zoom;
+            const worldTop = (top - frame.top - view.y) / view.zoom;
+            const worldSpan = (right - left) / view.zoom;
+            const zoom = Math.min(1, Math.max(MIN_ZOOM, (frame.width - 2 * GUTTER) / worldSpan));
+            const x = Math.max(GUTTER, (frame.width - worldSpan * zoom) / 2) - worldLeft * zoom;
+            const y = top - frame.top - worldTop * zoom;
+            if (Math.abs(x - view.x) > 8 || Math.abs(zoom - view.zoom) > 0.01) {
+              view = { x: Math.round(x), y: Math.round(y), zoom };
+              generation += 1;
+              draw();
+            }
+          }
+          requestAnimationFrame(() => (rootEl.style.visibility = ''));
+        }, 160);
+      }
+
+      /** Redraw when the frame's width really changes: a sidebar opening, full screen. */
+      let lastWidth = 0;
+      let resizeTimer;
+      new ResizeObserver(([entry]) => {
+        const width = Math.round(entry.contentRect.width);
+        if (Math.abs(width - lastWidth) < 24) return;
+        lastWidth = width;
+        clearTimeout(resizeTimer);
+        resizeTimer = setTimeout(() => {
+          if (reactRoot && current) draw();
+        }, 180);
+      }).observe(rootEl);
+
+      function clear() {
+        current = null;
+        if (mounted?.unmount) mounted.unmount();
+        mounted = null;
+        reactRoot?.render(null);
+      }
+
+      /* ── Messages ────────────────────────────────────────────────────── */
+
+      window.addEventListener('message', async (event) => {
+        if (event.source !== parent) return;
+        const message = event.data;
+        try {
+          if (message?.type === 'load') {
+            loading = load(message);
+            await loading;
+            draw();
+          } else if (message?.type === 'render') {
+            current = { session: message.session, runIndex: message.runIndex, style: message.style };
+            await loading;
+            draw();
+          } else if (message?.type === 'style') {
+            if (current) current.style = message.style;
+            else applyStyle(message.style);
+            draw();
+          } else if (message?.type === 'clear') {
+            clear();
+          }
+        } catch (error) {
+          send({
+            type: 'error',
+            stage: message?.type === 'load' ? 'load' : 'render',
+            message: String(error?.message ?? error),
+          });
+        }
+      });
+
+      send({ type: 'ready' });
+    </script>
+  </body>
+</html>

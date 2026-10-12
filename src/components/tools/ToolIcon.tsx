@@ -148,6 +148,21 @@ const MARKS: Record<string, Mark> = {
     </>
   ),
 
+  /* A call and the two it made: the top of a run's map. */
+  'run-viewer': (s) => (
+    <>
+      <polygon points="6,2.5 18,2.5 18,6.5 16,8.5 6,8.5" />
+      <rect x="11.25" y="8.5" width="1.5" height="3.25" />
+      <rect x="5.25" y="11" width="13.5" height="1.5" />
+      <g {...s}>
+        <rect x="5.25" y="11" width="1.5" height="3.5" />
+        <rect x="17.25" y="11" width="1.5" height="3.5" />
+        <polygon points="2,14.5 10,14.5 10,21.5 4,21.5 2,19.5" />
+      </g>
+      <polygon points="14,14.5 22,14.5 22,19.5 20,21.5 14,21.5" />
+    </>
+  ),
+
   /* The rest of the kit: a grid with one cell lit. */
   'all-tools': (s) => (
     <>
