@@ -240,9 +240,16 @@ const { feed = 'https://coronring.github.io/NewsRing/news_today.json' } = Astro.
     color: var(--c-accent-on-fill);
   }
 
+  /* The prose styles colour <strong> and links with the theme's text colour,
+     which is light in dark mode. On the yellow fill everything must stay ink. */
+  .news-today :global(.nt-cta strong),
   .news-today :global(.nt-cta a) {
-    color: inherit;
+    color: var(--c-accent-on-fill);
+  }
+
+  .news-today :global(.nt-cta a) {
     font-weight: 600;
+    text-decoration-color: var(--c-accent-on-fill);
   }
 
   .nt-status {
