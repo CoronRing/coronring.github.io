@@ -1,0 +1,251 @@
+---
+/**
+ * NewsToday: today's NewsRing digest, loaded when the page is viewed.
+ *
+ * NewsRing (github.com/CoronRing/NewsRing) runs every morning on GitHub
+ * Actions and publishes the newest digest as JSON on its own Pages site,
+ * which shares this site's origin. Fetching it at view time means this post
+ * never needs a rebuild to stay current.
+ *
+ * Plain-text fields are inserted as text. Only the `*_html` fields are
+ * inserted as HTML: NewsRing renders them from Markdown with raw HTML
+ * disabled, so they carry formatting but no markup of the model's choosing.
+ */
+interface Props {
+  /** The JSON feed. Defaults to NewsRing's published feed. */
+  feed?: string;
+}
+
+const { feed = 'https://coronring.github.io/NewsRing/news_today.json' } = Astro.props;
+---
+
+<div class="news-today" data-feed={feed}>
+  <p class="nt-status" data-nt-status>Loading today's news…</p>
+  <noscript>
+    <p>
+      This page loads today's digest with JavaScript. Read it directly on
+      <a href="https://coronring.github.io/NewsRing/today.html">the NewsRing site</a>.
+    </p>
+  </noscript>
+  <div data-nt-body hidden></div>
+</div>
+
+<script>
+  interface Link {
+    label: string;
+    url: string;
+  }
+  interface Feed {
+    date: string;
+    title: string;
+    intro_html: string;
+    page_url: string | null;
+    image_url: string | null;
+    project_url: string | null;
+    headlines: { kicker: string; headline: string; blurb: string; link: Link }[];
+    stories: {
+      headline: string;
+      summary_html: string;
+      why_it_matters: string;
+      source: string;
+      links: Link[];
+    }[];
+    quick_hits: { line: string; link: Link }[];
+    slow_day_note: string;
+    sign_off: string;
+  }
+
+  function el<K extends keyof HTMLElementTagNameMap>(
+    tag: K,
+    props: { text?: string; html?: string; className?: string } = {},
+    ...children: (Node | null)[]
+  ): HTMLElementTagNameMap[K] {
+    const node = document.createElement(tag);
+    if (props.text !== undefined) node.textContent = props.text;
+    if (props.html !== undefined) node.innerHTML = props.html;
+    if (props.className) node.className = props.className;
+    for (const child of children) if (child) node.append(child);
+    return node;
+  }
+
+  function anchor(link: Link): HTMLAnchorElement {
+    const a = el('a', { text: link.label });
+    a.href = link.url;
+    a.rel = 'noopener';
+    return a;
+  }
+
+  function longDate(iso: string): string {
+    const parsed = new Date(`${iso}T12:00:00Z`);
+    if (Number.isNaN(parsed.getTime())) return iso;
+    return parsed.toLocaleDateString('en-CA', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      timeZone: 'UTC',
+    });
+  }
+
+  function render(data: Feed, body: HTMLElement): void {
+    const meta = el('p', { className: 'nt-meta' });
+    meta.append(`${longDate(data.date)} · `);
+    if (data.page_url) meta.append(anchor({ label: 'open in NewsRing', url: data.page_url }));
+    body.append(meta, el('h2', { text: data.title }), el('div', { html: data.intro_html }));
+
+    if (data.image_url) {
+      const img = el('img', { className: 'nt-card' });
+      img.src = `${data.image_url}?d=${encodeURIComponent(data.date)}`;
+      img.alt = `The top AI stories for ${data.date}`;
+      img.width = 1200;
+      img.height = 630;
+      body.append(img);
+    }
+
+    if (data.headlines.length) {
+      body.append(el('h2', { text: 'Across AI today' }));
+      const list = el('ol', { className: 'nt-top' });
+      for (const h of data.headlines) {
+        list.append(
+          el(
+            'li',
+            {},
+            el('span', { className: 'nt-kicker', text: h.kicker }),
+            el('strong', { text: h.headline }),
+            document.createTextNode(` ${h.blurb} `),
+            el('span', { className: 'nt-links' }, anchor(h.link)),
+          ),
+        );
+      }
+      body.append(list);
+    }
+
+    if (data.stories.length) body.append(el('h2', { text: 'Picked for me' }));
+    for (const s of data.stories) {
+      const links = el('p', { className: 'nt-links' });
+      s.links.forEach((link, i) => {
+        if (i) links.append(' · ');
+        links.append(anchor(link));
+      });
+      links.append(` · via ${s.source}`);
+      const why = s.why_it_matters
+        ? el('p', { className: 'nt-why' }, el('strong', { text: 'Why it matters: ' }), document.createTextNode(s.why_it_matters))
+        : null;
+      body.append(
+        el('section', { className: 'nt-story' }, el('h3', { text: s.headline }), el('div', { html: s.summary_html }), why, links),
+      );
+    }
+
+    if (data.quick_hits.length) {
+      body.append(el('h2', { text: 'Quick hits' }));
+      const list = el('ul');
+      for (const q of data.quick_hits) {
+        list.append(el('li', {}, document.createTextNode(`${q.line} (`), anchor(q.link), document.createTextNode(')')));
+      }
+      body.append(list);
+    }
+
+    if (data.slow_day_note) body.append(el('p', { text: data.slow_day_note, className: 'nt-why' }));
+    if (data.sign_off) body.append(el('p', { text: data.sign_off }));
+
+    if (data.project_url) {
+      const cta = el('p', { className: 'nt-cta' });
+      cta.append(
+        el('strong', { text: 'Want your own? ' }),
+        'NewsRing is open source. Tell it what you care about and how you like it written, and it sends you this every morning. ',
+        anchor({ label: 'Get NewsRing →', url: data.project_url }),
+      );
+      body.append(cta);
+    }
+  }
+
+  async function load(root: HTMLElement): Promise<void> {
+    const status = root.querySelector<HTMLElement>('[data-nt-status]');
+    const body = root.querySelector<HTMLElement>('[data-nt-body]');
+    if (!status || !body) return;
+    try {
+      // Revalidate every view: the feed changes once a day under one URL.
+      const response = await fetch(root.dataset.feed ?? '', { cache: 'no-cache' });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      render((await response.json()) as Feed, body);
+      status.remove();
+      body.hidden = false;
+    } catch {
+      status.textContent = '';
+      status.append(
+        "Today's digest could not be loaded. ",
+        anchor({ label: 'Read it on the NewsRing site', url: 'https://coronring.github.io/NewsRing/today.html' }),
+        '.',
+      );
+    }
+  }
+
+  document.querySelectorAll<HTMLElement>('.news-today').forEach((root) => void load(root));
+</script>
+
+<style>
+  .news-today :global(.nt-meta) {
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--c-text-muted);
+  }
+
+  .news-today :global(.nt-card) {
+    display: block;
+    width: 100%;
+    height: auto;
+    margin: 2rem 0;
+    border: 1px solid var(--c-line);
+  }
+
+  .news-today :global(.nt-top) {
+    padding-left: 1.25rem;
+  }
+
+  .news-today :global(.nt-top li) {
+    margin: 0.9rem 0;
+  }
+
+  .news-today :global(.nt-kicker) {
+    display: block;
+    font-family: var(--font-mono);
+    font-size: 0.6875rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--c-accent);
+  }
+
+  .news-today :global(.nt-story) {
+    margin: 2rem 0;
+    padding-left: 1rem;
+    border-left: 3px solid var(--c-accent-fill);
+  }
+
+  .news-today :global(.nt-why) {
+    color: var(--c-text-muted);
+  }
+
+  .news-today :global(.nt-links) {
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    color: var(--c-text-muted);
+  }
+
+  .news-today :global(.nt-cta) {
+    margin-top: 2.5rem;
+    padding: 1.25rem;
+    background: var(--c-accent-fill);
+    color: var(--c-accent-on-fill);
+  }
+
+  .news-today :global(.nt-cta a) {
+    color: inherit;
+    font-weight: 600;
+  }
+
+  .nt-status {
+    color: var(--c-text-muted);
+  }
+</style>
