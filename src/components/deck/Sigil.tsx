@@ -45,6 +45,34 @@ const TICKS = Array.from({ length: 24 }, (_, i) => {
  * mud when a token is inactive and dimmed.
  */
 const GLYPHS: Record<SigilKey, React.ReactElement> = {
+  // A lane with a tool branching straight off it and a subagent forking away
+  // and merging back: the agent flow on the Railtracks frame, in one mark.
+  rail: (
+    <g
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.6"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M 21 12 V 36" />
+      <path d="M 21 17 L 28 24 V 28 L 21 35" />
+      <path d="M 21 22 H 15" />
+      <rect x="12.4" y="20.4" width="3.2" height="3.2" fill="currentColor" stroke="none" />
+      <circle cx="21" cy="12" r="2.2" fill="currentColor" stroke="none" />
+    </g>
+  ),
+
+  // Sources round a ring, one of them drawn all the way in: a pick.
+  news: (
+    <g fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round">
+      <circle cx={C} cy={C} r="4" />
+      <path d="M 24 12.5 V 15.5 M 33.9 18.3 L 31.3 19.8 M 33.9 29.7 L 31.3 28.2 M 24 35.5 V 32.5 M 14.1 29.7 L 16.7 28.2" />
+      <path d="M 14.1 18.3 L 20.5 22" />
+      <circle cx="13.2" cy="17.8" r="2.1" fill="currentColor" stroke="none" />
+    </g>
+  ),
+
   // Broken ring with a bar out through the gap: the corona cloud, in one line.
   particle: (
     <g fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round">

@@ -1,0 +1,39 @@
+---
+title: EvalRing
+summary: Find out which option is actually best at your task. Describe the task once, list the models, prompts or pipelines to try, and get one comparison table with a record of how every number was made.
+order: 40
+status: live
+featured: true
+role: Author and maintainer
+period: 2026 – present
+tech: ['Python', 'PyPI', 'Evaluation', 'MIT']
+highlights:
+  - "Compares candidates, not just models: a prompt with one sentence changed, a two-step pipeline or last month's code are all candidates."
+  - 'Each candidate runs in its own process, so one that crashes or runs out of quota does not take the batch down with it.'
+  - 'A failed example is recorded as a failure, not a stop, and only the failures need rerunning.'
+  - 'Works with anything that speaks the OpenAI-style API, from hosted providers to a model on a laptop through Ollama or vLLM.'
+links:
+  - label: PyPI
+    href: https://pypi.org/project/evalring/
+  - label: Source
+    href: https://github.com/CoronRing/EvalRing
+hero:
+  label: An EvalRing comparison table
+  alt: A table comparing several candidates on one task
+  ratio: '16/9'
+  caption: One task, several candidates, one table.
+---
+
+EvalRing answers one question: out of all these options, which one is actually best at my task? It is published on PyPI as `evalring` and works offline for a first run.
+
+## The problem
+
+You have a job for a language model: sort support tickets, pull dates out of contracts, judge whether an answer is any good. There are many ways to build it and no obvious way to tell which wins. So you write a quick script, then another when someone asks whether a cheaper model would do. The prompt changes and nobody can say whether the score moved because the wording is better or because the test examples were different. A month later nobody knows how the number in the slide was produced.
+
+## The approach
+
+Most evaluation tools score one model on a standard benchmark. EvalRing turns that around: the task is fixed, and what varies is the candidate. If you can call it from Python, it can be in the comparison. Each run saves the per-example results and the exact settings next to the scores, so a number stays explainable six months later.
+
+```bash
+pip install "evalring[llm]"
+```

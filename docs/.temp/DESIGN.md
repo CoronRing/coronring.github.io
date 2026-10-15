@@ -1,13 +1,22 @@
 # coronring.github.io — Design Document
 
-**Version:** 0.21.0
-**Status:** Complete — the Run Viewer: Railtracks runs drawn by the visualizer from npm, live
-**Last updated:** 2026-10-12
+**Version:** 0.24.0
+**Status:** Complete. The deck opens on Railtracks, walks with the scroll, and the work band deals six cards
+**Last updated:** 2026-10-15
 **Owner:** Guan Zheng Huang (`CoronRing`)
 
 > This document covers the Astro site only. The site is now one of three
 > deployables in this repository, and anything crossing the boundary between
 > them belongs in [`../SYSTEM.md`](../SYSTEM.md).
+>
+> **v0.24.0**: the deck and the work band, rebuilt around three new projects.
+>
+> - **Three projects joined the collection**: Railtracks (`order: 5`), NewsRing (15) and EvalRing (40), each with a page. Railtracks' cover is a still of its own deck exhibit; NewsRing's is the live `today.png` NewsRing redraws every morning, so the card changes daily with no rebuild.
+> - **The deck is seven frames**: Railtracks, Particle Wave, NewsRing, gs_prompt_manager, FeatherRing, then the Systems and Research reserved slots. The Evaluation slot is gone, since EvalRing now covers that area in the gallery. Railtracks is frame one, so it is also the landing exhibit (§6.1, "The frames").
+> - **The scroll walks the deck** from `lg`: past the handoff, each frame holds for 42vh of scroll, and clicks, keys and the rail arrows scroll to a frame rather than set it (§6.1, "Switching").
+> - **Railtracks** draws an endless agent run (`deck/stages/agent-flow.ts`): tools branch straight off a lane, subagents fork on a diagonal in their own colour and merge back, each run accelerates, and hover pauses it and names what is under the cursor. **NewsRing** draws the morning's selection on a dial of its 35 sources with today's headlines in the middle, fetched live (`deck/stages/news-dial.ts`).
+> - **Cutting to Particle Wave from either of them is a morph**: the outgoing picture is read back as points and the engine starts on them, then pulls them into the corona (`deck/seed.ts`).
+> - **The work band shows six cards**, pinned, and deals the second three onto the first as it scrolls (`ui/WorkStack.astro`, §3).
 >
 > **v0.21.0** — a twelfth tool, the **Run Viewer** (`/tools/run-viewer`, §12.6). It opens a Railtracks run log and draws it with Railtracks' own visualizer, which is not bundled: it is fetched from npm through esm.sh on every visit, at a version the visitor picks, so a visualizer release appears here with no rebuild. Picking a Railtracks version selects the visualizer that release would have downloaded (by date). Both log formats open: session files as written, and event streams (`events/*.jsonl`, the current default) rebuilt into runs by `lib/railtracks/runs.ts`. A whole folder can be opened and, in Chromium, watched with `FileSystemObserver`, so new runs appear and a run in progress redraws as it grows. The visualizer runs in a sandboxed, opaque-origin frame (`public/frames/railtracks-visualizer.html`), and a **Site** style recolours it from the page's own tokens. The Railtracks post links to it.
 >
@@ -379,8 +388,8 @@ Five routes. Each nav entry carries a two-digit index as a HUD motif.
 The home page flow, as of v0.11.0:
 
 ```
-#top        The deck — a title card, then six frames over one exhibit  (§6.1)
-#work       Selected work — the card gallery
+#top        The deck — a title card, then seven frames, walked by the scroll  (§6.1)
+#work       Selected work — six cards, the second three dealt onto the first
 #resume     Myself — three capabilities, scroll-advanced, with proof
 #tools      The dev kit — a roster and a screen that plays one tool    (§12.2)
 #posts      Writing — a presented post and a wheel of the newest eight
@@ -391,6 +400,17 @@ The home page flow, as of v0.11.0:
 
 `#top` is both the introduction and the work. The band that used to sit between
 them is gone.
+
+`#work` shows the first six projects by `order`, in two rows of three
+(`components/ui/WorkStack.astro`). From `lg`, with motion allowed, the band is
+230vh with its screen pinned and both rows in one grid cell: scrolling deals
+the second row up from below the screen, one column after another (staggered
+by 16% of the band's scroll), each card tipped back as it rises and flat when
+it lands on the card in its column. The card beneath lifts 1.75rem, shrinks 6%
+and darkens, so its top edge shows behind the new one like the print under a
+print. A card in flight is not clickable, so a click goes to the visible one;
+tabbing onto a covered card scrolls the band back until it is on top. Below
+`lg` or under reduced motion the rows dissolve into one ordinary grid.
 
 Every nav entry with a band of its own points at `/#band`, from every page, so
 one entry has one destination. The routes above still exist and hold the full
@@ -631,10 +651,9 @@ them. The tint sits over a 72% hold of the page ground with a 2px blur, because
 they cross the exhibit. Hover matches the contact band at the foot of the page
 (§3), so the two read as one control rather than two conventions.
 
-From `lg` the section is 133vh with the frame sticky. The handoff is latched
-rather than metered, so the extra third buys no animation: it is dwell, enough
-that the deck state gets a moment on screen and the cloud spins up with it
-before the page releases into the work below.
+From `lg` the section is several screens tall with the frame sticky. The
+handoff is latched rather than metered, so the first 12vh past it buys no
+animation; the rest is the scroll that walks the frames (see "Switching").
 
 ### Where the exhibit sits
 
@@ -692,28 +711,96 @@ engine cannot tell which of twenty numbers is the interesting one, so they move
 none of them; the full parameter set lives on the project page, for a reader who
 has asked for it.
 
-### The six frames
+### The frames
 
-Three come from the projects collection, merged with a small presentation
+Five come from the projects collection, merged with a small presentation
 table in `frames.ts` that adds the two things frontmatter has no business
-carrying — a stage key and a two-letter code. Three are **reserved slots**:
-areas of real work with no write-up yet. They are on the deck rather than
-hidden because a roster of three reads as the whole of the work and it is not;
-they are marked `reserved` on the token, on the stage and in the metadata, and
-none of them links anywhere.
+carrying: a stage key and a two-letter code. In order: **Railtracks**,
+**Particle Wave**, **NewsRing**, gs_prompt_manager and FeatherRing. EvalRing is
+in the collection and the gallery but not on the deck. Two are **reserved
+slots**, Systems and Research: areas of real work with no write-up yet, marked
+`reserved` on the token, on the stage and in the metadata, linking nowhere.
 
 Adding a project to the deck is still an MDX file plus one line in the table.
 
+**Railtracks** (`stages/RailtracksStage.tsx`, engine in `stages/agent-flow.ts`)
+is the landing exhibit, so the first thing on the site is an agent system
+working. A plotter head sits 13% down the box and the paper runs downward under
+it, so the run's history flows down and fades out while new work is printed at
+the top. One lane per agent, coloured by depth (`--c-flow-main`, `-sub`,
+`-sub2`; tools stay neutral in `--c-flow-tool`):
+
+- a **tool call** branches straight out at a right angle to a square leaf, and a
+  pulse runs out and back;
+- a **subagent** forks on a 45° diagonal into a lane of its own, runs its own
+  tools and possibly a subagent of its own, then merges back on a diagonal; the
+  parent waits on it, drawn dashed;
+- the main lane carries **sleepers**, so it reads as track and the paper's
+  movement is visible even on a quiet stretch.
+
+Each top-level run (a named flow, ending in DONE) starts at 42 px/s and
+accelerates toward 240 over 2,000 px of paper, then the next run starts slow
+again, which is what "increasing speed" looks like without running away.
+Hover stops the paper within about 100 ms, lights the hovered item's lane,
+dims the others, and shows a card naming the item, its kind and one line on
+what it did. Hold does the same for a visitor without a cursor. Positions live
+in paper coordinates (lane slot, paper run) and are projected every frame, so
+a resize re-lays out the whole history. Two siblings finishing together would
+land on one spot, so the later one holds its lane until there is 20 px clear.
+Below 640px of box width it keeps to one lane either side, centred, and a label
+that would run off an edge goes the other way.
+
+**NewsRing** (`stages/NewsStage.tsx`, engine in `stages/news-dial.ts`) is a dial
+of the 35 sources the author's NewsRing reads (`data/newsring.ts`). It fetches
+the live feed (`news_today.json`) when shown and replays that morning in the
+two phases NewsRing runs: **reading**, every candidate streaming in from a
+random source and most giving out on the way, with a counter in the middle;
+then **selecting**, each picked story travelling in from the tick of the
+source it really came from (by name for the digest, by host for the top three)
+and leaving a yellow thread, with its headline set in the middle as it lands.
+"My digest" and "Top 3" switch between the personal stories and the card's.
+If the feed cannot be fetched the dial still runs and the middle says so; it
+never invents a headline.
+
+### Cutting into Particle Wave
+
+From Railtracks or NewsRing, the cut to Particle Wave is a morph, not a swap.
+Both drawn stages keep their lines and nodes on one canvas and their type on
+another, and register a snapshot function with the deck. On the cut, the deck
+reads the shape canvas back as points (`seed.ts`: a 1.6–2.5 px grid, alpha
+over a threshold, jittered inside each cell, at most 5,200) before the
+outgoing stage unmounts, and hands them to `ParticleStage` as `seed`. The
+engine is started on that cloud, with `source_size` set to the box and the
+coordinates pushed out by the engine's padding, so every particle lands on the
+pixel it was read from. The outgoing picture, type included, is laid over the
+canvas and faded out over 640 ms, so for a moment nothing has changed; after
+280 ms the field is morphed into the corona over 2.1 s with a 0.55 stagger.
+The seed is group 0, which the spin table holds still, so the picture comes
+apart rather than first starting to turn. Type is never sampled: text turned
+into particles reads as noise.
+
 ### Switching
 
-Six tokens are on screen at all times, each carrying a hand-set stroke sigil
+**The scroll walks the deck** from `lg`. The section is `100vh + 12vh +
+frames × 42vh` tall with the frame pinned: the first 12vh is the handoff, and
+after it each frame holds for an equal share of what is left, the way the
+Myself and Tools bands step through their entries. A click, an arrow key or a
+rail arrow *scrolls* to the middle of that frame's share rather than setting
+the frame, with an instant jump, so the scroll position and the held frame can
+never disagree; inside a pinned screen the jump is invisible except as the cut.
+A 2px accent line down the rail's right edge fills with the progress
+(`--deck-p`). Below `lg` nothing is pinned and the controls set the frame
+directly. Seven tokens and two arrows fit the rail down to a 768px-tall screen
+because the token disc and the gap between tokens are sized in `dvh`.
+
+Seven tokens are on screen at all times, each carrying a hand-set stroke sigil
 rather than a number, so a visitor aims rather than reads. The rail is a
 `tablist` and the stage its `tabpanel`, which is where the arrow keys, the
 roving `tabindex` and `aria-selected` come from. Prev/next arrows and the
 chevron strip do the same job for a pointer.
 
-Only the active stage is mounted. Six live exhibits stacked behind one another
-is six animation loops for one visible picture; a re-mount costs one cached
+Only the active stage is mounted. Seven live exhibits stacked behind one another
+is seven animation loops for one visible picture; a re-mount costs one cached
 fetch. Every stage takes an `active` prop and pauses when the deck scrolls
 away or the tab is hidden.
 

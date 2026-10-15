@@ -367,3 +367,85 @@
     transform: none;
   }
 }
+
+/*
+ * The "Read the blueprints" band.
+ *
+ * Six cards in two rows of three. From lg, with motion allowed, the band is
+ * pinned and the two rows share one grid cell: the second row is dealt up
+ * onto the first as the band scrolls, card by card, and the card beneath
+ * steps back (lifted, shrunk, dimmed) so its top edge still shows. `--deal`
+ * is written per card by `components/ui/WorkStack.astro`; everything here is
+ * a function of it. Otherwise the rows dissolve into one ordinary grid.
+ */
+@layer components {
+  .work-stack {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 1.5rem;
+  }
+  @media (min-width: 48rem) {
+    .work-stack {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+  .work-row {
+    display: contents;
+  }
+
+  @media (min-width: 64rem) and (prefers-reduced-motion: no-preference) {
+    .work-band {
+      /* The pinned screen, plus enough scroll to deal three cards. */
+      min-height: 230vh;
+    }
+    .work-pin {
+      position: sticky;
+      top: 0;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      min-height: 100dvh;
+      padding-block: 3rem;
+    }
+
+    .work-stack {
+      grid-template-columns: minmax(0, 1fr);
+      gap: 0;
+    }
+    .work-row {
+      display: grid;
+      grid-area: 1 / 1;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 1.5rem;
+    }
+
+    .work-card {
+      --deal: 0;
+    }
+
+    /* The hand underneath: lifts, shrinks and darkens as its cover lands. */
+    .work-row[data-row='under'] .work-card {
+      transform-origin: 50% 0;
+      transform: translateY(calc(var(--deal) * -1.75rem)) scale(calc(1 - var(--deal) * 0.06));
+      filter: brightness(calc(1 - var(--deal) * 0.45));
+    }
+
+    /*
+     * The hand on top: rises from below the screen, tipped back, and flattens
+     * as it lands. Not clickable until it is mostly down, so a click aimed at
+     * the visible card below is not caught by one still in flight.
+     */
+    .work-row-over {
+      pointer-events: none;
+    }
+    .work-row-over .work-card {
+      transform-origin: 50% 100%;
+      transform: perspective(1400px) translateY(calc((1 - var(--deal)) * 105vh))
+        rotateX(calc((1 - var(--deal)) * 16deg));
+      box-shadow: 0 -1.5rem 3rem -1.75rem rgb(0 0 0 / calc(var(--deal) * 0.85));
+    }
+    .work-row-over .work-card[data-landed] {
+      pointer-events: auto;
+    }
+  }
+}

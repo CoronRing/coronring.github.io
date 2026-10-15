@@ -1,0 +1,138 @@
+---
+/**
+ * WorkStack: the home page's six project cards, dealt in two hands of three.
+ *
+ * From `lg` the band is pinned and the first three cards hold the screen.
+ * Scrolling deals the second three up from below, one after another, and
+ * each lands on top of the card in its column; the card underneath steps back
+ * (lifted, shrunk, dimmed) so its top edge still shows behind the new one, the
+ * way a stack of prints shows the one beneath. Scrolling up takes them back
+ * off. Every card stays a link, and the one on top of each column is the one
+ * a click reaches.
+ *
+ * Progress is the band's own scroll, from its top reaching the top of the
+ * viewport to its bottom reaching the bottom, the same span the Myself and
+ * Tools bands use, written to each card as `--deal` (0 waiting, 1 landed).
+ * Everything visual is CSS off that one number.
+ *
+ * Below `lg`, or under `prefers-reduced-motion`, nothing is pinned: the rows
+ * dissolve (`display: contents`) and the six cards are one ordinary grid.
+ *
+ * Keyboard: tabbing onto a card that is covered scrolls the band back to the
+ * point where it is on top, so focus never lands on something hidden.
+ */
+import type { CollectionEntry } from 'astro:content';
+import ProjectCard from './ProjectCard.astro';
+
+interface Props {
+  projects: CollectionEntry<'projects'>[];
+}
+
+const { projects } = Astro.props;
+const first = projects.slice(0, 3);
+const second = projects.slice(3, 6);
+---
+
+<div class="work-stack" data-work-stack>
+  <ul class="work-row" data-row="under">
+    {
+      first.map((project, i) => (
+        <li class="work-card min-w-0" data-col={i}>
+          <ProjectCard project={project} />
+        </li>
+      ))
+    }
+  </ul>
+  {
+    second.length > 0 && (
+      <ul class="work-row work-row-over" data-row="over">
+        {second.map((project, i) => (
+          <li class="work-card min-w-0" data-col={i}>
+            <ProjectCard project={project} />
+          </li>
+        ))}
+      </ul>
+    )
+  }
+</div>
+
+<script>
+  const PINNED = '(min-width: 64rem) and (prefers-reduced-motion: no-preference)';
+  /** Share of the band's scroll before the first card starts to move. */
+  const LEAD = 0.08;
+  /** Share each card's own deal takes. */
+  const SPAN = 0.46;
+  /** Offset between one column's deal and the next. */
+  const STAGGER = 0.16;
+
+  const ease = (t: number): number => 1 - Math.pow(1 - t, 3);
+
+  for (const stack of document.querySelectorAll<HTMLElement>('[data-work-stack]')) {
+    const band = stack.closest<HTMLElement>('.work-band') ?? stack;
+    const under = [...stack.querySelectorAll<HTMLElement>('[data-row="under"] .work-card')];
+    const over = [...stack.querySelectorAll<HTMLElement>('[data-row="over"] .work-card')];
+    const media = window.matchMedia(PINNED);
+    let raf = 0;
+
+    const progress = (): number => {
+      const rect = band.getBoundingClientRect();
+      const span = rect.height - window.innerHeight;
+      return span > 0 ? Math.min(1, Math.max(0, -rect.top / span)) : 0;
+    };
+
+    const update = (): void => {
+      raf = 0;
+      const pinned = media.matches;
+      const p = progress();
+      over.forEach((card, i) => {
+        const raw = pinned ? Math.min(1, Math.max(0, (p - LEAD - i * STAGGER) / SPAN)) : 1;
+        const deal = pinned ? ease(raw) : 1;
+        card.style.setProperty('--deal', deal.toFixed(4));
+        // Until a card is mostly down, the one beneath it is the one to click.
+        card.toggleAttribute('data-landed', deal > 0.6);
+        const beneath = under[i];
+        if (beneath) {
+          beneath.style.setProperty('--deal', pinned ? deal.toFixed(4) : '0');
+          beneath.toggleAttribute('data-covered', pinned && deal > 0.6);
+        }
+      });
+    };
+
+    const schedule = (): void => {
+      if (!raf) raf = requestAnimationFrame(update);
+    };
+
+    /** Scroll so a covered card is on top again, or a waiting one has landed. */
+    const reveal = (card: HTMLElement): void => {
+      if (!media.matches) return;
+      const rect = band.getBoundingClientRect();
+      const span = rect.height - window.innerHeight;
+      if (span <= 0) return;
+      const top = window.scrollY + rect.top;
+      const coveredIndex = under.indexOf(card);
+      if (coveredIndex >= 0 && card.hasAttribute('data-covered')) {
+        window.scrollTo({
+          top: top + span * Math.max(0, LEAD + coveredIndex * STAGGER - 0.02),
+          behavior: 'instant',
+        });
+      }
+      const waitingIndex = over.indexOf(card);
+      if (waitingIndex >= 0 && !card.hasAttribute('data-landed')) {
+        window.scrollTo({
+          top: top + span * Math.min(1, LEAD + waitingIndex * STAGGER + SPAN),
+          behavior: 'instant',
+        });
+      }
+    };
+
+    stack.addEventListener('focusin', (event) => {
+      const card = (event.target as HTMLElement).closest<HTMLElement>('.work-card');
+      if (card) reveal(card);
+    });
+
+    update();
+    window.addEventListener('scroll', schedule, { passive: true });
+    window.addEventListener('resize', schedule);
+    media.addEventListener('change', schedule);
+  }
+</script>

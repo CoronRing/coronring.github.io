@@ -61,7 +61,8 @@
     --deck-rail-w: 8rem;
     --deck-copy-w: clamp(21rem, 30vw, 28rem);
     --deck-copy-col: calc(var(--deck-rail-w) + var(--deck-copy-w));
-    --deck-token: 3.25rem;
+    /* Seven tokens and two arrows fit the rail down to a 768px-tall screen. */
+    --deck-token: clamp(2.5rem, 5.4dvh, 3.25rem);
 
     /*
      * How far the exhibit runs under the copy column. Held at a few percent
@@ -134,13 +135,13 @@
   @media (min-width: 64rem) {
     .deck {
       /*
-       * One screen of exhibit, then a third of a screen of dwell. The dwell no
-       * longer buys the transition — that runs on its own timing off one
-       * scroll — so it is only there to give the deck state a moment before
-       * the page releases into the work below. Any more and it reads as scroll
-       * that does nothing.
+       * One screen of exhibit, a short lead for the handoff, then a share of
+       * scroll per frame: the scroll walks the deck (see `ProjectDeck`, which
+       * reads the same lead, `LEAD_VH`, and divides the rest evenly). About
+       * two fifths of a screen per frame, close to the Tools band's pace, so
+       * one firm wheel gesture moves one frame.
        */
-      min-height: 133vh;
+      min-height: calc(100vh + 12vh + var(--deck-frames, 6) * 42vh);
       /*
        * Sized so the landing name stays inside the copy column. Anything
        * larger and it sets across the exhibit, which is the thing this
@@ -574,6 +575,25 @@
     }
   }
 
+  /*
+   * How far through the deck the scroll has walked, drawn down the rail's
+   * right edge in the accent. Pinned only; below lg nothing is scroll-driven.
+   */
+  @media (min-width: 64rem) {
+    .deck-rail::after {
+      content: '';
+      position: absolute;
+      top: 0;
+      right: -1px;
+      width: 2px;
+      height: 100%;
+      background: var(--c-accent-fill);
+      transform-origin: top;
+      transform: scaleY(var(--deck-p, 0));
+      pointer-events: none;
+    }
+  }
+
   .deck-tokens {
     display: flex;
     align-items: flex-start;
@@ -592,7 +612,7 @@
     .deck-tokens {
       width: 100%;
       flex-direction: column;
-      gap: 1.15rem;
+      gap: clamp(0.55rem, 1.3dvh, 1.15rem);
       overflow-x: visible;
       padding: 0.6rem 0.4rem;
     }
@@ -961,6 +981,74 @@
   .deck-parallax-layer {
     transform: translate3d(calc(var(--px, 0) * -20px), calc(var(--py, 0) * -20px), 0);
     transition: transform 420ms var(--ease-out);
+  }
+}
+
+/*
+ * The drawn exhibits: Railtracks' hover card, NewsRing's centre, and the
+ * outgoing picture laid over Particle Wave while it takes the picture apart.
+ */
+@layer components {
+  .deck-flow-card {
+    padding: 0.85rem 1rem 0.95rem;
+    border: var(--hairline) solid var(--c-line);
+    background: color-mix(in srgb, var(--c-ground) 88%, transparent);
+    box-shadow: var(--shadow-lift);
+    backdrop-filter: blur(6px);
+    animation: deck-rise 160ms var(--ease-out) both;
+  }
+
+  /*
+   * Centred on the dial's middle and sized from its inner ring (`--core`, set
+   * by the stage), so a headline always sits inside the ring at any size.
+   */
+  .deck-news-core {
+    width: calc(var(--core) * 1.5);
+    transform: translate(-50%, -50%);
+    z-index: 5;
+  }
+  .deck-news-headline {
+    font-size: clamp(1rem, calc(var(--core) * 0.115), 1.6rem);
+    line-height: 1.12;
+    text-wrap: balance;
+    display: -webkit-box;
+    -webkit-line-clamp: 4;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .deck-news-story {
+    animation: deck-rise 520ms var(--ease-out) both;
+  }
+  .deck-news-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.4rem 0.7rem;
+    border: var(--hairline) solid var(--c-accent-ring);
+    color: var(--c-accent);
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    background: color-mix(in srgb, var(--c-ground) 70%, transparent);
+    transition:
+      background var(--dur-base) var(--ease-out),
+      color var(--dur-base) var(--ease-out);
+  }
+  .deck-news-link:hover {
+    background: var(--c-accent-fill);
+    color: var(--c-accent-on-fill);
+  }
+
+  .deck-seed-overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 4;
+    pointer-events: none;
+    transition: opacity 640ms var(--ease-out);
+  }
+  .deck-seed-overlay[data-leaving] {
+    opacity: 0;
   }
 }
 

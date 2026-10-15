@@ -11,12 +11,14 @@
  * inserted as HTML: NewsRing renders them from Markdown with raw HTML
  * disabled, so they carry formatting but no markup of the model's choosing.
  */
+import { NEWSRING } from '../../data/newsring';
+
 interface Props {
   /** The JSON feed. Defaults to NewsRing's published feed. */
   feed?: string;
 }
 
-const { feed = 'https://coronring.github.io/NewsRing/news_today.json' } = Astro.props;
+const { feed = NEWSRING.feed } = Astro.props;
 ---
 
 <div class="news-today" data-feed={feed}>
@@ -24,7 +26,7 @@ const { feed = 'https://coronring.github.io/NewsRing/news_today.json' } = Astro.
   <noscript>
     <p>
       This page loads today's digest with JavaScript. Read it directly on
-      <a href="https://coronring.github.io/NewsRing/today.html">the NewsRing site</a>.
+      <a href={NEWSRING.page}>the NewsRing site</a>.
     </p>
   </noscript>
   <div data-nt-body hidden></div>
@@ -129,10 +131,22 @@ const { feed = 'https://coronring.github.io/NewsRing/news_today.json' } = Astro.
       });
       links.append(` · via ${s.source}`);
       const why = s.why_it_matters
-        ? el('p', { className: 'nt-why' }, el('strong', { text: 'Why it matters: ' }), document.createTextNode(s.why_it_matters))
+        ? el(
+            'p',
+            { className: 'nt-why' },
+            el('strong', { text: 'Why it matters: ' }),
+            document.createTextNode(s.why_it_matters),
+          )
         : null;
       body.append(
-        el('section', { className: 'nt-story' }, el('h3', { text: s.headline }), el('div', { html: s.summary_html }), why, links),
+        el(
+          'section',
+          { className: 'nt-story' },
+          el('h3', { text: s.headline }),
+          el('div', { html: s.summary_html }),
+          why,
+          links,
+        ),
       );
     }
 
@@ -140,7 +154,15 @@ const { feed = 'https://coronring.github.io/NewsRing/news_today.json' } = Astro.
       body.append(el('h2', { text: 'Quick hits' }));
       const list = el('ul');
       for (const q of data.quick_hits) {
-        list.append(el('li', {}, document.createTextNode(`${q.line} (`), anchor(q.link), document.createTextNode(')')));
+        list.append(
+          el(
+            'li',
+            {},
+            document.createTextNode(`${q.line} (`),
+            anchor(q.link),
+            document.createTextNode(')'),
+          ),
+        );
       }
       body.append(list);
     }
@@ -174,7 +196,10 @@ const { feed = 'https://coronring.github.io/NewsRing/news_today.json' } = Astro.
       status.textContent = '';
       status.append(
         "Today's digest could not be loaded. ",
-        anchor({ label: 'Read it on the NewsRing site', url: 'https://coronring.github.io/NewsRing/today.html' }),
+        anchor({
+          label: 'Read it on the NewsRing site',
+          url: 'https://coronring.github.io/NewsRing/today.html',
+        }),
         '.',
       );
     }

@@ -78,6 +78,18 @@
   --particle-opacity: 0.92;
   --particle-size: 1.9;
 
+  /*
+   * The agent flow on the deck (Railtracks): one hue per depth of agent, so
+   * a subagent's lane reads as a different worker at a glance. The main lane
+   * is ink on paper, with the hazard yellow kept for its nodes; the two
+   * subagent hues sit either side of yellow's opposite so neither competes
+   * with it. Tools are not agents and stay neutral.
+   */
+  --c-flow-main: #191919;
+  --c-flow-sub: #0b8784;
+  --c-flow-sub2: #6a4bd6;
+  --c-flow-tool: #5c5c5c;
+
   /* ── Loading veil: DARK over the light theme (deliberate contrast). ─ */
   --veil-bg: #0a0a0b;
   --veil-fg: #f2f2f2;
@@ -191,6 +203,11 @@
     --particle-opacity: 0.85;
     --particle-size: 1.8;
 
+    --c-flow-main: #fffa00;
+    --c-flow-sub: #3ddad7;
+    --c-flow-sub2: #a78bfa;
+    --c-flow-tool: #a0a0a6;
+
     /* Loading veil: LIGHT over the dark theme. */
     --veil-bg: #f2f2f2;
     --veil-fg: #191919;
@@ -238,6 +255,11 @@
   --c-particle: #ffffff;
   --particle-opacity: 0.85;
   --particle-size: 1.8;
+
+  --c-flow-main: #fffa00;
+  --c-flow-sub: #3ddad7;
+  --c-flow-sub2: #a78bfa;
+  --c-flow-tool: #a0a0a6;
 
   --veil-bg: #f2f2f2;
   --veil-fg: #191919;

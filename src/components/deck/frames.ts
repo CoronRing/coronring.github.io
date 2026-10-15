@@ -20,10 +20,11 @@
  */
 
 /** Which interactive exhibit fills the stage. */
-export type StageKey = 'particle' | 'agent' | 'prompt' | 'reserved';
+export type StageKey = 'railtracks' | 'particle' | 'news' | 'agent' | 'prompt' | 'reserved';
 
 /** Which sigil is drawn on the frame's token. See `Sigil.tsx`. */
-export type SigilKey = 'particle' | 'agent' | 'prompt' | 'gauge' | 'chip' | 'branch';
+export type SigilKey =
+  'rail' | 'particle' | 'news' | 'agent' | 'prompt' | 'gauge' | 'chip' | 'branch';
 
 /** A project as the deck receives it from Astro. Mirrors the collection. */
 export interface DeckProject {
@@ -56,7 +57,9 @@ export interface DeckFrame {
 
 /** Presentation-only additions, keyed by project id. */
 const DECK_META: Record<string, { code: string; stage: StageKey; sigil: SigilKey }> = {
+  railtracks: { code: 'RT', stage: 'railtracks', sigil: 'rail' },
   'particle-wave': { code: 'PW', stage: 'particle', sigil: 'particle' },
+  newsring: { code: 'NR', stage: 'news', sigil: 'news' },
   featherring: { code: 'FR', stage: 'agent', sigil: 'agent' },
   'gs-prompt-manager': { code: 'GS', stage: 'prompt', sigil: 'prompt' },
 };
@@ -69,22 +72,10 @@ const DECK_META: Record<string, { code: string; stage: StageKey; sigil: SigilKey
  * on the stage; nothing here claims to be shippable, and none of them offers a
  * link to a page that does not exist.
  *
- * The three areas match the capability pillars the home page already carries,
- * so this is the same claim in a different register, not a new one.
+ * Only areas with no project in the collection get a slot. Evaluation is not
+ * one of them: EvalRing covers it, in the gallery.
  */
 const RESERVED: readonly DeckFrame[] = [
-  {
-    id: 'evaluation',
-    code: 'EV',
-    title: 'Evaluation',
-    railName: 'Evaluation',
-    blurb:
-      'Benchmarks that score expert systems on accuracy, hallucination, security and fairness, and the harness that keeps those scores comparable between runs. Write-up in progress.',
-    meta: { label: 'Area', value: 'Measurement' },
-    status: 'reserved',
-    stage: 'reserved',
-    sigil: 'gauge',
-  },
   {
     id: 'systems',
     code: 'SY',

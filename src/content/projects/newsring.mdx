@@ -1,0 +1,49 @@
+---
+title: NewsRing
+summary: A personal AI news agent. It reads every source you choose, picks what matters to you, writes it in the tone you like, and delivers it each morning for free.
+order: 15
+status: live
+featured: true
+role: Design and implementation
+period: 2026 – present
+tech: ['Python', 'Railtracks', 'Gemini', 'GitHub Actions']
+highlights:
+  - 'Collect, then select: every source is read in code first, and the model only ever chooses between candidates it is shown, by id, so it cannot invent a link.'
+  - 'A story is never sent twice. Links already sent in the last 14 days are dropped before the model sees anything, and the last three days of headlines are shown to it as already covered.'
+  - 'Runs every morning on GitHub Actions and publishes to GitHub Pages and email, on free Gemini keys that fail over from model to model and key to key.'
+  - 'Publishes today at fixed URLs, so this site, a GitHub profile and an inbox all show the newest digest with no rebuild.'
+links:
+  - label: GitHub
+    href: https://github.com/CoronRing/NewsRing
+  - label: Today's digest
+    href: https://coronring.github.io/NewsRing/today.html
+hero:
+  src: https://coronring.github.io/NewsRing/today.png
+  label: Today's top stories card
+  alt: Today's three most exciting AI stories, as drawn by NewsRing this morning
+  ratio: '16/9'
+  caption: Today's card. It is redrawn every morning at the same address.
+---
+
+NewsRing writes me a news digest every morning: the stories I care about, as many as I asked for, in the tone I asked for, from sources I chose. It is not sponsored and has no feed algorithm. The digest is the whole product, and the setup is a single configuration file. The [News Today](/blog/news-today) post on this site is today's edition, loaded when you open it.
+
+## What it takes as input
+
+- **What you care about**, in plain language, and what to leave out.
+- **How many stories**, as a range, plus a few one-line mentions.
+- **The tone**: how much detail and in what voice, from a two-line brief to a dry and lightly humorous read.
+- **The sources**: RSS and Atom feeds, GitHub releases, Hacker News, Hugging Face papers and trending models.
+
+## Collect, then select
+
+The obvious design is an agent that browses the web looking for news. It is slow, costs a lot, and is hard to make repeatable. NewsRing does the reverse. Code reads every source first, drops what was already sent, and hands the model a numbered list of candidates. A triage pass narrows a busy day, an editor picks and ranks for the reader, and a writer writes each pick up in the requested tone, with the article text fetched for it. The models see ids, never links, and the links are joined back in code, so a digest cannot contain a URL nobody published.
+
+## Free to run
+
+It runs on GitHub Actions at 9:00 Pacific, publishes to GitHub Pages and sends the email through a mailbox app password. The only paid part would be the model, and free Gemini keys cover it: when one model is overloaded or one key is rate limited, it moves to the next model or the next key, waits with a doubling back-off, and the whole run retries if a burst of overload outlasts that.
+
+Alongside the personal digest it draws a card of the three most exciting AI stories of the last three days for a general audience. The card is the image at the top of this page and on my GitHub profile, and it is the same address every day.
+
+## Built on Railtracks
+
+NewsRing is also a test of [Railtracks](/projects/railtracks) on a small, real job. Every rough edge it hit is written down in the repository's `RT_FEEDBACK.md`, from a documented feature that raised an error to a rate-limit retry that never moved to the next key.

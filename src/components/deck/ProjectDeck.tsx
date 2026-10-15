@@ -1,7 +1,10 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { buildFrames, type DeckFrame, type DeckProject } from './frames';
 import Sigil from './Sigil';
+import type { SeedCloud, Snapshot } from './seed';
+import RailtracksStage from './stages/RailtracksStage';
 import ParticleStage from './stages/ParticleStage';
+import NewsStage from './stages/NewsStage';
 import AgentStage from './stages/AgentStage';
 import PromptStage from './stages/PromptStage';
 import ReservedStage from './stages/ReservedStage';
@@ -35,9 +38,23 @@ import type { IconName } from '../ui/icons';
  * run has got to, for the things CSS cannot interpolate: `visibility`,
  * `display`, and so the tab order.
  *
- * The section is a little taller than the viewport with the whole of it pinned,
- * so the deck state gets a moment on screen — and the cloud spins with the
- * scroll (see `ParticleStage`) — before the page releases into the work below.
+ * ## The scroll walks the deck
+ *
+ * From `lg` the section is several screens tall with the frame pinned, and
+ * the scroll position past the handoff picks the frame: each one holds for a
+ * fixed share of the section, the way the Myself and Tools bands step through
+ * their entries. A click, an arrow key or the rail's own arrows *scroll* to the
+ * frame rather than setting it, so the two can never disagree; the jump is
+ * instant, which inside a pinned screen is invisible except as the cut. Below
+ * `lg` nothing is pinned and the controls set the frame directly.
+ *
+ * ## Cutting to Particle Wave
+ *
+ * A drawn exhibit (Railtracks, NewsRing) registers a snapshot function. When
+ * the deck cuts from one of them to Particle Wave, it reads the outgoing
+ * picture back as points before unmounting it and hands them over as `seed`,
+ * so the engine starts on that picture and morphs it into the corona. See
+ * `seed.ts`.
  *
  * ## The exhibit sits beside the copy, not under it
  *
@@ -93,6 +110,19 @@ type Phase = 'intro' | 'moving' | 'deck';
 const ENTER_PX = 90;
 const EXIT_PX = 36;
 
+/** Where the deck is pinned and scroll-driven. Below this it stacks and only clicks drive it. */
+const PINNED = '(min-width: 64rem)';
+
+/**
+ * Scroll before the first frame starts counting, as a share of the viewport.
+ * Leaves room for the handoff to land on frame one before the next can take
+ * over. The section's height in `deck.css` is built from the same two numbers.
+ */
+const LEAD_VH = 0.12;
+
+/** Stages that draw their own picture and can hand it to the particle engine. */
+const DRAWN: ReadonlySet<string> = new Set(['railtracks', 'news']);
+
 /**
  * Display size for a frame title, stepped by length.
  *
@@ -132,6 +162,13 @@ export default function ProjectDeck({
   const frames = useMemo(() => buildFrames(projects), [projects]);
   const uid = useId();
   const [index, setIndex] = useState(0);
+  const indexRef = useRef(0);
+  /** The outgoing picture, when the cut is from a drawn exhibit to Particle Wave. */
+  const [seed, setSeed] = useState<SeedCloud | null>(null);
+  const snapshotRef = useRef<Snapshot | null>(null);
+  const registerSnapshot = useCallback((snapshot: Snapshot | null) => {
+    snapshotRef.current = snapshot;
+  }, []);
   const [phase, setPhase] = useState<Phase>('intro');
   /** False while the deck is scrolled away — stages pause rather than run blind. */
   const [onScreen, setOnScreen] = useState(true);
@@ -141,13 +178,50 @@ export default function ProjectDeck({
   const frame = frames[index] ?? frames[0]!;
   const total = frames.length;
 
+  /**
+   * Make a frame the held one. The only place the index changes, so the
+   * handover to Particle Wave is decided in one place whatever drove the cut.
+   */
+  const select = useCallback(
+    (next: number) => {
+      const current = indexRef.current;
+      if (next === current) return;
+      const from = frames[current];
+      const to = frames[next];
+      const handOver = to?.stage === 'particle' && from !== undefined && DRAWN.has(from.stage);
+      setSeed(handOver ? (snapshotRef.current?.() ?? null) : null);
+      indexRef.current = next;
+      setIndex(next);
+    },
+    [frames],
+  );
+
+  /**
+   * Where on the page a frame is held, while the deck is pinned: the middle
+   * of its share of the section's scroll.
+   */
+  const frameTop = useCallback(
+    (i: number): number | null => {
+      const section = sectionRef.current;
+      if (!section || !window.matchMedia(PINNED).matches) return null;
+      const lead = window.innerHeight * LEAD_VH;
+      const span = section.offsetHeight - window.innerHeight - lead;
+      if (span <= 0) return null;
+      return section.offsetTop + lead + (span / total) * (i + 0.5);
+    },
+    [total],
+  );
+
   const go = useCallback(
     (next: number, focus = false) => {
       const wrapped = ((next % total) + total) % total;
-      setIndex(wrapped);
-      if (focus) tokenRefs.current[wrapped]?.focus();
+      const top = frameTop(wrapped);
+      // Pinned: move the scroll and let it pick the frame, so they always agree.
+      if (top !== null) window.scrollTo({ top, behavior: 'instant' });
+      else select(wrapped);
+      if (focus) tokenRefs.current[wrapped]?.focus({ preventScroll: true });
     },
-    [total],
+    [total, frameTop, select],
   );
 
   /*
@@ -198,12 +272,22 @@ export default function ProjectDeck({
       settleId = window.setTimeout(() => setPhase(next ? 'deck' : 'intro'), swapMs());
     };
 
+    const pinned = window.matchMedia(PINNED);
+
     const read = (): void => {
       frameId = 0;
       const travelled = window.scrollY - section.offsetTop;
       // Between the two thresholds nothing changes, which is the whole point.
       if (travelled >= ENTER_PX) apply(true);
       else if (travelled <= EXIT_PX) apply(false);
+
+      if (!pinned.matches) return;
+      const lead = window.innerHeight * LEAD_VH;
+      const span = section.offsetHeight - window.innerHeight - lead;
+      if (span <= 0) return;
+      const progress = Math.min(1, Math.max(0, (travelled - lead) / span));
+      section.style.setProperty('--deck-p', progress.toFixed(4));
+      select(Math.min(total - 1, Math.floor(progress * total)));
     };
 
     const schedule = (): void => {
@@ -217,6 +301,7 @@ export default function ProjectDeck({
       section.style.setProperty('--deck-t', '1');
       setPhase('deck');
     }
+    read();
 
     window.addEventListener('scroll', schedule, { passive: true });
     window.addEventListener('resize', schedule);
@@ -227,7 +312,7 @@ export default function ProjectDeck({
       window.removeEventListener('scroll', schedule);
       window.removeEventListener('resize', schedule);
     };
-  }, []);
+  }, [select, total]);
 
   /** The cue does what the scroll it stands in for would do: trip the latch. */
   const advance = useCallback(() => {
@@ -301,6 +386,7 @@ export default function ProjectDeck({
       aria-label="Introduction and selected work"
       data-phase={phase}
       className="deck border-line relative border-b"
+      style={{ '--deck-frames': total } as React.CSSProperties}
     >
       <div className="deck-pin">
         {/* ── The exhibit ─────────────────────────────────────────── */}
@@ -323,7 +409,13 @@ export default function ProjectDeck({
             tabIndex={-1}
             className="deck-stage-inner"
           >
-            {frame.stage === 'particle' && <ParticleStage active={onScreen} />}
+            {frame.stage === 'railtracks' && (
+              <RailtracksStage active={onScreen} onSnapshot={registerSnapshot} />
+            )}
+            {frame.stage === 'particle' && <ParticleStage active={onScreen} seed={seed} />}
+            {frame.stage === 'news' && (
+              <NewsStage active={onScreen} onSnapshot={registerSnapshot} />
+            )}
             {frame.stage === 'agent' && <AgentStage active={onScreen} />}
             {frame.stage === 'prompt' && <PromptStage active={onScreen} />}
             {frame.stage === 'reserved' && (
