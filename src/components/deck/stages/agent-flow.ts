@@ -4,30 +4,43 @@
  *
  * ## The picture
  *
- * A plotter head sits near the top of the box and the paper runs downward
- * under it, so everything the run has done flows down and off the bottom
- * while the head keeps printing what it does next. One lane per agent:
+ * A run reads from the top down, like a trace. A plotter head sits low in the
+ * box and prints what the run does next; the paper runs upward under it, so
+ * what the run has already done climbs away and fades out at the top. One lane
+ * per agent:
  *
  * - The **main agent** prints a straight lane down the middle.
  * - A **tool call** branches straight out, at a right angle, to a leaf, and a
- *   pulse runs out to it and back with the result.
+ *   pulse runs out to it and back with the result. Parallel calls fan out from
+ *   one point, two to four leaves at once.
  * - A **subagent** forks off on a diagonal into a lane of its own, in its own
- *   colour. It makes its own tool calls, may fork a subagent of its own, and
- *   when it finishes it runs back on a diagonal and merges into its parent,
- *   which waits on it (drawn dashed) until then.
+ *   colour. A lane can hand work to up to four subagents at once, which leave
+ *   from one point and fan out. Each makes its own tool calls, may fork a
+ *   subagent of its own, and when it finishes it runs back on a diagonal and
+ *   merges into its parent, which waits on it (drawn dashed) until then.
  *
- * Each top-level run starts slow and accelerates as it goes, the way a run
- * gathers pace once the plan is made, then the next run starts slow again.
- * Hovering stops the paper so every label can be read, and the hovered item
- * says what it is.
+ * ## Speed
+ *
+ * Each run starts slow and keeps accelerating, the way a run gathers pace once
+ * the plan is made. When it finishes it does not slow down: the finished run
+ * keeps accelerating up and away while the next one starts slow at the head.
+ * Nothing on screen ever decelerates except under the cursor.
+ *
+ * ## The cursor
+ *
+ * The paper slows as the cursor nears anything printed and stops under it, so
+ * an item can be read wherever it is; far from the drawing the run carries on
+ * at full pace. The slowdown multiplies the run's own speed, and the run only
+ * gathers pace while it is actually moving.
  *
  * ## Where things live
  *
  * Positions are stored in *paper* coordinates: a lane slot (an integer, 0 for
  * the main lane) across, and `tau`, how much paper had run when it was printed,
  * down. Screen position is derived every frame, so a resize re-lays out the
- * whole history and nothing has to be recomputed. Every animation is keyed to
- * the paper rather than the clock, so stopping the paper stops everything.
+ * whole history and nothing has to be recomputed. A finished run also carries
+ * how far it has pulled away (`exit`). Every animation is keyed to the paper
+ * rather than the clock, so stopping the paper stops everything.
  *
  * Lines and nodes are drawn on one canvas and the type on another, so the deck
  * can read the picture back as particles without the text (see `../seed.ts`).
@@ -57,6 +70,8 @@ export interface FlowItem {
   /** One line on what happened. */
   readonly detail: string;
   readonly laneId: number;
+  /** The top-level run it belongs to. */
+  readonly run: number;
 }
 
 /** What the hover card needs, in CSS pixels relative to the box. */
@@ -97,20 +112,24 @@ interface Segment {
   depth: number;
   dashed: boolean;
   laneId: number;
+  run: number;
 }
 
+/** A tool branch: from the lane at `origin` out to the leaf at `tau`. */
 interface Stub {
   slot: number;
   side: number;
+  origin: number;
   tau: number;
   depth: number;
   laneId: number;
+  run: number;
 }
 
 type Action =
   | { type: 'llm'; detail: string }
-  | { type: 'tool'; name: string; detail: string }
-  | { type: 'spawn'; count: 1 | 2 };
+  | { type: 'tools'; calls: ReadonlyArray<{ name: string; detail: string }> }
+  | { type: 'spawn'; count: number };
 
 interface Lane {
   id: number;
@@ -129,6 +148,15 @@ interface Lane {
   closed: boolean;
   /** Paper position the lane's own line starts at, after its fork diagonal. */
   startsAt: number;
+  run: number;
+}
+
+/** A finished run pulling away from the head. */
+interface Exit {
+  /** Extra distance it has travelled beyond the paper, CSS pixels. */
+  offset: number;
+  /** Its own speed, which keeps growing. */
+  speed: number;
 }
 
 /* ── Content ───────────────────────────────────────────────────────── */
@@ -191,17 +219,21 @@ const THOUGHTS: readonly string[] = [
 /* ── Tuning ────────────────────────────────────────────────────────── */
 
 /** Paper speed at the start of a run, CSS pixels per second. */
-const SPEED_START = 42;
-/** Paper speed a run accelerates toward. */
-const SPEED_TOP = 240;
-/** Paper a run takes to reach its top speed. */
-const RAMP_PAPER = 2000;
+const SPEED_START = 54;
+/** The speed a run approaches; it is a soft ceiling, never a hard stop. */
+const SPEED_TOP = 320;
+/** Seconds of running for a run's speed to double, until it nears the top. */
+const SPEED_DOUBLING = 2.4;
+/** Seconds for a finished run's own speed to double as it pulls away. */
+const EXIT_DOUBLING = 2.2;
 /** Seconds for the actual speed to close half the gap to its target. */
-const SPEED_HALF_LIFE = 0.32;
+const SPEED_HALF_LIFE = 0.09;
 
 /** Paper between one action and the next on a lane. */
 const GAP_MIN = 20;
 const GAP_MAX = 38;
+/** Paper between the leaves of a fan of parallel tool calls. */
+const FAN_STEP = 18;
 /** Paper a tool call's pulse takes to run out to the leaf and back. */
 const PULSE_PAPER = 34;
 /** A branch is this share of the lane spacing long. */
@@ -212,11 +244,21 @@ const SLEEPER_PITCH = 11;
 const NARROW = 640;
 /** Paper kept clear around a merge, so two labels never share a line. */
 const MERGE_CLEARANCE = 20;
+/** Quiet lane between one run's end and the next one's start. */
+const RUN_GAP = 30;
+
+/** Share of the box width, from its left edge, that lies under the copy column on a desktop. */
+const LABEL_MARGIN = 0.12;
 
 /** Head line, as a share of the box height from the top. */
-const HEAD_AT = 0.13;
-/** Where the history starts fading out, as a share of the box height. */
-const FADE_FROM = 0.66;
+const HEAD_AT = 0.74;
+/** Where the history has fully faded in, as a share of the box height from the top. */
+const FADE_TO = 0.3;
+
+/** Distance from the cursor at which the paper starts to slow, CSS pixels. */
+const SLOW_RANGE = 170;
+/** Within this distance of an item the paper is stopped and the item is hovered. */
+const HIT_RADIUS = 16;
 
 const MONO = '"JetBrains Mono Variable", ui-monospace, monospace';
 
@@ -237,7 +279,8 @@ export class AgentFlow {
   /** Paper run so far. */
   private paper = 0;
   private speed = SPEED_START;
-  private runStart = 0;
+  /** Seconds the current run has spent moving, scaled by how fast it was allowed to move. */
+  private runClock = 0;
   private runIndex = 0;
   private agentsThisRun = 1;
   private toolsThisRun = 0;
@@ -247,17 +290,27 @@ export class AgentFlow {
   private segments: Segment[] = [];
   private stubs: Stub[] = [];
   private items: FlowItem[] = [];
+  /** Finished runs still on screen, by run index. */
+  private exits = new Map<number, Exit>();
   /** Where each item's label was last drawn, for hit testing. */
   private labelBoxes = new Map<number, { x: number; y: number; w: number; h: number }>();
 
   /** Paper position at which the next top-level run begins, while one is due. */
   private pendingRun: number | null = null;
 
-  private paused = false;
-  private hovered: FlowItem | null = null;
+  /** The Hold control: the paper stops whatever the cursor does. */
+  private held = false;
+  /** Pointer in box coordinates, or null when it is not over the box. */
+  private pointerAt: { x: number; y: number } | null = null;
+  /** How freely the paper may run, 0 under the cursor to 1 away from it. */
+  private freedom = 1;
+  private hovered: HoverInfo | null = null;
   private raf = 0;
   private last = 0;
   private running = false;
+
+  /** Called when the hovered item changes. */
+  onHover: ((info: HoverInfo | null) => void) | null = null;
 
   constructor(
     shape: HTMLCanvasElement,
@@ -297,8 +350,11 @@ export class AgentFlow {
    */
   preroll(paper: number): void {
     const step = 6;
-    for (let p = 0; p < paper; p += step) this.advance(step);
-    this.runStart = this.paper;
+    for (let p = 0; p < paper; p += step) {
+      this.advance(step);
+      for (const exit of this.exits.values()) exit.offset += step * 2;
+    }
+    this.runClock = 0;
     this.speed = SPEED_START;
   }
 
@@ -320,41 +376,21 @@ export class AgentFlow {
     this.draw();
   }
 
-  /** Stop the paper (the hover pause) or let it run again from the start speed. */
-  setPaused(paused: boolean): void {
-    if (paused === this.paused) return;
-    this.paused = paused;
-    if (!paused) this.hovered = null;
+  /** The Hold control: stop the paper outright, or let it run again. */
+  setHeld(held: boolean): void {
+    if (held === this.held) return;
+    this.held = held;
     this.draw();
   }
 
   /**
-   * What is under a point in the box, if anything. Nodes are hit within a
-   * comfortable radius, and labels anywhere on their plate.
+   * Where the cursor is, in box coordinates, or `null` once it has left. The
+   * paper slows near anything printed and stops on it; see `freedomAt`.
    */
-  pick(x: number, y: number): HoverInfo | null {
-    let best: HoverInfo | null = null;
-    let bestDistance = 18;
-    for (const item of this.items) {
-      if (item.tau > this.paper) continue;
-      const at = this.itemPoint(item);
-      if (at.y < -20 || at.y > this.height * 0.94) continue;
-      const box = this.labelBoxes.get(item.id);
-      const onLabel =
-        box !== undefined &&
-        x >= box.x - 3 &&
-        x <= box.x + box.w + 3 &&
-        y >= box.y - 3 &&
-        y <= box.y + box.h + 3;
-      const d = onLabel ? 0 : Math.hypot(at.x - x, at.y - y);
-      if (d < bestDistance) {
-        best = { item, x: at.x, y: at.y };
-        bestDistance = d;
-      }
-    }
-    this.hovered = best?.item ?? null;
-    this.draw();
-    return best;
+  setPointer(at: { x: number; y: number } | null): void {
+    this.pointerAt = at;
+    this.updateHover();
+    if (!this.running) this.draw();
   }
 
   stats(): FlowStats {
@@ -363,7 +399,7 @@ export class AgentFlow {
       agents: this.agentsThisRun,
       tools: this.toolsThisRun,
       speed: this.speed / SPEED_START,
-      paused: this.paused,
+      paused: this.held || this.speed < 1,
     };
   }
 
@@ -381,11 +417,18 @@ export class AgentFlow {
     const dt = Math.min(0.05, (now - this.last) / 1000);
     this.last = now;
 
-    const target = this.paused ? 0 : this.targetSpeed();
-    // Exponential approach: smooth on the way up, quick to stop on hover.
-    const halfLife = this.paused ? 0.09 : SPEED_HALF_LIFE;
-    this.speed += (target - this.speed) * (1 - Math.pow(0.5, dt / halfLife));
-    if (this.paused && this.speed < 0.5) this.speed = 0;
+    // How freely the paper may run here; it eases rather than snapping, so a
+    // cursor crossing the drawing brakes it instead of jolting it.
+    const free = this.held ? 0 : this.freedomAt();
+    this.freedom += (free - this.freedom) * (1 - Math.pow(0.5, dt / 0.06));
+    if (this.freedom < 0.01) this.freedom = 0;
+
+    const target = this.baseSpeed() * this.freedom;
+    this.speed += (target - this.speed) * (1 - Math.pow(0.5, dt / SPEED_HALF_LIFE));
+    if (target === 0 && this.speed < 0.5) this.speed = 0;
+
+    // The run only gathers pace while it is actually allowed to move.
+    this.runClock += dt * this.freedom;
 
     const travel = this.speed * dt;
     if (travel > 0) {
@@ -394,15 +437,95 @@ export class AgentFlow {
       for (let i = 0; i < steps; i += 1) this.advance(travel / steps);
     }
 
+    // Finished runs pull away at their own, still growing, speed.
+    for (const exit of this.exits.values()) {
+      exit.speed *= Math.pow(2, (dt * this.freedom) / EXIT_DOUBLING);
+      exit.offset += Math.max(0, exit.speed - this.baseSpeed()) * this.freedom * dt;
+    }
+
+    this.updateHover();
     this.draw();
     this.raf = requestAnimationFrame(this.frame);
   };
 
-  /** Starts slow, accelerates through the run. */
-  private targetSpeed(): number {
-    const progress = Math.max(0, Math.min(1, (this.paper - this.runStart) / RAMP_PAPER));
-    const eased = progress * progress * (3 - 2 * progress) * 0.35 + progress * progress * 0.65;
-    return SPEED_START + (SPEED_TOP - SPEED_START) * eased;
+  /**
+   * The run's own speed: doubles every `SPEED_DOUBLING` seconds of running,
+   * with a soft ceiling so it levels off near the top instead of hitting it.
+   */
+  private baseSpeed(): number {
+    const grown = SPEED_START * Math.pow(2, this.runClock / SPEED_DOUBLING);
+    return Math.pow(Math.pow(grown, -4) + Math.pow(SPEED_TOP, -4), -0.25);
+  }
+
+  /** 1 with the cursor away from the drawing, falling to 0 on top of anything drawn. */
+  private freedomAt(): number {
+    if (!this.pointerAt) return 1;
+    const { x, y } = this.pointerAt;
+    const d = Math.min(this.nearest(x, y).distance, this.nearestLine(x, y));
+    const u = Math.max(0, Math.min(1, (d - HIT_RADIUS * 0.5) / SLOW_RANGE));
+    return u * u * (3 - 2 * u);
+  }
+
+  /** Distance from a point to the closest lane, diagonal or tool branch on screen. */
+  private nearestLine(x: number, y: number): number {
+    let best = Number.POSITIVE_INFINITY;
+    const toSegment = (ax: number, ay: number, bx: number, by: number): void => {
+      const dx = bx - ax;
+      const dy = by - ay;
+      const len = dx * dx + dy * dy;
+      const t = len === 0 ? 0 : Math.max(0, Math.min(1, ((x - ax) * dx + (y - ay) * dy) / len));
+      best = Math.min(best, Math.hypot(ax + dx * t - x, ay + dy * t - y));
+    };
+    for (const seg of this.segments) {
+      if (seg.t1 > this.paper) continue;
+      const b = this.segmentEnd(seg);
+      toSegment(this.slotX(seg.slot1), this.tauY(seg.t1, seg.run), b.x, b.y);
+    }
+    const branch = this.laneSpacing() * STUB_SHARE;
+    for (const stub of this.stubs) {
+      if (stub.tau > this.paper) continue;
+      const ox = this.slotX(stub.slot);
+      toSegment(ox, this.tauY(stub.origin, stub.run), ox + stub.side * branch, this.tauY(stub.tau, stub.run));
+    }
+    return best;
+  }
+
+  /** The closest visible item to a point, and how far it is. Labels count as part of their item. */
+  private nearest(x: number, y: number): { item: FlowItem | null; distance: number } {
+    let best: FlowItem | null = null;
+    let distance = Number.POSITIVE_INFINITY;
+    const top = this.height * FADE_TO * 0.35;
+    for (const item of this.items) {
+      if (item.tau > this.paper) continue;
+      const at = this.itemPoint(item);
+      if (at.y < top || at.y > this.height) continue;
+      let d = Math.hypot(at.x - x, at.y - y);
+      const box = this.labelBoxes.get(item.id);
+      if (box) {
+        const dx = Math.max(box.x - x, 0, x - (box.x + box.w));
+        const dy = Math.max(box.y - y, 0, y - (box.y + box.h));
+        d = Math.min(d, Math.hypot(dx, dy));
+      }
+      if (d < distance) {
+        distance = d;
+        best = item;
+      }
+    }
+    return { item: best, distance };
+  }
+
+  private updateHover(): void {
+    let next: HoverInfo | null = null;
+    if (this.pointerAt) {
+      const { item, distance } = this.nearest(this.pointerAt.x, this.pointerAt.y);
+      if (item && distance <= HIT_RADIUS) {
+        const at = this.itemPoint(item);
+        next = { item, x: at.x, y: at.y };
+      }
+    }
+    if (next?.item.id === this.hovered?.item.id) return;
+    this.hovered = next;
+    this.onHover?.(next);
   }
 
   /* ── Simulation ──────────────────────────────────────────────────── */
@@ -440,46 +563,59 @@ export class AgentFlow {
       return;
     }
 
-    if (action.type === 'tool') {
-      const side = this.toolSide(lane);
-      this.stubs.push({
-        slot: lane.slot,
-        side,
-        tau: this.paper,
-        depth: lane.depth,
-        laneId: lane.id,
+    if (action.type === 'tools') {
+      const sides = this.toolSides(lane, action.calls.length);
+      const reach = new Map<number, number>();
+      action.calls.forEach((call, i) => {
+        const side = sides[i] ?? 1;
+        const k = reach.get(side) ?? 0;
+        reach.set(side, k + 1);
+        const tau = this.paper + k * FAN_STEP;
+        this.stubs.push({
+          slot: lane.slot,
+          side,
+          origin: this.paper,
+          tau,
+          depth: lane.depth,
+          laneId: lane.id,
+          run: lane.run,
+        });
+        const parallel = action.calls.length > 1;
+        this.add({
+          kind: 'tool',
+          lane,
+          side,
+          tau,
+          label: call.name,
+          title: parallel ? `${call.name} · 1 of ${action.calls.length} in parallel` : call.name,
+          detail: call.detail,
+        });
       });
-      this.add({
-        kind: 'tool',
-        lane,
-        side,
-        label: action.name,
-        title: action.name,
-        detail: action.detail,
-      });
-      this.toolsThisRun += 1;
-      lane.nextAt = this.paper + Math.max(gap, PULSE_PAPER + 6);
+      this.toolsThisRun += action.calls.length;
+      const longest = Math.max(...reach.values()) - 1;
+      lane.nextAt = this.paper + longest * FAN_STEP + Math.max(gap, PULSE_PAPER + 6);
       return;
     }
 
-    // Spawn: fork one or two subagents, then wait for them.
+    // Spawn: fork subagents from one point, then wait for them.
     const slots = this.childSlots(lane, action.count);
     if (slots.length === 0) {
       lane.nextAt = this.paper + gap * 0.5;
       return;
     }
-    for (const slot of slots) this.fork(lane, slot);
+    for (const slot of slots) this.fork(lane, slot, slots.length);
     this.setLive(lane, true);
     lane.nextAt = this.paper + gap;
   }
 
-  private fork(parent: Lane, slot: number): void {
+  private fork(parent: Lane, slot: number, siblings: number): void {
     const depth = parent.depth + 1;
-    const span = Math.abs(slot - parent.slot);
     const names = depth === 1 ? SUBAGENTS : SUB_SUBAGENTS;
-    const name = names[Math.floor(this.random() * names.length)] ?? 'Worker';
-    // The diagonal is 45°, so it uses as much paper as it travels across.
-    const startsAt = this.paper + span * this.laneSpacingPaper();
+    const taken = new Set(this.lanes.filter((l) => !l.closed).map((l) => l.name));
+    const free = names.filter((n) => !taken.has(n));
+    const name = this.choose(free.length > 0 ? free : names);
+    // Every fork in a fan takes the same paper, so they leave from one point and spread.
+    const startsAt = this.paper + this.forkPaper();
 
     const child: Lane = {
       id: this.nextId++,
@@ -493,6 +629,7 @@ export class AgentFlow {
       live: null,
       closed: false,
       startsAt,
+      run: parent.run,
     };
     this.segments.push({
       slot1: parent.slot,
@@ -502,6 +639,7 @@ export class AgentFlow {
       depth,
       dashed: false,
       laneId: child.id,
+      run: parent.run,
     });
     child.live = {
       slot1: slot,
@@ -511,12 +649,14 @@ export class AgentFlow {
       depth,
       dashed: false,
       laneId: child.id,
+      run: parent.run,
     };
     this.segments.push(child.live);
     parent.waiting.add(child.id);
     this.lanes.push(child);
     this.agentsThisRun += 1;
 
+    const together = siblings > 1 ? ` One of ${siblings} handed work at the same moment.` : '';
     this.items.push({
       id: this.nextId++,
       kind: 'agent',
@@ -527,24 +667,31 @@ export class AgentFlow {
       label: name,
       title: name,
       detail:
-        depth === 1
+        (depth === 1
           ? `Subagent, called by ${parent.name} as a tool. Runs its own loop with its own tools.`
-          : `Subagent of ${parent.name}, two levels down. Same loop, narrower job.`,
+          : `Subagent of ${parent.name}, two levels down. Same loop, narrower job.`) + together,
       laneId: child.id,
+      run: parent.run,
     });
   }
 
   private merge(lane: Lane): void {
     const parent = lane.parent;
     if (parent) {
+      const landsAt = this.paper + this.forkPaper();
       // Two siblings finishing together would land on the same spot and print
       // their labels over each other; the later one holds its lane a beat.
-      const span = Math.abs(lane.slot - parent.slot);
-      const landsAt = this.paper + span * this.laneSpacingPaper();
       const crowded = this.items.some(
         (i) => i.slot === parent.slot && Math.abs(i.tau - landsAt) < MERGE_CLEARANCE,
       );
-      if (crowded) {
+      // A lane further out waits for the ones between it and its parent, so
+      // its diagonal home never cuts across a lane that is still running.
+      const lo = Math.min(lane.slot, parent.slot);
+      const hi = Math.max(lane.slot, parent.slot);
+      const blocked = this.lanes.some(
+        (l) => l !== lane && !l.closed && l.slot > lo && l.slot < hi,
+      );
+      if (crowded || blocked) {
         lane.nextAt = this.paper + MERGE_CLEARANCE / 2;
         return;
       }
@@ -554,8 +701,7 @@ export class AgentFlow {
     lane.live = null;
     if (!parent) return;
 
-    const span = Math.abs(lane.slot - parent.slot);
-    const landsAt = this.paper + span * this.laneSpacingPaper();
+    const landsAt = this.paper + this.forkPaper();
     this.segments.push({
       slot1: lane.slot,
       t1: this.paper,
@@ -564,6 +710,7 @@ export class AgentFlow {
       depth: lane.depth,
       dashed: false,
       laneId: lane.id,
+      run: lane.run,
     });
     this.items.push({
       id: this.nextId++,
@@ -577,6 +724,7 @@ export class AgentFlow {
       detail: `Its result lands in ${parent.name}'s context, and ${parent.name} carries on.`,
       // The child's lane, so hovering the merge lights the subagent it closes.
       laneId: lane.id,
+      run: lane.run,
     });
 
     // The parent resumes once the diagonal has landed.
@@ -598,6 +746,7 @@ export class AgentFlow {
       depth: lane.depth,
       dashed: waiting,
       laneId: lane.id,
+      run: lane.run,
     };
     this.segments.push(lane.live);
   }
@@ -615,16 +764,20 @@ export class AgentFlow {
       live: null,
       closed: false,
       startsAt: 0,
+      run: 0,
     };
     this.lanes.push(lane);
-    this.setLive(lane, false, 0);
     this.beginRun(lane);
   }
 
   private beginRun(lane: Lane): void {
     const run = RUNS[this.runIndex % RUNS.length]!;
+    lane.run = this.runIndex;
     this.agentsThisRun = 1;
     this.toolsThisRun = 0;
+    this.runClock = 0;
+    lane.live = null;
+    this.setLive(lane, false);
     this.add({
       kind: 'flow',
       lane,
@@ -645,23 +798,34 @@ export class AgentFlow {
       title: `Run complete · ${run.name}`,
       detail: `${this.agentsThisRun} agents and ${this.toolsThisRun} tool calls. Recorded, so it can be replayed step by step.`,
     });
+    if (lane.live) lane.live.t2 = this.paper;
+    lane.live = null;
+    // The finished run keeps its pace and pulls away; the next one starts slow at the head.
+    this.exits.set(this.runIndex, { offset: 0, speed: Math.max(this.speed, this.baseSpeed()) });
     this.runIndex += 1;
-    // The next run starts after a short stretch of quiet lane, and starts slow.
-    const next = this.paper + GAP_MAX * 1.6;
     lane.nextAt = Number.POSITIVE_INFINITY;
-    this.pendingRun = next;
-    this.runStart = next;
+    this.pendingRun = this.paper + RUN_GAP;
+    this.runClock = 0;
   }
 
   private mainScript(): Action[] {
-    const actions: Action[] = [{ type: 'llm', detail: this.choose(THOUGHTS) }];
+    // Every run opens by planning and handing work out at once, so a new run
+    // fills the box while the last one is still leaving it.
+    const actions: Action[] = [
+      { type: 'llm', detail: this.choose(THOUGHTS) },
+      { type: 'spawn', count: 2 + Math.floor(this.random() * 2) },
+    ];
     const length = 8 + Math.floor(this.random() * 5);
     for (let i = 0; i < length; i += 1) {
       const roll = this.random();
-      if (roll < 0.4) actions.push(this.toolAction());
+      if (roll < 0.3) actions.push(this.toolAction(1));
+      else if (roll < 0.42) actions.push(this.toolAction(2 + Math.floor(this.random() * 3)));
       else if (roll < 0.55) actions.push({ type: 'llm', detail: this.choose(THOUGHTS) });
-      else if (roll < 0.8) actions.push({ type: 'spawn', count: 1 });
-      else actions.push({ type: 'spawn', count: 2 });
+      else if (roll < 0.78) actions.push({ type: 'spawn', count: 1 });
+      else {
+        const fan = this.random();
+        actions.push({ type: 'spawn', count: fan < 0.5 ? 2 : fan < 0.8 ? 3 : 4 });
+      }
     }
     actions.push({ type: 'llm', detail: 'Writes the final answer' });
     return actions;
@@ -672,16 +836,23 @@ export class AgentFlow {
     const length = 2 + Math.floor(this.random() * 3);
     for (let i = 0; i < length; i += 1) {
       const roll = this.random();
-      if (depth === 1 && i > 0 && roll < 0.18) actions.push({ type: 'spawn', count: 1 });
-      else if (roll < 0.72) actions.push(this.toolAction());
+      if (depth === 1 && i > 0 && roll < 0.16) actions.push({ type: 'spawn', count: 1 });
+      else if (roll < 0.32) actions.push(this.toolAction(2 + Math.floor(this.random() * 2)));
+      else if (roll < 0.78) actions.push(this.toolAction(1));
       else actions.push({ type: 'llm', detail: this.choose(THOUGHTS) });
     }
     return actions;
   }
 
-  private toolAction(): Action {
-    const tool = this.choose(TOOLS);
-    return { type: 'tool', name: tool.name, detail: this.choose(tool.results) };
+  /** One tool call, or several made in parallel, each a different tool. */
+  private toolAction(count: number): Action {
+    const pool = [...TOOLS];
+    const calls: Array<{ name: string; detail: string }> = [];
+    for (let i = 0; i < count && pool.length > 0; i += 1) {
+      const tool = pool.splice(Math.floor(this.random() * pool.length), 1)[0]!;
+      calls.push({ name: tool.name, detail: this.choose(tool.results) });
+    }
+    return { type: 'tools', calls };
   }
 
   private choose<T>(list: readonly T[]): T {
@@ -702,8 +873,8 @@ export class AgentFlow {
     return Math.max(64, Math.min(132, this.width * 0.15));
   }
 
-  /** Paper used by a 45° diagonal across one lane. */
-  private laneSpacingPaper(): number {
+  /** Paper a fork or merge diagonal takes: 45° to the next lane, flatter to the ones beyond. */
+  private forkPaper(): number {
     return this.laneSpacing();
   }
 
@@ -711,43 +882,55 @@ export class AgentFlow {
     return this.lanes.some((l) => !l.closed && l.slot === slot);
   }
 
-  /** Free slots for a lane's children, outward first. */
-  private childSlots(lane: Lane, count: 1 | 2): number[] {
+  /**
+   * Free slots for a lane's children. A fork may only pass over free slots,
+   * so each side offers the run of free slots next to the parent; the main
+   * lane deals its children out to both sides in turn.
+   */
+  private childSlots(lane: Lane, count: number): number[] {
     const max = this.maxSlot();
     if (lane.depth >= 2) return [];
-    if (lane.slot === 0) {
-      const order = this.random() < 0.5 ? [1, -1] : [-1, 1];
-      const free = order.filter((s) => !this.occupied(s));
-      return free.slice(0, count);
+    const run = (dir: number): number[] => {
+      const out: number[] = [];
+      for (let s = lane.slot + dir; Math.abs(s) <= max && !this.occupied(s); s += dir) out.push(s);
+      return out;
+    };
+    if (lane.slot !== 0) return run(Math.sign(lane.slot)).slice(0, 1);
+    const first = this.random() < 0.5 ? 1 : -1;
+    const sides = [run(first), run(-first)];
+    const picked: number[] = [];
+    for (let i = 0; picked.length < count && i < max * 2; i += 1) {
+      const next = sides[i % 2]?.shift();
+      if (next !== undefined) picked.push(next);
     }
-    const out = Math.sign(lane.slot);
-    for (let s = lane.slot + out; Math.abs(s) <= max; s += out) {
-      if (!this.occupied(s)) return [s];
-    }
-    return [];
+    return picked;
   }
 
-  /** Branch toward whichever side has room for the leaf and its label. */
-  private toolSide(lane: Lane): number {
-    if (lane.slot !== 0) {
-      const out = Math.sign(lane.slot);
-      if (!this.occupied(lane.slot + out) && Math.abs(lane.slot + out) <= this.maxSlot())
-        return out;
-      if (!this.occupied(lane.slot - out)) return -out;
-      return out;
+  /** Which way each call in a fan branches: toward open space, both ways when both are open. */
+  private toolSides(lane: Lane, count: number): number[] {
+    const open = (side: number): boolean => {
+      const next = lane.slot + side;
+      return Math.abs(next) <= this.maxSlot() && !this.occupied(next);
+    };
+    const out = lane.slot === 0 ? 0 : Math.sign(lane.slot);
+    let sides: number[];
+    if (out !== 0) sides = open(out) ? [out] : open(-out) ? [-out] : [out];
+    else {
+      const right = open(1);
+      const left = open(-1);
+      if (right && left) sides = this.random() < 0.55 ? [1, -1] : [-1, 1];
+      else sides = [right || !left ? 1 : -1];
     }
-    const right = !this.occupied(1);
-    const left = !this.occupied(-1);
-    if (right && left) return this.random() < 0.6 ? 1 : -1;
-    if (right) return 1;
-    if (left) return -1;
-    return 1;
+    // Small fans stay on one side so they read as a fan; three or more split when they can.
+    const both = sides.length > 1 && count >= 3;
+    return Array.from({ length: count }, (_, i) => (both ? sides[i % 2]! : sides[0]!));
   }
 
   private add(spec: {
     kind: FlowKind;
     lane: Lane;
     side?: number;
+    tau?: number;
     label: string;
     title: string;
     detail: string;
@@ -758,15 +941,16 @@ export class AgentFlow {
       depth: spec.lane.depth,
       slot: spec.lane.slot,
       side: spec.side ?? 0,
-      tau: this.paper,
+      tau: spec.tau ?? this.paper,
       label: spec.label,
       title: spec.title,
       detail: spec.detail,
       laneId: spec.lane.id,
+      run: spec.lane.run,
     });
   }
 
-  /** Forget everything that has run off the bottom. */
+  /** Forget everything that has run off the top. */
   private cull(): void {
     if (this.pendingRun !== null && this.paper >= this.pendingRun) {
       this.pendingRun = null;
@@ -774,12 +958,15 @@ export class AgentFlow {
       if (main) this.beginRun(main);
     }
     if (!this.height) return;
-    // Paper further back than this is below the box.
-    const gone = this.paper - this.height * (1 - HEAD_AT) - 60;
-    this.items = this.items.filter((i) => i.tau > gone);
-    this.stubs = this.stubs.filter((s) => s.tau > gone);
-    this.segments = this.segments.filter((s) => s.t2 === null || s.t2 > gone);
-    this.lanes = this.lanes.filter((l) => !l.closed || l.startsAt > gone);
+    // Paper printed before this is above the box.
+    const gone = (tau: number, run: number): boolean => this.tauY(tau, run) < -60;
+    this.items = this.items.filter((i) => !gone(i.tau, i.run));
+    this.stubs = this.stubs.filter((s) => !gone(s.tau, s.run));
+    this.segments = this.segments.filter((s) => s.t2 === null || !gone(s.t2, s.run));
+    this.lanes = this.lanes.filter((l) => !l.closed || !gone(l.startsAt, l.run));
+    for (const run of this.exits.keys()) {
+      if (!this.items.some((i) => i.run === run)) this.exits.delete(run);
+    }
   }
 
   /* ── Geometry ────────────────────────────────────────────────────── */
@@ -789,18 +976,34 @@ export class AgentFlow {
     return this.width * (this.width < NARROW ? 0.5 : 0.55);
   }
 
+  private headY(): number {
+    return this.height * HEAD_AT;
+  }
+
   private slotX(slot: number): number {
     return this.centre() + slot * this.laneSpacing();
   }
 
-  private tauY(tau: number): number {
-    return this.height * HEAD_AT + (this.paper - tau);
+  private tauY(tau: number, run: number): number {
+    return this.headY() - (this.paper - tau) - (this.exits.get(run)?.offset ?? 0);
+  }
+
+  /** True when a lane runs down `slot` within a label's height of `tau`. */
+  private laneBeside(slot: number, tau: number, run: number): boolean {
+    return this.segments.some(
+      (s) =>
+        s.run === run &&
+        s.slot1 === slot &&
+        s.slot2 === slot &&
+        s.t1 <= tau + 12 &&
+        (s.t2 ?? this.paper) >= tau - 12,
+    );
   }
 
   /** Where an item is drawn: on its lane, or at the end of its branch for a tool. */
   private itemPoint(item: FlowItem): { x: number; y: number } {
     const x = this.slotX(item.slot);
-    const y = this.tauY(item.tau);
+    const y = this.tauY(item.tau, item.run);
     if (item.kind === 'tool') return { x: x + item.side * this.laneSpacing() * STUB_SHARE, y };
     return { x, y };
   }
@@ -812,23 +1015,22 @@ export class AgentFlow {
     const u = span <= 0 ? 1 : Math.max(0, Math.min(1, (end - seg.t1) / span));
     const x1 = this.slotX(seg.slot1);
     const x2 = this.slotX(seg.slot2);
-    return { x: x1 + (x2 - x1) * u, y: this.tauY(end) };
+    return { x: x1 + (x2 - x1) * u, y: this.tauY(end, seg.run) };
   }
 
   /**
-   * Fade the bottom of a layer out, so history dissolves rather than being
-   * cut. One mask over the finished layer rather than an alpha per item: a
-   * long lane is one segment, and fading it by either end would be wrong.
+   * Fade the top of a layer out, so history dissolves rather than being cut.
+   * One mask over the finished layer rather than an alpha per item: a long
+   * lane is one segment, and fading it by either end would be wrong.
    */
   private fadeOut(ctx: CanvasRenderingContext2D): void {
-    const grad = ctx.createLinearGradient(0, this.height * FADE_FROM, 0, this.height);
-    grad.addColorStop(0, 'rgba(0,0,0,1)');
-    grad.addColorStop(1, 'rgba(0,0,0,0)');
+    const grad = ctx.createLinearGradient(0, 0, 0, this.height * FADE_TO);
+    grad.addColorStop(0, 'rgba(0,0,0,0)');
+    grad.addColorStop(1, 'rgba(0,0,0,1)');
     ctx.globalAlpha = 1;
     ctx.globalCompositeOperation = 'destination-in';
     ctx.fillStyle = grad;
     ctx.fillRect(0, 0, this.width, this.height);
-    // Above the head the paper has not been printed yet; only the leads show.
     ctx.globalCompositeOperation = 'source-over';
   }
 
@@ -838,7 +1040,7 @@ export class AgentFlow {
 
   /** While something is hovered, everything outside its lane steps back. */
   private dimmed(laneId: number): boolean {
-    return this.hovered !== null && this.hovered.laneId !== laneId;
+    return this.hovered !== null && this.hovered.item.laneId !== laneId;
   }
 
   /* ── Drawing: shapes ─────────────────────────────────────────────── */
@@ -851,7 +1053,7 @@ export class AgentFlow {
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
 
-    const headY = this.height * HEAD_AT;
+    const headY = this.headY();
 
     // Sleepers across the main lane: it is a rail, and they show the paper moving.
     const sleeper = Math.min(9, this.laneSpacing() * 0.07);
@@ -859,18 +1061,18 @@ export class AgentFlow {
     ctx.lineWidth = 1;
     for (const seg of this.segments) {
       if (seg.depth !== 0 || seg.slot1 !== seg.slot2 || seg.t1 > this.paper) continue;
-      const top = seg.t2 === null ? this.paper : Math.min(seg.t2, this.paper);
+      const end = seg.t2 === null ? this.paper : Math.min(seg.t2, this.paper);
       const x = this.slotX(seg.slot1);
       // Waiting stretches keep their sleepers, fainter, so the rail stays continuous.
       ctx.globalAlpha = (this.dimmed(seg.laneId) ? 0.08 : 0.32) * (seg.dashed ? 0.6 : 1);
       ctx.beginPath();
       for (
         let t = Math.ceil(seg.t1 / SLEEPER_PITCH) * SLEEPER_PITCH;
-        t <= top;
+        t <= end;
         t += SLEEPER_PITCH
       ) {
-        const y = this.tauY(t);
-        if (y > this.height) continue;
+        const y = this.tauY(t, seg.run);
+        if (y < 0) continue;
         ctx.moveTo(x - sleeper, y);
         ctx.lineTo(x + sleeper, y);
       }
@@ -880,7 +1082,7 @@ export class AgentFlow {
     // Lanes and diagonals.
     for (const seg of this.segments) {
       if (seg.t1 > this.paper) continue;
-      const a = { x: this.slotX(seg.slot1), y: this.tauY(seg.t1) };
+      const a = { x: this.slotX(seg.slot1), y: this.tauY(seg.t1, seg.run) };
       const b = this.segmentEnd(seg);
       ctx.strokeStyle = this.colour(seg.depth);
       ctx.globalAlpha = (this.dimmed(seg.laneId) ? 0.2 : 1) * (seg.dashed ? 0.55 : 0.92);
@@ -896,16 +1098,19 @@ export class AgentFlow {
     // Tool branches, with the pulse that runs out and back.
     const branch = this.laneSpacing() * STUB_SHARE;
     for (const stub of this.stubs) {
-      const y = this.tauY(stub.tau);
-      const x = this.slotX(stub.slot);
+      if (stub.tau > this.paper) continue;
+      const ox = this.slotX(stub.slot);
+      const oy = this.tauY(stub.origin, stub.run);
+      const lx = ox + stub.side * branch;
+      const ly = this.tauY(stub.tau, stub.run);
       const age = this.paper - stub.tau;
       const grow = Math.min(1, age / 10);
       ctx.globalAlpha = (this.dimmed(stub.laneId) ? 0.2 : 1) * 0.85;
       ctx.strokeStyle = this.colour(stub.depth);
       ctx.lineWidth = 1.4;
       ctx.beginPath();
-      ctx.moveTo(x, y);
-      ctx.lineTo(x + stub.side * branch * grow, y);
+      ctx.moveTo(ox, oy);
+      ctx.lineTo(ox + (lx - ox) * grow, oy + (ly - oy) * grow);
       ctx.stroke();
 
       if (age < PULSE_PAPER) {
@@ -913,8 +1118,8 @@ export class AgentFlow {
         const reach = u < 0.5 ? u * 2 : (1 - u) * 2;
         this.glow(
           ctx,
-          x + stub.side * branch * reach,
-          y,
+          ox + (lx - ox) * reach,
+          oy + (ly - oy) * reach,
           u < 0.5 ? this.colour(stub.depth) : palette.accent,
           1,
         );
@@ -925,7 +1130,7 @@ export class AgentFlow {
     for (const item of this.items) {
       if (item.tau > this.paper) continue;
       const { x, y } = this.itemPoint(item);
-      if (y > this.height + 10) continue;
+      if (y < -10) continue;
       ctx.globalAlpha = this.dimmed(item.laneId) ? 0.25 : 1;
       this.node(ctx, item, x, y);
     }
@@ -933,6 +1138,12 @@ export class AgentFlow {
     // Heads: one per lane still printing, where its line meets the paper.
     for (const lane of this.lanes) {
       if (lane.closed) continue;
+      if (lane.depth === 0 && lane.live === null) {
+        // Between runs: the main head idles, dim, until the next run starts.
+        this.glow(ctx, this.slotX(0), headY, this.colour(0), 0.5);
+        this.lead(ctx, this.slotX(0), headY, this.colour(0));
+        continue;
+      }
       if (lane.startsAt > this.paper) {
         // Still on its way out along the fork diagonal.
         const fork = this.segments.find((s) => s.laneId === lane.id && s.slot1 !== s.slot2);
@@ -945,8 +1156,8 @@ export class AgentFlow {
       const x = this.slotX(lane.slot);
       const waiting = lane.waiting.size > 0;
       if (!waiting) {
-        // A comet tail down the lane under the head: where the work just went.
-        const tail = ctx.createLinearGradient(0, headY, 0, headY + 70);
+        // A comet tail up the lane above the head: where the work just went.
+        const tail = ctx.createLinearGradient(0, headY, 0, headY - 70);
         tail.addColorStop(0, this.colour(lane.depth));
         tail.addColorStop(1, 'transparent');
         ctx.globalAlpha = 0.55;
@@ -954,20 +1165,11 @@ export class AgentFlow {
         ctx.lineWidth = 4;
         ctx.beginPath();
         ctx.moveTo(x, headY);
-        ctx.lineTo(x, headY + 70);
+        ctx.lineTo(x, headY - 70);
         ctx.stroke();
       }
       this.glow(ctx, x, headY, this.colour(lane.depth), waiting ? 0.55 : 1.25);
-      // A short dotted lead above the head: the lane continues.
-      ctx.globalAlpha = 0.35;
-      ctx.strokeStyle = this.colour(lane.depth);
-      ctx.lineWidth = 1.2;
-      ctx.setLineDash([1, 5]);
-      ctx.beginPath();
-      ctx.moveTo(x, headY - 8);
-      ctx.lineTo(x, Math.max(0, headY - 40));
-      ctx.stroke();
-      ctx.setLineDash([]);
+      this.lead(ctx, x, headY, this.colour(lane.depth));
     }
     // Merges still travelling home draw their own head.
     for (const seg of this.segments) {
@@ -981,7 +1183,7 @@ export class AgentFlow {
 
     // The hovered item gets a ring, so the card is unmistakably about it.
     if (this.hovered) {
-      const { x, y } = this.itemPoint(this.hovered);
+      const { x, y } = this.itemPoint(this.hovered.item);
       ctx.globalAlpha = 1;
       ctx.strokeStyle = palette.accent;
       ctx.lineWidth = 1.4;
@@ -990,6 +1192,19 @@ export class AgentFlow {
       ctx.stroke();
     }
     this.fadeOut(ctx);
+  }
+
+  /** A short dotted lead below a head: the lane continues into what has not run yet. */
+  private lead(ctx: CanvasRenderingContext2D, x: number, headY: number, colour: string): void {
+    ctx.globalAlpha = 0.35;
+    ctx.strokeStyle = colour;
+    ctx.lineWidth = 1.2;
+    ctx.setLineDash([1, 5]);
+    ctx.beginPath();
+    ctx.moveTo(x, headY + 8);
+    ctx.lineTo(x, Math.min(this.height, headY + 40));
+    ctx.stroke();
+    ctx.setLineDash([]);
   }
 
   private node(ctx: CanvasRenderingContext2D, item: FlowItem, x: number, y: number): void {
@@ -1086,7 +1301,7 @@ export class AgentFlow {
     this.labelBoxes.clear();
     ctx.textBaseline = 'middle';
 
-    const resting = this.paused ? 1 : 0.8;
+    const resting = 0.8 + 0.2 * (1 - this.freedom);
     for (const item of this.items) {
       if (!item.label || item.tau > this.paper) continue;
       const { x, y } = this.itemPoint(item);
@@ -1095,17 +1310,32 @@ export class AgentFlow {
 
       const strong = item.kind === 'flow' || item.kind === 'done' || item.kind === 'agent';
       ctx.font = `${strong ? 600 : 500} ${strong ? 11 : 10.5}px ${MONO}`;
-      // On a phone the colour already says subagent; the word would crowd two forks together.
-      const tag = item.kind === 'agent' && this.width < NARROW ? '' : TAGS[item.kind];
-      const tagWidth = tag ? ctx.measureText(tag).width : 0;
-      const width = tagWidth + ctx.measureText(item.label).width;
-
       // Tools label outward past the leaf; everything else to the open side of its lane.
       const preferred = item.kind === 'tool' ? item.side : item.slot < 0 ? -1 : 1;
       const gap = item.kind === 'tool' ? 9 : 13;
-      // Keep every label inside the box: one that would run off an edge goes the other way.
-      const fits = (side: number): boolean =>
-        side > 0 ? x + gap + width <= this.width - 4 : x - gap - width >= 4;
+
+      // Keep every label inside the box and out of the strip on its left that
+      // lies under the copy column: one that would not fit goes the other way.
+      const margin = this.width < NARROW ? 4 : this.width * LABEL_MARGIN;
+      const fitsWidth = (side: number, width: number): boolean =>
+        side > 0 ? x + gap + width <= this.width - 4 : x - gap - width >= margin;
+
+      const nameWidth = ctx.measureText(item.label).width;
+      let tag = TAGS[item.kind];
+      if (item.kind === 'agent' && tag) {
+        // The colour already says subagent. The word goes on a phone, and
+        // wherever it would run into the next lane over (a fan of forks) or
+        // out of room at the edge.
+        const full = ctx.measureText(tag).width + nameWidth;
+        const room = this.laneBeside(item.slot + preferred, item.tau, item.run)
+          ? this.laneSpacing() - gap - 8
+          : Number.POSITIVE_INFINITY;
+        if (this.width < NARROW || full > room || !fitsWidth(preferred, full)) tag = '';
+      }
+      const tagWidth = tag ? ctx.measureText(tag).width : 0;
+      const width = tagWidth + nameWidth;
+
+      const fits = (side: number): boolean => fitsWidth(side, width);
       const side = fits(preferred) || !fits(-preferred) ? preferred : -preferred;
       const left = side > 0 ? x + gap : x - gap - width;
       const plate = { x: left - 4, y: y - 8, w: width + 8, h: 16 };

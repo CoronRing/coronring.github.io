@@ -10,9 +10,14 @@
  *
  * A cycle runs in the same two phases NewsRing does. **Reading**: every
  * candidate streams in from its source at once, and most give out on the way.
- * **Selecting**: the picks arrive one at a time, a few seconds apart, and each
- * landing is reported (`onLand`) so the stage can put that story's headline in
- * the middle of the ring as it arrives.
+ * **Selecting**: the picks arrive one at a time, about a second apart, and
+ * each landing is reported (`onLand`) so the stage can light that story in its
+ * list and put its headline in the middle of the ring. The full selection is
+ * then held long enough to read before the cycle starts over.
+ *
+ * `setHighlight` picks one story out: its thread and its source are drawn
+ * strong and the rest step back, so a story in the stage's list can be traced
+ * to where it came from.
  *
  * Lines, ticks and dots are on one canvas and the source names on another,
  * for the same reason as the agent flow: the deck reads the first back as
@@ -54,15 +59,15 @@ interface Candidate {
 }
 
 /** Seconds the reading phase spends streaming every candidate in. */
-const READ = 5.5;
-/** Seconds between one pick landing and the next: long enough to read a headline. */
-const PER_STORY = 4.2;
+const READ = 2.4;
+/** Seconds between one pick landing and the next. The list beside the dial carries the reading. */
+const PER_STORY = 0.85;
 /** Seconds a picked story takes to come in. */
-const PICK_TRAVEL = 2.2;
+const PICK_TRAVEL = 1.3;
 /** When the first pick sets off, relative to the end of reading. */
-const FIRST_PICK = READ - 0.8;
-/** Seconds the full selection is held before the cycle starts over. */
-const HOLD = 3.5;
+const FIRST_PICK = READ - 0.7;
+/** Seconds the full selection is held before the cycle starts over: time to read the list. */
+const HOLD = 12;
 /** Seconds the threads take to fade at the end of a cycle. */
 const CLEAR = 0.9;
 
@@ -92,6 +97,8 @@ export class NewsDial {
   private candidates: Candidate[] = [];
   private scheduled = 0;
   private flashes = new Map<number, number>();
+  /** The story picked out by the stage, or -1. */
+  private highlight = -1;
 
   private paused = false;
   private running = false;
@@ -163,6 +170,18 @@ export class NewsDial {
     this.paused = paused;
   }
 
+  /** Pick out one story (by its index in the selection), or none with -1. */
+  setHighlight(story: number): void {
+    if (story === this.highlight) return;
+    this.highlight = story;
+    if (!this.running) this.draw();
+  }
+
+  /** True once every pick of the cycle has landed. */
+  allLanded(): boolean {
+    return this.clock - this.cycleStart >= this.lastLanding();
+  }
+
   start(): void {
     if (this.running) return;
     this.running = true;
@@ -223,6 +242,7 @@ export class NewsDial {
     this.candidates = [];
     this.scheduled = 0;
     this.flashes.clear();
+    this.highlight = -1;
     this.onCycle?.();
   }
 
@@ -294,10 +314,12 @@ export class NewsDial {
     labels: boolean;
   } {
     const top = 36;
-    const bottom = this.height - this.chrome - 18;
+    // The ring may run under the control row, which is translucent: the dial
+    // is the exhibit and should be the size of the others.
+    const bottom = this.height - this.chrome * 0.3 - 12;
     const room = Math.max(60, (bottom - top) / 2);
     const narrow = this.width < 640;
-    const across = this.width * (narrow ? 0.47 : 0.4);
+    const across = this.width * (narrow ? 0.47 : 0.45);
     // Names need about 104px outside the ring; drop them only once the ring would get small.
     const labels = Math.min(room, across) - 104 > 150;
     const outer = Math.max(60, Math.min(room, across) - (labels ? 104 : 18));
@@ -361,13 +383,16 @@ export class NewsDial {
     }
 
     // Source ticks, lit for a moment when they publish.
+    const focusSource = this.highlight >= 0 ? (this.picks[this.highlight] ?? -1) : -1;
     for (let i = 0; i < this.names.length; i += 1) {
       const a = this.angle(i);
       const lit = Math.max(0, 1 - (this.clock - (this.flashes.get(i) ?? -10)) / 0.7);
       const pickedHere = this.candidates.some((c) => c.picked && c.source === i && c.landed);
-      ctx.globalAlpha = 0.55 + lit * 0.45;
-      ctx.strokeStyle = pickedHere ? palette.accent : palette.dot;
-      ctx.lineWidth = pickedHere ? 2.4 : 1.6;
+      const focus = i === focusSource;
+      const back = focusSource >= 0 && !focus ? 0.4 : 1;
+      ctx.globalAlpha = (0.55 + lit * 0.45) * back;
+      ctx.strokeStyle = pickedHere || focus ? palette.accent : palette.dot;
+      ctx.lineWidth = focus ? 3.4 : pickedHere ? 2.4 : 1.6;
       ctx.beginPath();
       ctx.moveTo(g.cx + Math.cos(a) * (g.outer - 7), g.cy + Math.sin(a) * (g.outer - 7));
       ctx.lineTo(g.cx + Math.cos(a) * (g.outer + 7), g.cy + Math.sin(a) * (g.outer + 7));
@@ -377,7 +402,7 @@ export class NewsDial {
       ctx.arc(
         g.cx + Math.cos(a) * (g.outer + 12),
         g.cy + Math.sin(a) * (g.outer + 12),
-        1.8 + lit * 1.2,
+        (focus ? 3.4 : 1.8) + lit * 1.2,
         0,
         Math.PI * 2,
       );
@@ -390,9 +415,11 @@ export class NewsDial {
       if (u < 0) continue;
       if (c.picked) {
         // The thread: the whole path so far, so the selection stays drawn.
-        ctx.globalAlpha = 0.85 * keep;
+        const focus = this.highlight === c.story;
+        const back = this.highlight >= 0 && !focus ? 0.28 : 1;
+        ctx.globalAlpha = 0.85 * keep * back;
         ctx.strokeStyle = palette.accent;
-        ctx.lineWidth = 1.5;
+        ctx.lineWidth = focus ? 3 : 1.5;
         ctx.beginPath();
         for (let s = 0; s <= 24; s += 1) {
           const p = this.position(c, (s / 24) * u);
@@ -401,7 +428,7 @@ export class NewsDial {
         }
         ctx.stroke();
         const head = this.position(c, u);
-        this.glow(ctx, head.x, head.y, palette.accent, (c.landed ? 1 : 1.3) * keep);
+        this.glow(ctx, head.x, head.y, palette.accent, (focus ? 1.6 : c.landed ? 1 : 1.3) * keep * back);
         if (c.landed) {
           // A flash round the inner ring when it lands.
           const since = this.clock - (c.born + c.life);
@@ -471,12 +498,13 @@ export class NewsDial {
     ctx.clearRect(0, 0, this.width, this.height);
     if (!g.labels) return;
 
-    ctx.font = `500 9.5px ${MONO}`;
+    const focusSource = this.highlight >= 0 ? (this.picks[this.highlight] ?? -1) : -1;
     ctx.textBaseline = 'middle';
     for (let i = 0; i < this.names.length; i += 1) {
       const a = this.angle(i);
       const lit = Math.max(0, 1 - (this.clock - (this.flashes.get(i) ?? -10)) / 0.7);
       const pickedHere = this.candidates.some((c) => c.picked && c.source === i && c.landed);
+      const focus = i === focusSource;
       const r = g.outer + 20;
       const x = g.cx + Math.cos(a) * r;
       const y = g.cy + Math.sin(a) * r;
@@ -486,9 +514,10 @@ export class NewsDial {
       ctx.translate(x, y);
       ctx.rotate(flip ? a + Math.PI : a);
       ctx.textAlign = flip ? 'right' : 'left';
-      ctx.globalAlpha = pickedHere ? 1 : 0.5 + lit * 0.4;
-      ctx.fillStyle = pickedHere ? palette.accent : palette.faint;
-      if (pickedHere && !palette.dark) ctx.fillStyle = palette.text;
+      ctx.globalAlpha = focus ? 1 : (pickedHere ? 1 : 0.5 + lit * 0.4) * (focusSource >= 0 ? 0.45 : 1);
+      ctx.font = `${focus ? 700 : 500} ${focus ? 11 : 9.5}px ${MONO}`;
+      ctx.fillStyle = pickedHere || focus ? palette.accent : palette.faint;
+      if ((pickedHere || focus) && !palette.dark) ctx.fillStyle = palette.text;
       ctx.fillText((this.names[i] ?? '').toUpperCase(), 0, 0);
       ctx.restore();
     }

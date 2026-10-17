@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import Emph from '../ui/Emph';
 
 /**
  * Capabilities — the "Myself" band.
@@ -60,6 +61,8 @@ export interface Proof {
   mark: ProofMark;
   /** One line saying what the mark stands for. */
   claim: string;
+  /** Phrases of the claim to pick out. */
+  emphasis?: readonly string[];
   /** Pre-formatted credit, e.g. `"Applied ML Engineer · Railtown AI · 2023–2025"`. */
   source?: string;
 }
@@ -70,6 +73,8 @@ export interface Pillar {
   readonly title: string;
   /** One sentence. */
   readonly body: string;
+  /** Phrases of the body to pick out. */
+  readonly emphasis?: readonly string[];
   readonly tags: readonly string[];
   readonly proof: readonly Proof[];
 }
@@ -176,7 +181,7 @@ export default function Capabilities({ pillars, label }: Props): React.ReactElem
               <div id={bodyId} className="cap-body" aria-hidden={!on}>
                 <div className="min-h-0">
                   <p className="text-muted prose-measure pt-3 text-[15px] leading-relaxed">
-                    {item.body}
+                    <Emph text={item.body} phrases={item.emphasis} />
                   </p>
                   <ul className="mt-4 flex flex-wrap gap-2 pb-1">
                     {item.tags.map((t) => (
@@ -220,7 +225,9 @@ export default function Capabilities({ pillars, label }: Props): React.ReactElem
                 />
               )}
               <span className="min-w-0">
-                <span className="block text-[15px] leading-snug">{p.claim}</span>
+                <span className="text-muted block text-[15px] leading-snug">
+                  <Emph text={p.claim} phrases={p.emphasis} />
+                </span>
                 {p.source && (
                   <span className="text-faint mt-2 block font-mono text-[10px] tracking-wide uppercase">
                     {p.source}

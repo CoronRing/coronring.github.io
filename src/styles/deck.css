@@ -322,9 +322,13 @@
     -webkit-background-clip: text;
     background-clip: text;
     -webkit-text-stroke: 1px color-mix(in srgb, var(--c-text) 45%, transparent);
-    opacity: var(--deck-ghost-alpha);
+    /* The statement belongs to the landing card: it leaves with the lede. */
+    opacity: calc(var(--deck-ghost-alpha) * max(0, 1 - var(--deck-t) * 1.4));
     pointer-events: none;
     user-select: none;
+  }
+  .deck[data-phase='deck'] .deck-ghost {
+    visibility: hidden;
   }
 
   /*
@@ -477,10 +481,15 @@
    * and the lines under it are pushed down by hand since a scaled box never
    * grows.
    */
+  /*
+   * Once set, the name steps back a shade toward the ground, so it reads as
+   * the page's signature rather than as a second heading over the frame title.
+   */
   .deck-mast-name {
     font-size: calc(
       var(--deck-mast-big) + (var(--deck-mast-size) - var(--deck-mast-big)) * var(--deck-t)
     );
+    color: color-mix(in srgb, var(--c-text), var(--c-ground) calc(var(--deck-t) * 26%));
   }
 
   @media (min-width: 64rem) {
@@ -1040,19 +1049,134 @@
     color: var(--c-accent-on-fill);
   }
 
-  .deck-seed-overlay {
+  /*
+   * The morph between two drawn exhibits (see `morph.ts`). Laid over the
+   * stage while the incoming exhibit is mounted underneath, hidden and held;
+   * when the particles land the exhibit fades up and this fades off it.
+   */
+  .deck-morph {
     position: absolute;
     inset: 0;
-    z-index: 4;
+    z-index: 12;
+    width: 100%;
+    height: 100%;
     pointer-events: none;
-    transition: opacity 640ms var(--ease-out);
+    transition: opacity 420ms var(--ease-out);
   }
-  .deck-seed-overlay[data-leaving] {
+  .deck-morph[data-leaving] {
     opacity: 0;
+  }
+  .deck-stage-inner[data-entering] {
+    animation: none;
+    opacity: 0;
+  }
+
+  /*
+   * NewsRing's picks, listed in the top of the copy column. A row is a
+   * placeholder rule until its story lands, then flashes in; hovering one
+   * picks it out on the dial.
+   */
+  .deck-picks {
+    display: flex;
+    flex: 1 1 auto;
+    min-height: 0;
+    flex-direction: column;
+    padding-top: 0.75rem;
+    animation: deck-rise 420ms var(--ease-out) both;
+  }
+  .deck-picks-list {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+    pointer-events: auto;
+    margin-inline: -0.5rem;
+  }
+  .deck-pick {
+    display: grid;
+    grid-template-columns: 1.4rem 4.6rem minmax(0, 1fr);
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.2rem 0.5rem;
+    border-left: 2px solid transparent;
+    color: var(--c-text-faint);
+    font-size: 12.5px;
+    line-height: 1.35;
+    transition:
+      background var(--dur-base) var(--ease-out),
+      border-color var(--dur-base) var(--ease-out);
+  }
+  .deck-pick-n,
+  .deck-pick-src {
+    font-family: var(--font-mono);
+    font-size: 9.5px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .deck-pick-h {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .deck-pick:not([data-landed]) {
+    pointer-events: none;
+  }
+  .deck-pick:not([data-landed]) .deck-pick-h {
+    height: 1px;
+    background: repeating-linear-gradient(to right, var(--c-line) 0 3px, transparent 3px 6px);
+  }
+  .deck-pick[data-landed] {
+    color: var(--c-text);
+    animation: deck-pick-flash 1.3s var(--ease-out);
+  }
+  .deck-pick[data-landed] .deck-pick-src {
+    color: var(--c-accent);
+  }
+  .deck-pick[data-landed] .deck-pick-n {
+    color: var(--c-text-muted);
+  }
+  .deck-pick[data-focus],
+  .deck-pick[data-landed]:focus-visible {
+    border-left-color: var(--c-accent-fill);
+    background: color-mix(in srgb, var(--c-accent-fill) 12%, transparent);
+    outline: none;
+  }
+
+  /*
+   * The top of the copy column, between the masthead and the frame's own
+   * copy. Empty unless the held exhibit puts something there.
+   */
+  .deck-aside {
+    flex: 1 1 auto;
+    min-height: 0;
+    display: none;
+  }
+  @media (min-width: 64rem) {
+    .deck-aside {
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-start;
+    }
   }
 }
 
 /* ── Keyframes ────────────────────────────────────────────────────── */
+
+/* A row of the picks list arriving: a flash of the accent that drains away. */
+@keyframes deck-pick-flash {
+  0% {
+    border-left-color: var(--c-accent-fill);
+    background: color-mix(in srgb, var(--c-accent-fill) 34%, transparent);
+  }
+  100% {
+    border-left-color: transparent;
+    background: transparent;
+  }
+}
 
 @keyframes deck-rise {
   from {

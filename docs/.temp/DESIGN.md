@@ -1,7 +1,7 @@
 # coronring.github.io — Design Document
 
-**Version:** 0.24.0
-**Status:** Complete. The deck opens on Railtracks, walks with the scroll, and the work band deals six cards
+**Version:** 0.26.0
+**Status:** Complete. Every rail entry opens its full page from a FULL tab on its row
 **Last updated:** 2026-10-15
 **Owner:** Guan Zheng Huang (`CoronRing`)
 
@@ -9,14 +9,31 @@
 > deployables in this repository, and anything crossing the boundary between
 > them belongs in [`../SYSTEM.md`](../SYSTEM.md).
 >
+> **v0.26.0**: the first three exhibits, reworked from a review of v0.24.0.
+>
+> - **Railtracks reads top-down** and only ever speeds up. The head sits low in the box and the trace climbs away above it; a run's speed doubles every 2.6 s of running toward a soft ceiling, and a finished run keeps accelerating up and off the screen while the next one starts slow at the head. Lanes now fan out: up to four subagents leave one point at once, and parallel tool calls fan two to four leaves from one point (§6.1, "The frames").
+> - **The cursor slows Railtracks by distance** instead of stopping it anywhere over the box: on a line or an item it stops, and the effect falls off over 170 px, multiplying the run's own speed.
+> - **Every cut between Railtracks, Particle Wave and NewsRing is a morph**, in both directions, run by the deck on its own canvas (`deck/morph.ts`). Particles keep the outgoing picture's colours and fade to the incoming one's, start slow and finish fast (§6.1, "Morphing between drawn exhibits").
+> - **NewsRing lists its picks** in the empty top of the copy column. Rows light up as their stories land, about a second apart; hovering one picks out its thread and source on the dial. The ring is larger and runs under the control row.
+> - **The ghost statement belongs to the landing card** and leaves with the lede; the set name steps back a shade toward the ground once the deck is out.
+> - **Key phrases are picked out** in project summaries, the deck blurbs, the intro and Myself (`lib/emphasis.ts`, §12.1).
+> - **Every project has a hero**: Particle Wave, FeatherRing, EvalRing and gs_prompt_manager now show a drawing traced by the Particle Wave package and rendered by its engine (§8). Railtracks' hero is recaptured from the top-down engine.
+> - **Project pages read wider and calmer.** The write-up uses the blog's `.post-prose` styles at 16px in a 46rem column, the hero is held to that column instead of the whole shell, and the text-plus-sidebar grid is capped at 66rem. Highlighted code follows the site theme: the block sits on `--c-sunken` and switches to Shiki's dark colours (`--shiki-dark`) wherever the page is dark, in `global.css`, so posts benefit too. Before this a block was white in dark mode with a dark band behind every line, because the page's inline-code background also hit code inside blocks.
+>
+> **v0.25.0**: the FULL tab from the tools roster (v0.22.0) is now site-wide. Rail entries jump to their home band, so the dedicated pages (`/projects`, `/resume`, `/tools`, `/blog`, `/chat`, `/resources`) were reachable only from a link inside each band. Every entry except Index now ends in the same zig-zag FULL tab, in the desktop rail (shown while the rail is open) and the phone drawer. The tab is one component, `ui/FullTab.tsx`, styled once as `.full-tab` in `global.css`; the roster's copy moved there too. The rail's `00`–`06` index is gone, and with it `NavItem.index` (§4.1).
+>
 > **v0.24.0**: the deck and the work band, rebuilt around three new projects.
 >
 > - **Three projects joined the collection**: Railtracks (`order: 5`), NewsRing (15) and EvalRing (40), each with a page. Railtracks' cover is a still of its own deck exhibit; NewsRing's is the live `today.png` NewsRing redraws every morning, so the card changes daily with no rebuild.
 > - **The deck is seven frames**: Railtracks, Particle Wave, NewsRing, gs_prompt_manager, FeatherRing, then the Systems and Research reserved slots. The Evaluation slot is gone, since EvalRing now covers that area in the gallery. Railtracks is frame one, so it is also the landing exhibit (§6.1, "The frames").
 > - **The scroll walks the deck** from `lg`: past the handoff, each frame holds for 42vh of scroll, and clicks, keys and the rail arrows scroll to a frame rather than set it (§6.1, "Switching").
 > - **Railtracks** draws an endless agent run (`deck/stages/agent-flow.ts`): tools branch straight off a lane, subagents fork on a diagonal in their own colour and merge back, each run accelerates, and hover pauses it and names what is under the cursor. **NewsRing** draws the morning's selection on a dial of its 35 sources with today's headlines in the middle, fetched live (`deck/stages/news-dial.ts`).
-> - **Cutting to Particle Wave from either of them is a morph**: the outgoing picture is read back as points and the engine starts on them, then pulls them into the corona (`deck/seed.ts`).
+> - **Cutting to Particle Wave from either of them is a morph**: the outgoing picture is read back as points and the engine starts on them, then pulls them into the corona (`deck/seed.ts`). Superseded in v0.26.0 by a morph between any two of the three.
 > - **The work band shows six cards**, pinned, and deals the second three onto the first as it scrolls (`ui/WorkStack.astro`, §3).
+>
+> **v0.23.0**: the Token Counter reads LiteLLM's price list from its source on every visit (GitHub, then jsDelivr's mirror, then the curated shortlist), instead of a snapshot committed to `public/data/`. Prices change daily upstream, and the snapshot was seven weeks old. The generator script, the snapshot and `npm run pricing:refresh` are gone; the trimming they did now happens in the tab (§12.2, §12.3 rule 2).
+>
+> **v0.22.0**: the tools roster links each tool's full page from its own row. Reaching a tool's page meant selecting it in the roster and then finding the button at the foot of its stage. Each row now ends in a small FULL tab whose slanted edge alternates by row, so the tabs draw a zig-zag down the roster; hovering or focusing one widens it over the name to "Visit the full page". The per-row `01`–`05` index is gone, since the counter under the roster already shows it (§12.2).
 >
 > **v0.21.0** — a twelfth tool, the **Run Viewer** (`/tools/run-viewer`, §12.6). It opens a Railtracks run log and draws it with Railtracks' own visualizer, which is not bundled: it is fetched from npm through esm.sh on every visit, at a version the visitor picks, so a visualizer release appears here with no rebuild. Picking a Railtracks version selects the visualizer that release would have downloaded (by date). Both log formats open: session files as written, and event streams (`events/*.jsonl`, the current default) rebuilt into runs by `lib/railtracks/runs.ts`. A whole folder can be opened and, in Chromium, watched with `FileSystemObserver`, so new runs appear and a run in progress redraws as it grows. The visualizer runs in a sandboxed, opaque-origin frame (`public/frames/railtracks-visualizer.html`), and a **Site** style recolours it from the page's own tokens. The Railtracks post links to it.
 >
@@ -426,7 +443,7 @@ direct links and renders the same component.
 
 ### 4.1 The rail
 
-A fixed left sidebar (`--rail-w`, 16.25rem) replaces the horizontal header. It
+A fixed left sidebar (`--rail-w`, 4.5rem of icons, widening over the page to `--rail-w-open`, 16rem, on hover or keyboard focus) replaces the horizontal header. It
 buys three things a top bar could not: navigation stays visible through a
 full-height hero, the content column gets an asymmetric left edge to sit
 against, and the active item can take a left border rather than an underline.
@@ -443,6 +460,8 @@ entry resolving to `#tools` on the home page and to `/tools` elsewhere meant
 the same word in the same place led to two different designs. On the home page
 the rail still scroll-spies those ids, so a `/#tools` entry that is already
 home behaves as an in-page anchor.
+
+**The dedicated page is the row's FULL tab** (`components/ui/FullTab.tsx`, styled as `.full-tab` in `global.css`), the same tab the tools roster uses (§12.2). Every entry with a band and a page of its own gets one at the trailing end of its row, in the rail and in the phone drawer. Index has no page beyond the home page, so it has no tab, and the slants count tabbed rows only so the zig-zag stays unbroken. In the collapsed rail a tab would cover the icon, so the rail's tabs fade in with the labels and take no clicks until the rail is open. Each host sizes its tabs through `--full-tab-w`, `--full-tab-slant` and `--full-tab-open-from`; the rail and drawer pick a slant short enough that the open tab covers the label without fading it. The rail rows no longer show a `00`–`06` index, and `NavItem` has no `index` field (the 404 page numbers its list by position).
 
 A fragment that is present at load needs help on this site, which is
 `HashLanding.astro`, mounted last in the body by `BaseLayout` so every section
@@ -723,61 +742,41 @@ slots**, Systems and Research: areas of real work with no write-up yet, marked
 
 Adding a project to the deck is still an MDX file plus one line in the table.
 
-**Railtracks** (`stages/RailtracksStage.tsx`, engine in `stages/agent-flow.ts`)
-is the landing exhibit, so the first thing on the site is an agent system
-working. A plotter head sits 13% down the box and the paper runs downward under
-it, so the run's history flows down and fades out while new work is printed at
-the top. One lane per agent, coloured by depth (`--c-flow-main`, `-sub`,
-`-sub2`; tools stay neutral in `--c-flow-tool`):
+**Railtracks** (`stages/RailtracksStage.tsx`, engine in `stages/agent-flow.ts`) is the landing exhibit, so the first thing on the site is an agent system working. The run reads from the top down, like a trace: a plotter head sits 74% down the box and prints what the run does next, and the paper runs upward under it, so what the run has done climbs away and fades out over the top 30%. One lane per agent, coloured by depth (`--c-flow-main`, `-sub`, `-sub2`; tools stay neutral in `--c-flow-tool`):
 
-- a **tool call** branches straight out at a right angle to a square leaf, and a
-  pulse runs out and back;
-- a **subagent** forks on a 45° diagonal into a lane of its own, runs its own
-  tools and possibly a subagent of its own, then merges back on a diagonal; the
-  parent waits on it, drawn dashed;
-- the main lane carries **sleepers**, so it reads as track and the paper's
-  movement is visible even on a quiet stretch.
+- a **tool call** branches straight out at a right angle to a square leaf, and a pulse runs out and back. **Parallel calls** fan two to four leaves from one point, 18 px of paper apart, and split to both sides of the main lane when both are open;
+- a **subagent** forks on a diagonal into a lane of its own, runs its own tools and possibly a subagent of its own, then merges back on a diagonal; the parent waits on it, drawn dashed. The main lane hands out **one to four** at once, dealt to both sides in turn; every fork in a fan takes the same paper, so they leave from one point at 45° to the next lane and flatter to the one beyond. A fork only passes over free slots, and a lane further out waits to merge until the lanes between it and its parent have closed, so no diagonal crosses a running lane;
+- the main lane carries **sleepers**, so it reads as track and the paper's movement is visible even on a quiet stretch.
 
-Each top-level run (a named flow, ending in DONE) starts at 42 px/s and
-accelerates toward 240 over 2,000 px of paper, then the next run starts slow
-again, which is what "increasing speed" looks like without running away.
-Hover stops the paper within about 100 ms, lights the hovered item's lane,
-dims the others, and shows a card naming the item, its kind and one line on
-what it did. Hold does the same for a visitor without a cursor. Positions live
-in paper coordinates (lane slot, paper run) and are projected every frame, so
-a resize re-lays out the whole history. Two siblings finishing together would
-land on one spot, so the later one holds its lane until there is 20 px clear.
-Below 640px of box width it keeps to one lane either side, centred, and a label
-that would run off an edge goes the other way.
+**Speed only ever rises.** A run (a named flow, ending in DONE) starts at 36 px/s and doubles every 2.6 s of running, under a soft ceiling near 320 px/s. When it finishes it does not slow down: the finished run keeps its pace and pulls away upward, doubling its own speed every 0.9 s, while the next run starts slow at the head after a short stretch of quiet lane. The only thing that decelerates is the paper under the cursor.
+
+**The cursor slows it by distance.** The distance from the cursor to the nearest line, node or label sets how freely the paper runs: none on top of anything drawn, rising smoothly to full speed 170 px away, so the far side of the box does not slow it at all. The factor multiplies the run's own speed, and the run only gathers pace while it moves. Within 16 px of an item the paper is stopped, the item's lane is lit, the others dim, and a card names the item, its kind and one line on what it did. Hold stops it outright for a visitor without a cursor.
+
+Positions live in paper coordinates (lane slot, paper run, plus how far a finished run has pulled away) and are projected every frame, so a resize re-lays out the whole history. Two siblings finishing together would land on one spot, so the later one holds its lane until there is 20 px clear. A subagent's label drops its SUBAGENT tag where a lane runs beside it or where the full label would not fit. Labels keep out of the left 12% of the box, which lies under the copy column. Below 640px of box width it keeps to one lane either side, centred, and a label that would run off an edge goes the other way.
 
 **NewsRing** (`stages/NewsStage.tsx`, engine in `stages/news-dial.ts`) is a dial
 of the 35 sources the author's NewsRing reads (`data/newsring.ts`). It fetches
 the live feed (`news_today.json`) when shown and replays that morning in the
 two phases NewsRing runs: **reading**, every candidate streaming in from a
 random source and most giving out on the way, with a counter in the middle;
-then **selecting**, each picked story travelling in from the tick of the
-source it really came from (by name for the digest, by host for the top three)
-and leaving a yellow thread, with its headline set in the middle as it lands.
-"My digest" and "Top 3" switch between the personal stories and the card's.
-If the feed cannot be fetched the dial still runs and the middle says so; it
-never invents a headline.
+then **selecting**, each picked story travelling in from the tick of the source it really came from (by name for the digest, by host for the top three) and leaving a yellow thread. Reading takes 2.4 s and a pick lands every 0.85 s, so a nine-story digest is in within ten seconds of the frame arriving; the full selection is then held for 12 s before the cycle starts over.
 
-### Cutting into Particle Wave
+The picks arrive too fast to read one at a time in the middle of the ring, so they are also **listed in the empty top of the copy column**, between the masthead and the frame copy (`.deck-aside`, which `ProjectDeck` lends to the held stage; NewsStage portals into it). A row is a dashed placeholder carrying its source until its story lands, then flashes in. Hovering or focusing a row picks that story out: its thread and source tick are drawn strong and labelled, the rest step back, the headline is set in the middle, and the cycle holds so the list does not reset under the cursor. Without a pick in hand the middle shows the latest story to land, then, once all have, the count picked of the candidates read. The list is desktop only; on a phone the middle carries it.
 
-From Railtracks or NewsRing, the cut to Particle Wave is a morph, not a swap.
-Both drawn stages keep their lines and nodes on one canvas and their type on
-another, and register a snapshot function with the deck. On the cut, the deck
-reads the shape canvas back as points (`seed.ts`: a 1.6–2.5 px grid, alpha
-over a threshold, jittered inside each cell, at most 5,200) before the
-outgoing stage unmounts, and hands them to `ParticleStage` as `seed`. The
-engine is started on that cloud, with `source_size` set to the box and the
-coordinates pushed out by the engine's padding, so every particle lands on the
-pixel it was read from. The outgoing picture, type included, is laid over the
-canvas and faded out over 640 ms, so for a moment nothing has changed; after
-280 ms the field is morphed into the corona over 2.1 s with a 0.55 stagger.
-The seed is group 0, which the spin table holds still, so the picture comes
-apart rather than first starting to turn. Type is never sampled: text turned
-into particles reads as noise.
+The ring is sized to read as large as the other exhibits: it takes 45% of the box width and runs under the translucent control row rather than stopping above it. "My digest" and "Top 3" switch between the personal stories and the card's. If the feed cannot be fetched the dial still runs and the middle says so; it never invents a headline.
+
+### Morphing between drawn exhibits
+
+Any cut between two of Railtracks, Particle Wave and NewsRing is a morph, in either direction: the outgoing picture comes apart into particles and they reform as the incoming one. The deck runs it itself (`morph.ts`) on a canvas laid over the stage, rather than asking the particle engine to, because the engine's own morph has no curve that starts slow and finishes fast and cannot carry the outgoing picture's colours.
+
+Each drawn stage registers a **snapshot** with the deck that reads its shape canvas back as points with their colours (`seed.ts`: a 1.6–2.5 px grid, alpha over a threshold, jittered inside each cell, a few thousand points). Particle Wave reads its engine canvas the same way. On the cut the deck reads the outgoing picture before the stage unmounts, mounts the incoming stage hidden (`data-entering`) and inactive, and polls its snapshot until it has drawn a first frame (Particle Wave runs a further 240 ms before holding, so the engine has a frame on its canvas). Then:
+
+- **Pairing.** Both clouds are ranked along a Hilbert curve and paired by rank, as the engine's own morph does, so neighbours stay neighbours. Where counts differ, particles share a start (a line splits) or an end (several converge); none appears or vanishes mid-flight. At most 7,000 particles.
+- **Motion.** Each particle leaves at its own moment within the first 34% of 2.6 s, then follows a smoothstep of `p^1.6`: it eases out of the old picture, is fastest late in its journey and settles without a long tail. Paths bow slightly across their direction, so the field reads as currents.
+- **Colour** runs behind the position: a particle keeps the colour it was read with (a yellow lane stays yellow) into its flight and fades to the incoming picture's colour as it arrives, on light and dark alike.
+- **Hand-off.** The outgoing picture, labels included, is drawn over the particles and fades in the first 380 ms. When the last particle lands, the stage fades up underneath at the picture they just drew and starts running, and the morph canvas fades off it over 420 ms.
+
+A cut that arrives mid-morph starts the next morph from wherever the particles are. If the incoming exhibit has not drawn within 2.5 s the deck cuts without a morph. Reduced motion cuts without one. Type is never sampled: text turned into particles reads as noise.
 
 ### Switching
 
@@ -932,9 +931,9 @@ thing moving — which is the only thing that should be. `padding` also drops fr
 
 The site's statement is the `h1`, set behind the exhibit at `clamp(2.25rem,
 7vw, 8.5rem)` with a hatched fill clipped to the glyphs and a faint outline
-stroke. It is real text at a real size, not a decorative image — it just is not
-competing with the frame title for the same slot. `--deck-ghost-alpha` differs
-per theme: hatched ink on paper carries more weight than hatched paper on ink.
+stroke. It is real text at a real size, not a decorative image — it just is not competing with the frame title for the same slot. `--deck-ghost-alpha` differs per theme: hatched ink on paper carries more weight than hatched paper on ink.
+
+It belongs to the landing card: it fades out with the lede as the deck opens (`--deck-t`) and is hidden once the deck has landed, so no exhibit is drawn over it. For the same reason of hierarchy, the set name in the deck state steps 26% toward the ground colour, so it reads as the page's signature rather than as a second heading above the frame title.
 
 ### Motion
 
@@ -1227,10 +1226,9 @@ visitor waits on, and after the sampler was given a coarse acceleration grid
 `CoverArt.astro` draws a deterministic SVG panel seeded from the project slug
 (FNV-1a → PRNG): orbit arcs, an accent core, nodes, scanlines, frame ticks.
 
-Real screenshots are better, and this yields the moment a project supplies a
-`cover`. Until then it beats both alternatives: an empty grey box says nothing,
-and a stock photo says something untrue. Same slug always draws the same panel —
-stable across rebuilds, distinct from its neighbours in a grid.
+Real screenshots are better, and this yields the moment a project supplies a `cover`. Until then it beats both alternatives: an empty grey box says nothing, and a stock photo says something untrue. Same slug always draws the same panel — stable across rebuilds, distinct from its neighbours in a grid.
+
+Since v0.26.0 every project supplies one. Railtracks' is a still of its deck exhibit and NewsRing's is the live `today.png`. The others are drawings made for the purpose (a feather in a ring for FeatherRing, a dial of scores for EvalRing, braces round a template with its slots for gs_prompt_manager), traced into point clouds by the Particle Wave package's `convert` in `hybrid` mode and rendered by the published engine at 1600×900 in one of its palettes; Particle Wave's is the corona itself in the Aurora look. The captions say how each was made.
 
 ---
 
@@ -1305,9 +1303,9 @@ cluster around "delve", "leverage", "seamless" and "robust". Existing lines
 that are already direct are left alone; the aim is to remove the machine
 register, not the voice.
 
-This applies to `src/content/`, `src/data/`, page `lede` and `description`
-props, demo captions, and `README.md`. Code comments and these design documents
-are held to a lower bar.
+This applies to `src/content/`, `src/data/`, page `lede` and `description` props, demo captions, and `README.md`. Code comments and these design documents are held to a lower bar.
+
+**Key phrases are picked out** so a skimming reader lands on the words that carry a paragraph. Copy stays a plain string, because the same string is also a meta description or structured data; a caller names the phrases to emphasise, and `lib/emphasis.ts` splits the text around them for `ui/Emph.tsx`, which sets them in the full text colour at a heavier weight against the muted body. A project's `emphasis` frontmatter applies wherever its summary is copy (the deck blurb, the cards, the project page), and the schema rejects a phrase that is not in the summary, so rewording one fails the build instead of silently losing the emphasis. The intro, the reserved frames and Myself carry their own lists.
 
 ---
 
@@ -1326,6 +1324,8 @@ enough (Token Counter, String Kit) the screen is a live mini version over the
 real engine, prefilled and pasteable, with no settings; Rest Reminder shows its
 working dial; the others show a sample. A stage carries controls, results and
 one link, never a paragraph: the tool's own page is where it explains itself.
+
+Each roster row also ends in a **full-page tab**, so a visitor can open a tool without first selecting it and reading to the foot of its stage. At rest it is a narrow strip reading FULL, tinted on the held row. Its leading edge is a diagonal that alternates by row, and because every tab is the same width the diagonals meet end to end and draw one zig-zag down the roster. On hover or keyboard focus the tab grows leftward over the name, stopping just past the tool's icon, and reads "Visit the full page". Only the held row's tab is in the tab order (arrow to a tool, then Tab to open it). The rows no longer carry a `01`–`05` index; the counter under the roster already numbers the held tool. The tab is the shared `components/ui/FullTab.tsx` (styles `.full-tab` in `global.css`, sizes on `.kit` in `showcase.css`), which the site rail uses too (§4.1).
 
 The screens are data (`components/tools/showcase.ts`), kept out of the registry
 for the reason `deck/frames.ts` is kept out of the projects collection: the
@@ -1350,7 +1350,7 @@ own name, summary or network behaviour.
 
 | Tool             | Island                             | Engine                                   | Network                  |
 | ---------------- | ---------------------------------- | ---------------------------------------- | ------------------------ |
-| Token Counter    | `components/tools/TokenCounter`    | `lib/tokens`, `lib/model-pricing`        | static price table       |
+| Token Counter    | `components/tools/TokenCounter`    | `lib/tokens`, `lib/model-pricing`        | LiteLLM price list, live |
 | Text Diff        | `components/tools/TextDiff`        | `lib/diff`, `lib/semantic`               | opt-in embedding call    |
 | Chunk Visualizer | `components/tools/ChunkVisualizer` | `lib/chunking`                           | none                     |
 | MCP Tester       | `components/tools/McpTester`       | `lib/mcp`                                | the endpoint you name    |
@@ -1384,14 +1384,7 @@ those encode a rule rather than a widget:
   data, and a tool that fails to boot because of a privacy setting is worse
   than one that forgets.
 
-**The price table** (`public/data/model-pricing.json`, ~290 kB) is generated
-from LiteLLM's published price list by `scripts/fetch-model-pricing.mjs` and
-committed. Reasons, in order: builds stay hermetic, a price change is a
-reviewable diff, and the browser never talks to a third party. Refresh with
-`npm run pricing:refresh`. It is fetched at runtime rather than bundled, so the
-tools that quote no prices do not carry it. `src/data/models.ts` survives as the
-pinned shortlist and the offline fallback; the catalogue supplies the numbers
-where it has them.
+**The price table** is LiteLLM's published price list, read from its source each time the Token Counter opens (`src/lib/model-pricing.ts`). Until v0.23.0 it was a trimmed snapshot committed to `public/data/` and refreshed by hand; prices change daily upstream, so a snapshot was stale by the next change and keeping it fresh meant a site deploy for every one. The page now fetches `raw.githubusercontent.com` (cross-origin reads allowed, five-minute cache, 2.8 MB sent as about 145 kB gzipped), falls back to jsDelivr's mirror of the same file when GitHub's raw host is blocked (up to 12 hours behind, and the page says so), and trims the list in the tab to the token-priced modes and the fields the tool shows. `src/data/models.ts` survives as the pinned shortlist and the last fallback; the list supplies the numbers where it has them.
 
 **The MCP client** speaks both protocol eras. Revision `2026-07-28` removed the
 `initialize` handshake, protocol-level sessions and the standalone GET stream,
@@ -1458,8 +1451,7 @@ the four now make requests, so the rule is restated rather than quietly broken:
    only exception is the diff tool's semantic panel, and it is opt-in per
    click: the button says what leaves the page, and the local engine is the
    default so the tool is fully useful without ever pressing it.
-2. **A tool may fetch its own static data from this origin.** The token
-   counter's price table. The request carries nothing but its own URL.
+2. **A tool may fetch public reference data it needs, from this origin or from that data's source.** The Token Counter reads LiteLLM's price list from GitHub (or jsDelivr's mirror of it) on each visit. The request carries nothing but its own URL: no cookies, no referrer, never the visitor's text.
 3. **A tool whose whole purpose is a network call may make it, to an endpoint
    the visitor named, direct from the tab.** The MCP tester.
 4. **A tool may download its own runtime from a public CDN.** The Python
@@ -1715,6 +1707,7 @@ so the behaviour is unchanged.
 | Run Viewer loads the visualizer from npm, unpinned, at visit time       | A visualizer release should reach the site with no rebuild; a picked version lets an old log be drawn by the build that matched it                    |
 | The visualizer runs in an opaque-origin sandbox, fed by `postMessage`   | It is third-party code fetched live; the sandbox also keeps its React 18, Ant Design globals and emotion styles away from the page                    |
 | Rebuild runs from event streams on the site rather than wait for V2     | New Railtracks runs only write JSONL; without the rebuild, folder mode would show almost nothing until V2 reaches npm                                 |
+| Read model prices from LiteLLM live, not from a committed snapshot      | Prices change daily; a snapshot is stale by the next change and freshness would cost a deploy each time. GitHub raw first, jsDelivr if blocked        |
 | Posts as a fixed-size wheel, not a growing list                         | A band that grows with every post punishes writing more; a wheel that never ends says "there is more" without the page getting longer                 |
 | Cards restored for `#work`                                              | The manifest was faster to skim and duller to look at; the cover art is generated, so an entry is a picture from the day it is added                  |
 

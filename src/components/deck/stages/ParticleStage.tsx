@@ -8,7 +8,7 @@ import { imageToCloud, type PwCloud } from '../../../lib/image-to-cloud';
 import { API_BASE, convertViaApi } from '../../../lib/particle-wave-api';
 import { href } from '../../../lib/url';
 import { readToken, waveFrontConfig } from '../../../lib/particle-theme';
-import { seedToCloud, type SeedCloud } from '../seed';
+import { sampleCanvas, type Snapshot } from '../seed';
 import { Chips, Segment, StageShell } from '../StageShell';
 
 /**
@@ -43,14 +43,14 @@ import { Chips, Segment, StageShell } from '../StageShell';
  * `prefers-reduced-motion`, where a canvas that reacts to scrolling is exactly
  * what the setting is asking us not to do.
  *
- * ## Arriving from another exhibit
+ * ## Arriving from, and leaving for, another exhibit
  *
- * When the deck cuts here from a drawn exhibit, it hands over that picture as
- * points (`seed`, see `../seed.ts`). The engine is started on those points
- * rather than on the corona, with the outgoing picture laid over it and faded
- * out, so for a moment nothing has changed; then the field is morphed into the
- * corona. The other exhibit comes apart and reassembles as this one, which is
- * the same claim the subject morph makes, made at the cut.
+ * The deck morphs between its drawn exhibits (`../morph.ts`), and this one
+ * takes part like the others: it registers a snapshot that reads the canvas
+ * back as points, and when it is the one arriving it is mounted hidden
+ * (`entering`) with the engine held on its first frame, so the particles of
+ * the morph land exactly where the engine's own are. The arrival wave is
+ * skipped then: the morph is the arrival.
  *
  * ## Two tracers, one contract
  *
@@ -205,14 +205,17 @@ const BASE: Partial<ParticleWaveConfig> = {
 interface Props {
   /** True while this frame is the one on the deck. Drives pause/resume. */
   active: boolean;
-  /** The outgoing exhibit, read back as points, when the deck cut here from one. */
-  seed?: SeedCloud | null;
+  /** True while the deck is morphing another exhibit into this one. */
+  entering?: boolean;
+  /** Registers how to read the picture back, for the deck's morphs. */
+  onSnapshot?: (snapshot: Snapshot | null) => void;
 }
 
-/** Milliseconds the outgoing picture holds before the field starts to move. */
-const SEED_HOLD = 280;
-/** The morph from the outgoing picture into the corona. */
-const SEED_MORPH = { duration: 2100, stagger: 0.55 } as const;
+/**
+ * Milliseconds the engine keeps running after it is told to hold. It needs a
+ * frame or two on the canvas before the deck can read its first picture back.
+ */
+const HOLD_AFTER_MS = 240;
 
 interface Source {
   /** Changes on every load, including re-picking the same file. */
@@ -245,11 +248,14 @@ function settle(): void {
   window.dispatchEvent(new Event('coronring:exhibit-ready'));
 }
 
-export default function ParticleStage({ active, seed = null }: Props): React.ReactElement {
+export default function ParticleStage({
+  active,
+  entering = false,
+  onSnapshot,
+}: Props): React.ReactElement {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const overlayRef = useRef<HTMLDivElement | null>(null);
-  /** Read once: the seed only means something on the mount it arrived with. */
-  const seedRef = useRef(seed);
+  /** Read once: only the mount the morph arrived with skips the arrival wave. */
+  const arrivingRef = useRef(entering);
   const instanceRef = useRef<ParticleWaveInstance | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -298,12 +304,9 @@ export default function ParticleStage({ active, seed = null }: Props): React.Rea
     void (async () => {
       try {
         const { field: f, look: l } = liveRef.current;
-        const arriving = seedRef.current;
-        const corona = href('/clouds/corona.pwcloud');
-        const padding = BASE.padding ?? 0;
         const instance = await ParticleWave.init(canvas, {
           ...BASE,
-          src: arriving ? seedToCloud(arriving, padding) : corona,
+          src: href('/clouds/corona.pwcloud'),
           particleColor: readToken('--c-particle', '#ffffff'),
           particleOpacity: Number(readToken('--particle-opacity', '0.85')),
           mouseMode: f,
@@ -321,23 +324,9 @@ export default function ParticleStage({ active, seed = null }: Props): React.Rea
         settle();
         setReadout({ points: instance.stats.particleCount, fps: 0 });
 
-        if (arriving) {
-          /*
-           * The outgoing picture is still laid over the canvas. Fade it off the
-           * particles that now hold its shape, then pull them into the corona.
-           */
-          overlayRef.current?.setAttribute('data-leaving', '');
-          setStatus('morphing');
-          await new Promise((resolve) => window.setTimeout(resolve, SEED_HOLD));
-          if (disposed) return;
-          await instance.morphTo(corona, SEED_MORPH);
-          if (disposed) return;
-          setStatus('ready');
-          setReadout({ points: instance.stats.particleCount, fps: instance.stats.fps });
-          return;
-        }
-
+        onSnapshot?.(() => sampleCanvas(canvas, [canvas], { step: 2, threshold: 40, maxPoints: 6500 }));
         setStatus('ready');
+        if (arrivingRef.current) return;
 
         /*
          * Announce the cloud with a wave from the centre.
@@ -359,22 +348,11 @@ export default function ParticleStage({ active, seed = null }: Props): React.Rea
 
     return () => {
       disposed = true;
+      onSnapshot?.(null);
       instanceRef.current?.destroy();
       instanceRef.current = null;
     };
-  }, [announce]);
-
-  // ── Lay the outgoing picture over the canvas until the engine has it ──
-  useEffect(() => {
-    const host = overlayRef.current;
-    const picture = seedRef.current?.overlay;
-    if (!host || !picture) return;
-    picture.className = 'size-full';
-    host.appendChild(picture);
-    return () => {
-      picture.remove();
-    };
-  }, []);
+  }, [announce, onSnapshot]);
 
   // ── Subject changes are a morph, not a rebuild ────────────────────
   useEffect(() => {
@@ -417,8 +395,13 @@ export default function ParticleStage({ active, seed = null }: Props): React.Rea
   // ── Only run while this frame is on the deck ──────────────────────
   useEffect(() => {
     if (status !== 'ready') return;
-    if (active) instanceRef.current?.resume();
-    else instanceRef.current?.pause();
+    if (active) {
+      instanceRef.current?.resume();
+      return;
+    }
+    // Held a beat late, so a canvas that has only just started has a frame on it.
+    const id = window.setTimeout(() => instanceRef.current?.pause(), HOLD_AFTER_MS);
+    return () => window.clearTimeout(id);
   }, [active, status]);
 
   // ── The cloud answers the scroll ──────────────────────────────────
@@ -607,8 +590,6 @@ export default function ParticleStage({ active, seed = null }: Props): React.Rea
         role="img"
         className="block size-full cursor-crosshair touch-pan-y"
       />
-
-      {seedRef.current && <div ref={overlayRef} aria-hidden="true" className="deck-seed-overlay" />}
 
       <input
         ref={fileInputRef}

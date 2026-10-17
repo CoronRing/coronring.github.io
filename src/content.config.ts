@@ -1,5 +1,6 @@
 import { defineCollection, z } from 'astro:content';
 import { glob } from 'astro/loaders';
+import { missingPhrases } from './lib/emphasis';
 
 /**
  * Content collections.
@@ -39,6 +40,11 @@ const projects = defineCollection({
     title: z.string(),
     /** One-line hook shown on the card. */
     summary: z.string().max(200),
+    /**
+     * Phrases of the summary to pick out wherever it is shown as copy, written
+     * exactly as they appear in it. See `lib/emphasis.ts`.
+     */
+    emphasis: z.array(z.string()).default([]),
     /** Sorts listings; lower surfaces first. */
     order: z.number().default(100),
     status: z.enum(['live', 'in-progress', 'archived']).default('live'),
@@ -68,6 +74,14 @@ const projects = defineCollection({
     gallery: z.array(mediaSchema).default([]),
     featured: z.boolean().default(false),
     draft: z.boolean().default(false),
+  }).superRefine((data, ctx) => {
+    for (const phrase of missingPhrases(data.summary, data.emphasis)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['emphasis'],
+        message: `"${phrase}" is not in the summary`,
+      });
+    }
   }),
 });
 

@@ -26,11 +26,11 @@ import {
  * particles when it cuts to Particle Wave (`../seed.ts`), and type turned into
  * particles reads as noise.
  *
- * ## Hover is the pause
+ * ## The cursor slows it
  *
- * Over the exhibit the paper stops, quickly, and whatever is under the cursor
- * gets a card. Away from it the run starts again from its slow speed. "Hold"
- * does the same for a visitor without a cursor.
+ * The paper slows as the cursor nears the drawing and stops on an item, which
+ * gets a card; across the box from the drawing it barely slows at all. "Hold"
+ * stops it outright, for a visitor without a cursor.
  */
 
 interface Props {
@@ -100,8 +100,6 @@ export default function RailtracksStage({ active, onSnapshot }: Props): React.Re
   const [failed, setFailed] = useState(false);
   const [box, setBox] = useState({ width: 0, height: 0 });
 
-  const runRef = useRef(run);
-  runRef.current = run;
   const reduced = useRef(false);
 
   // ── Build the engine. Once. ───────────────────────────────────────
@@ -122,6 +120,7 @@ export default function RailtracksStage({ active, onSnapshot }: Props): React.Re
       return;
     }
     flowRef.current = flow;
+    flow.onHover = (info) => setHover(info);
 
     const fit = (): void => {
       const rect = element.getBoundingClientRect();
@@ -159,7 +158,7 @@ export default function RailtracksStage({ active, onSnapshot }: Props): React.Re
   }, [active]);
 
   useEffect(() => {
-    flowRef.current?.setPaused(run === 'hold');
+    flowRef.current?.setHeld(run === 'hold');
   }, [run]);
 
   // ── Readout, sampled rather than per frame ────────────────────────
@@ -187,23 +186,16 @@ export default function RailtracksStage({ active, onSnapshot }: Props): React.Re
     };
   }, []);
 
-  // ── Hover: stop the paper, and say what is under the cursor ───────
+  // ── The cursor: the engine slows near it and reports what is under it ──
   const onPointerMove = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
-    const flow = flowRef.current;
     const element = boxRef.current;
-    if (!flow || !element) return;
-    flow.setPaused(true);
+    if (!element || event.pointerType === 'touch') return;
     const rect = element.getBoundingClientRect();
-    const hit = flow.pick(event.clientX - rect.left, event.clientY - rect.top);
-    setHover((prev) => (prev?.item.id === hit?.item.id ? prev : hit));
+    flowRef.current?.setPointer({ x: event.clientX - rect.left, y: event.clientY - rect.top });
   }, []);
 
   const onPointerLeave = useCallback(() => {
-    const flow = flowRef.current;
-    if (!flow) return;
-    flow.setPaused(runRef.current === 'hold');
-    flow.pick(-1000, -1000);
-    setHover(null);
+    flowRef.current?.setPointer(null);
   }, []);
 
   const paused = stats?.paused ?? false;
@@ -232,7 +224,7 @@ export default function RailtracksStage({ active, onSnapshot }: Props): React.Re
           </span>
         )
       }
-      hint="Hover to pause and read · a tool branches straight out · a subagent forks on a diagonal and merges back"
+      hint="Bring the cursor near to slow it, onto an item to stop and read · tools branch straight out · subagents fork on a diagonal and merge back"
       controls={
         <>
           <Segment label="Run" value={run} options={RUN_OPTIONS} onChange={setRun} />

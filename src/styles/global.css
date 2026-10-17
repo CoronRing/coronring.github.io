@@ -1089,6 +1089,33 @@
   padding: 0;
 }
 
+/*
+ * Highlighted code follows the site's theme, not the reader's OS.
+ *
+ * Shiki writes both themes into every block: the light colours inline, the
+ * dark ones as `--shiki-dark*` properties beside them. Left alone, a block is
+ * white in dark mode. The ground is the page's own sunken surface in both
+ * themes, and the dark colours take over wherever the page is dark, by either
+ * route the theme can be set.
+ */
+.astro-code {
+  background-color: var(--c-sunken) !important;
+  font-size: 13.5px;
+  line-height: 1.65;
+}
+.astro-code code {
+  font-size: inherit;
+}
+:root[data-theme='dark'] .astro-code,
+:root[data-theme='dark'] .astro-code span {
+  color: var(--shiki-dark) !important;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) .astro-code,
+  :root:not([data-theme='light']) .astro-code span {
+    color: var(--shiki-dark) !important;
+  }
+}
 
 .post-prose blockquote {
   border-left: 2px solid var(--c-accent-fill);

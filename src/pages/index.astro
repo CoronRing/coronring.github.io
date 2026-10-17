@@ -45,6 +45,7 @@ const deckProjects = projects.map((p) => ({
   id: p.id,
   title: p.data.title,
   summary: p.data.summary,
+  emphasis: p.data.emphasis,
   status: p.data.status,
   tech: p.data.tech,
   period: p.data.period,
@@ -109,6 +110,8 @@ const siteData = [
  */
 type ProofSpec = {
   claim: string;
+  /** Phrases of the claim to pick out, as they appear in it. */
+  emphasis?: string[];
   entry?: string;
   credit?: 'role' | 'org';
 } & ({ figure: string } | { logo: string; alt: string });
@@ -119,6 +122,8 @@ interface PillarSpec {
   title: string;
   /** One sentence. */
   body: string;
+  /** Phrases of the body to pick out, as they appear in it. */
+  emphasis?: string[];
   tags: string[];
   proof: ProofSpec[];
 }
@@ -129,15 +134,26 @@ const PILLAR_SPECS: PillarSpec[] = [
     index: '01',
     title: 'Agent systems',
     body: 'Agents that plan, call tools and recover from their own failures, built to stay up in production.',
+    emphasis: ['recover from their own failures', 'stay up in production'],
     tags: ['Tool use', 'Orchestration', 'Evals'],
     proof: [
-      { figure: '20', claim: 'Agents delivered to production', entry: '02-railtown-mle' },
+      {
+        figure: '20',
+        claim: 'Agents delivered to production',
+        emphasis: ['delivered to production'],
+        entry: '02-railtown-mle',
+      },
       {
         figure: '1st',
         claim: 'Agentic framework in Canada: Railtracks, which I designed and built',
+        emphasis: ['Railtracks'],
         entry: '02-railtown-mle',
       },
-      { figure: '5+', claim: 'Years of experience shipping machine learning' },
+      {
+        figure: '5+',
+        claim: 'Years of experience shipping machine learning',
+        emphasis: ['shipping machine learning'],
+      },
     ],
   },
   {
@@ -145,17 +161,20 @@ const PILLAR_SPECS: PillarSpec[] = [
     index: '02',
     title: 'Evaluation',
     body: 'If it cannot be measured, it should not ship. Benchmarks, and the harness that keeps scores comparable.',
+    emphasis: ['it should not ship', 'keeps scores comparable'],
     tags: ['Benchmarks', 'Hallucination', 'Safety'],
     proof: [
       {
         figure: '100s',
         claim:
           'Deployed products scored by AEval for accuracy, hallucination, security and fairness',
+        emphasis: ['AEval'],
         entry: '02-railtown-mle',
       },
       {
         figure: '91%',
         claim: 'User preference for a multi-model ensemble in A/B tests',
+        emphasis: ['multi-model ensemble'],
         entry: '04-railtown-ds',
       },
     ],
@@ -165,6 +184,7 @@ const PILLAR_SPECS: PillarSpec[] = [
     index: '03',
     title: 'Background',
     body: 'A master’s in applied AI, on top of an engineering degree that started at the hardware.',
+    emphasis: ['master’s in applied AI', 'started at the hardware'],
     tags: ['MScAC', 'Computer Engineering', 'Machine learning'],
     proof: [
       {
@@ -172,6 +192,7 @@ const PILLAR_SPECS: PillarSpec[] = [
         alt: 'University of Toronto',
         claim:
           'MScAC, Master of Science in Applied Computing, Artificial Intelligence specialization',
+        emphasis: ['Artificial Intelligence specialization'],
         entry: '10-uoft-msc',
         credit: 'org',
       },
@@ -179,12 +200,14 @@ const PILLAR_SPECS: PillarSpec[] = [
         logo: 'ubc.svg',
         alt: 'University of British Columbia',
         claim: 'BASc Computer Engineering (CPEN), machine learning focus',
+        emphasis: ['machine learning focus'],
         entry: '11-ubc-basc',
         credit: 'org',
       },
       {
         figure: '1%',
         claim: 'Graduated in the top 1% of the Computer Engineering class',
+        emphasis: ['top 1%'],
         entry: '11-ubc-basc',
         credit: 'org',
       },
@@ -233,10 +256,12 @@ const PILLARS: Pillar[] = PILLAR_SPECS.map((spec) => ({
   index: spec.index,
   title: spec.title,
   body: spec.body,
+  emphasis: spec.emphasis,
   tags: spec.tags,
   proof: spec.proof.map((p) => ({
     mark: 'figure' in p ? { kind: 'figure', text: p.figure } : logo(p.logo, p.alt),
     claim: p.claim,
+    emphasis: p.emphasis,
     source: p.entry ? credit(p.entry, p.credit ?? 'role') : undefined,
   })),
 }));
@@ -264,6 +289,7 @@ const showcaseTools: ShowcaseTool[] = liveTools.map((t) => ({
     name="Guan Huang"
     role={SITE.role}
     intro="I build agent systems, the evaluation tooling that keeps them honest, and the infrastructure both run on."
+    introEmphasis={['agent systems', 'evaluation tooling', 'infrastructure']}
     links={SITE.social.map((s) => ({ label: s.label, href: s.href, icon: s.icon }))}
     indexHref={href('/projects')}
   />

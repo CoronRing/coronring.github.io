@@ -31,6 +31,8 @@ export interface DeckProject {
   id: string;
   title: string;
   summary: string;
+  /** Phrases of the summary to pick out. */
+  emphasis: readonly string[];
   status: 'live' | 'in-progress' | 'archived';
   tech: string[];
   period?: string;
@@ -46,6 +48,8 @@ export interface DeckFrame {
   railName: string;
   /** Two or three sentences. The stage carries the rest. */
   blurb: string;
+  /** Phrases of the blurb to pick out, as they appear in it. */
+  emphasis: readonly string[];
   /** One label/value pair. The frame's own exhibit says the rest. */
   meta: { label: string; value: string };
   status: DeckProject['status'] | 'reserved';
@@ -83,6 +87,7 @@ const RESERVED: readonly DeckFrame[] = [
     railName: 'Systems',
     blurb:
       'GPU programming, HDL, and vision-language models that read hardware schematics. The half of the work that runs below the model rather than on top of it. Write-up in progress.',
+    emphasis: ['GPU programming', 'HDL', 'read hardware schematics'],
     meta: { label: 'Area', value: 'Low level' },
     status: 'reserved',
     stage: 'reserved',
@@ -95,6 +100,7 @@ const RESERVED: readonly DeckFrame[] = [
     railName: 'Research',
     blurb:
       'Control-flow guided test generation, and what it takes to move branch coverage on code a model has never seen. Write-up in progress.',
+    emphasis: ['Control-flow guided test generation', 'branch coverage'],
     meta: { label: 'Area', value: 'Program analysis' },
     status: 'reserved',
     stage: 'reserved',
@@ -120,6 +126,7 @@ export function buildFrames(projects: readonly DeckProject[]): DeckFrame[] {
         title: project.title,
         railName: project.title,
         blurb: project.summary,
+        emphasis: project.emphasis,
         meta: { label: 'Stack', value: project.tech.slice(0, 3).join(' · ') },
         status: project.status,
         stage: meta.stage,

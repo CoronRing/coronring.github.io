@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { buildFrames, type DeckFrame, type DeckProject } from './frames';
 import Sigil from './Sigil';
+import { Morph } from './morph';
 import type { SeedCloud, Snapshot } from './seed';
 import RailtracksStage from './stages/RailtracksStage';
 import ParticleStage from './stages/ParticleStage';
@@ -9,6 +10,7 @@ import AgentStage from './stages/AgentStage';
 import PromptStage from './stages/PromptStage';
 import ReservedStage from './stages/ReservedStage';
 import Icon from '../ui/Icon';
+import Emph from '../ui/Emph';
 import type { IconName } from '../ui/icons';
 
 /**
@@ -48,13 +50,16 @@ import type { IconName } from '../ui/icons';
  * instant, which inside a pinned screen is invisible except as the cut. Below
  * `lg` nothing is pinned and the controls set the frame directly.
  *
- * ## Cutting to Particle Wave
+ * ## Cutting between drawn exhibits
  *
- * A drawn exhibit (Railtracks, NewsRing) registers a snapshot function. When
- * the deck cuts from one of them to Particle Wave, it reads the outgoing
- * picture back as points before unmounting it and hands them over as `seed`,
- * so the engine starts on that picture and morphs it into the corona. See
- * `seed.ts`.
+ * Railtracks, Particle Wave and NewsRing each register a snapshot function
+ * that reads their picture back as points. On a cut between two of them the
+ * deck reads the outgoing picture before unmounting it, mounts the incoming
+ * exhibit hidden and held still, reads its first frame the same way, and runs
+ * a morph from one to the other on a canvas over the stage (`morph.ts`). When
+ * the particles land, the exhibit underneath is revealed at the picture they
+ * just drew, and starts running. A cut that arrives mid-morph starts the next
+ * morph from wherever the particles are.
  *
  * ## The exhibit sits beside the copy, not under it
  *
@@ -81,6 +86,8 @@ interface Props {
   role: string;
   /** One sentence, shown on the landing card only. */
   intro: string;
+  /** Phrases of the intro to pick out. */
+  introEmphasis?: readonly string[];
   /**
    * The handful of links that belong on a title card. They are the only way
    * off the landing card, so each one carries its mark: a row of plain words
@@ -120,8 +127,11 @@ const PINNED = '(min-width: 64rem)';
  */
 const LEAD_VH = 0.12;
 
-/** Stages that draw their own picture and can hand it to the particle engine. */
-const DRAWN: ReadonlySet<string> = new Set(['railtracks', 'news']);
+/** Stages that draw their own picture and can be morphed into one another. */
+const DRAWN: ReadonlySet<string> = new Set(['railtracks', 'particle', 'news']);
+
+/** How long the deck waits for the incoming exhibit's first frame before cutting without a morph. */
+const MORPH_WAIT_MS = 2500;
 
 /**
  * Display size for a frame title, stepped by length.
@@ -156,6 +166,7 @@ export default function ProjectDeck({
   name,
   role,
   intro,
+  introEmphasis,
   links,
   indexHref,
 }: Props): React.ReactElement {
@@ -163,9 +174,16 @@ export default function ProjectDeck({
   const uid = useId();
   const [index, setIndex] = useState(0);
   const indexRef = useRef(0);
-  /** The outgoing picture, when the cut is from a drawn exhibit to Particle Wave. */
+  /** The outgoing picture, while a cut between two drawn exhibits is being morphed. */
   const [seed, setSeed] = useState<SeedCloud | null>(null);
+  /** True while the incoming exhibit is mounted but hidden under the morph. */
+  const [entering, setEntering] = useState(false);
+  const morphCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const morphRef = useRef<Morph | null>(null);
+  const stageRef = useRef<HTMLDivElement | null>(null);
   const snapshotRef = useRef<Snapshot | null>(null);
+  /** Where a stage may put copy of its own, in the copy column. */
+  const [newsHost, setNewsHost] = useState<HTMLDivElement | null>(null);
   const registerSnapshot = useCallback((snapshot: Snapshot | null) => {
     snapshotRef.current = snapshot;
   }, []);
@@ -188,8 +206,21 @@ export default function ProjectDeck({
       if (next === current) return;
       const from = frames[current];
       const to = frames[next];
-      const handOver = to?.stage === 'particle' && from !== undefined && DRAWN.has(from.stage);
-      setSeed(handOver ? (snapshotRef.current?.() ?? null) : null);
+      const morph =
+        from !== undefined &&
+        to !== undefined &&
+        DRAWN.has(from.stage) &&
+        DRAWN.has(to.stage) &&
+        !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      // Mid-morph, the next one starts from wherever the particles are.
+      const outgoing = morph
+        ? (morphRef.current?.current() ?? snapshotRef.current?.() ?? null)
+        : null;
+      morphRef.current?.stop();
+      morphRef.current = null;
+      snapshotRef.current = null;
+      setSeed(outgoing);
+      setEntering(outgoing !== null);
       indexRef.current = next;
       setIndex(next);
     },
@@ -223,6 +254,59 @@ export default function ProjectDeck({
     },
     [total, frameTop, select],
   );
+
+  /*
+   * The morph. Runs whenever a cut hands over a picture: holds the outgoing
+   * picture as particles until the incoming exhibit has drawn its first frame,
+   * then morphs one into the other and reveals the exhibit underneath.
+   */
+  useEffect(() => {
+    const canvas = morphCanvasRef.current;
+    const stage = stageRef.current;
+    if (!seed || !canvas || !stage) return;
+
+    const box = stage.getBoundingClientRect();
+    let morph: Morph;
+    try {
+      morph = new Morph(canvas, seed, box);
+    } catch {
+      setEntering(false);
+      return;
+    }
+    morphRef.current = morph;
+    canvas.removeAttribute('data-leaving');
+
+    let raf = 0;
+    let leaveId = 0;
+    const asked = performance.now();
+
+    const finish = (): void => {
+      if (morphRef.current === morph) morphRef.current = null;
+      setEntering(false);
+      canvas.setAttribute('data-leaving', '');
+      leaveId = window.setTimeout(() => setSeed((s) => (s === seed ? null : s)), 450);
+    };
+
+    const wait = (): void => {
+      const target = snapshotRef.current?.() ?? null;
+      if (target) {
+        morph.run(target, finish);
+        return;
+      }
+      if (performance.now() - asked > MORPH_WAIT_MS) {
+        finish();
+        return;
+      }
+      raf = requestAnimationFrame(wait);
+    };
+    raf = requestAnimationFrame(wait);
+
+    return () => {
+      cancelAnimationFrame(raf);
+      window.clearTimeout(leaveId);
+      morph.stop();
+    };
+  }, [seed]);
 
   /*
    * The handoff.
@@ -390,7 +474,7 @@ export default function ProjectDeck({
     >
       <div className="deck-pin">
         {/* ── The exhibit ─────────────────────────────────────────── */}
-        <div className="deck-stage">
+        <div ref={stageRef} className="deck-stage">
           {/*
             The site's statement, set behind the exhibit. The stages draw on a
             transparent canvas, so this reads through them as texture.
@@ -408,13 +492,24 @@ export default function ProjectDeck({
             aria-labelledby={`${uid}-tab-${frame.id}`}
             tabIndex={-1}
             className="deck-stage-inner"
+            data-entering={entering ? '' : undefined}
           >
             {frame.stage === 'railtracks' && (
-              <RailtracksStage active={onScreen} onSnapshot={registerSnapshot} />
+              <RailtracksStage active={onScreen && !entering} onSnapshot={registerSnapshot} />
             )}
-            {frame.stage === 'particle' && <ParticleStage active={onScreen} seed={seed} />}
+            {frame.stage === 'particle' && (
+              <ParticleStage
+                active={onScreen && !entering}
+                entering={entering}
+                onSnapshot={registerSnapshot}
+              />
+            )}
             {frame.stage === 'news' && (
-              <NewsStage active={onScreen} onSnapshot={registerSnapshot} />
+              <NewsStage
+                active={onScreen && !entering}
+                onSnapshot={registerSnapshot}
+                listHost={newsHost}
+              />
             )}
             {frame.stage === 'agent' && <AgentStage active={onScreen} />}
             {frame.stage === 'prompt' && <PromptStage active={onScreen} />}
@@ -423,6 +518,8 @@ export default function ProjectDeck({
             )}
             <span aria-hidden="true" className="deck-scan" />
           </div>
+
+          {seed && <canvas ref={morphCanvasRef} aria-hidden="true" className="deck-morph" />}
 
           <span aria-hidden="true" className="deck-vignette" />
         </div>
@@ -437,7 +534,7 @@ export default function ProjectDeck({
             <p className="eyebrow eyebrow-marked mt-3">{role}</p>
             <div className="deck-lede" aria-hidden={landed}>
               <p className="text-muted prose-measure mt-6 text-base leading-relaxed sm:text-lg">
-                {intro}
+                <Emph text={intro} phrases={introEmphasis} />
               </p>
               <div className="mt-8 flex flex-wrap items-center gap-3">
                 {links.map((link) => {
@@ -538,6 +635,11 @@ export default function ProjectDeck({
 
         {/* ── The readout ─────────────────────────────────────────── */}
         <div className="deck-copy" aria-hidden={phase === 'intro'}>
+          {/*
+            The empty top of the copy column, lent to the held exhibit. Only
+            NewsRing uses it, for the list of today's picks; see NewsStage.
+          */}
+          <div ref={setNewsHost} className="deck-aside" />
           <div className="mt-auto">
             <div className="border-line flex items-baseline gap-4 border-t pt-4">
               <span className="eyebrow">Building</span>
@@ -569,7 +671,7 @@ export default function ProjectDeck({
               </div>
 
               <p className="text-muted prose-measure mt-4 text-[15px] leading-relaxed">
-                {frame.blurb}
+                <Emph text={frame.blurb} phrases={frame.emphasis} />
               </p>
 
               <div className="mt-6 flex flex-wrap items-center gap-x-5 gap-y-3">

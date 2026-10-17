@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { NEWSRING, NEWSRING_SOURCES, type NewsFeed } from '../../../data/newsring';
 import { isDarkTheme, readToken } from '../../../lib/particle-theme';
 import { href } from '../../../lib/url';
@@ -19,11 +20,22 @@ import { NewsDial, type DialLayout, type DialPalette } from './news-dial';
  * fixed URL the News Today post reads, so the deck shows today's selection with
  * no rebuild of this site. If it cannot be fetched the dial still runs, and the
  * middle says so rather than showing invented headlines.
+ *
+ * ## The list
+ *
+ * The picks arrive about a second apart, too fast to read one at a time in the
+ * middle of the ring, so they are also listed in the empty top of the deck's
+ * copy column (`listHost`), where they can be read together. Each row lights
+ * up as its story lands. Hovering a row picks that story out on the dial (its
+ * thread and its source) and puts it in the middle, and holds the cycle so the
+ * list does not reset under the cursor.
  */
 
 interface Props {
   active: boolean;
   onSnapshot?: (snapshot: Snapshot | null) => void;
+  /** Where to put the list of picks: the top of the deck's copy column. */
+  listHost?: HTMLElement | null;
 }
 
 type View = 'digest' | 'top';
@@ -124,7 +136,7 @@ function shortDate(iso: string): string {
   return new Date(y, m - 1, d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
-export default function NewsStage({ active, onSnapshot }: Props): React.ReactElement {
+export default function NewsStage({ active, onSnapshot, listHost }: Props): React.ReactElement {
   const boxRef = useRef<HTMLDivElement | null>(null);
   const shapeRef = useRef<HTMLCanvasElement | null>(null);
   const typeRef = useRef<HTMLCanvasElement | null>(null);
@@ -134,6 +146,10 @@ export default function NewsStage({ active, onSnapshot }: Props): React.ReactEle
   const [view, setView] = useState<View>('digest');
   const [load, setLoad] = useState<Load>({ state: 'loading' });
   const [shown, setShown] = useState(-1);
+  /** True once the whole selection has landed, until the cycle starts over. */
+  const [complete, setComplete] = useState(false);
+  /** The story picked out from the list, or -1. */
+  const [focus, setFocus] = useState(-1);
   const [layout, setLayout] = useState<DialLayout | null>(null);
   const [reading, setReading] = useState<{ read: number; total: number } | null>(null);
 
@@ -180,8 +196,14 @@ export default function NewsStage({ active, onSnapshot }: Props): React.ReactEle
       return;
     }
     dialRef.current = dial;
-    dial.onLand = (story) => setShown(story);
-    dial.onCycle = () => setShown(-1);
+    dial.onLand = (story) => {
+      setShown(story);
+      if (dial.allLanded()) setComplete(true);
+    };
+    dial.onCycle = () => {
+      setShown(-1);
+      setComplete(false);
+    };
 
     const desktop = window.matchMedia('(min-width: 64rem)');
     const fit = (): void => {
@@ -219,8 +241,17 @@ export default function NewsStage({ active, onSnapshot }: Props): React.ReactEle
       picks.map((p) => p.source),
       stats?.candidates ?? 120,
     );
-    if (reduced.current) dial.settle();
+    setFocus(-1);
+    if (reduced.current) {
+      dial.settle();
+      setShown(picks.length - 1);
+      setComplete(true);
+    }
   }, [picks, stats]);
+
+  useEffect(() => {
+    dialRef.current?.setHighlight(focus);
+  }, [focus]);
 
   useEffect(() => {
     const dial = dialRef.current;
@@ -255,7 +286,14 @@ export default function NewsStage({ active, onSnapshot }: Props): React.ReactEle
   const onPointerEnter = useCallback(() => dialRef.current?.setPaused(true), []);
   const onPointerLeave = useCallback(() => dialRef.current?.setPaused(false), []);
 
-  const current = shown >= 0 ? picks[shown] : undefined;
+  const pickOut = useCallback((story: number) => {
+    setFocus(story);
+    dialRef.current?.setPaused(story >= 0);
+  }, []);
+
+  /** The middle shows the story picked out from the list, else the latest to land until all have. */
+  const middle = focus >= 0 ? focus : complete ? -1 : shown;
+  const current = middle >= 0 ? picks[middle] : undefined;
   /** A small ring (a phone) has room for the headline and nothing else. */
   const compact = layout !== null && layout.inner < 120;
   const date = load.state === 'ready' ? shortDate(load.feed.date) : null;
@@ -315,7 +353,7 @@ export default function NewsStage({ active, onSnapshot }: Props): React.ReactEle
               {current && picks.length > 1 && (
                 <span className="text-faint">
                   {' '}
-                  · {String(shown + 1).padStart(2, '0')}/{String(picks.length).padStart(2, '0')}
+                  · {String(middle + 1).padStart(2, '0')}/{String(picks.length).padStart(2, '0')}
                 </span>
               )}
             </p>
@@ -326,7 +364,7 @@ export default function NewsStage({ active, onSnapshot }: Props): React.ReactEle
                 Pacific.
               </p>
             ) : current ? (
-              <div key={`${view}-${shown}`} className="deck-news-story">
+              <div key={`${view}-${middle}`} className="deck-news-story">
                 <p className="text-accent mt-3 font-mono text-[10px] tracking-[0.14em] uppercase">
                   {current.kicker}
                 </p>
@@ -342,7 +380,9 @@ export default function NewsStage({ active, onSnapshot }: Props): React.ReactEle
                     ? `candidates read, of ${reading.total}`
                     : load.state === 'loading'
                       ? 'Reading the feed'
-                      : 'Selecting'}
+                      : complete
+                        ? `picked, of ${stats?.candidates ?? 'all the'} candidates`
+                        : 'Selecting'}
                 </p>
               </div>
             )}
@@ -366,6 +406,72 @@ export default function NewsStage({ active, onSnapshot }: Props): React.ReactEle
           </div>
         )}
       </div>
+
+      {listHost &&
+        picks.length > 0 &&
+        createPortal(
+          <PickList
+            picks={picks}
+            landed={complete ? picks.length - 1 : shown}
+            focus={focus}
+            date={date}
+            onFocus={pickOut}
+          />,
+          listHost,
+        )}
     </StageShell>
+  );
+}
+
+/**
+ * Today's picks, listed in landing order. A row is a placeholder until its
+ * story lands, then lights up; hovering or focusing a row picks it out.
+ */
+function PickList({
+  picks,
+  landed,
+  focus,
+  date,
+  onFocus,
+}: {
+  picks: readonly Pick[];
+  /** Index of the last story to have landed, or -1. */
+  landed: number;
+  focus: number;
+  date: string | null;
+  onFocus: (story: number) => void;
+}): React.ReactElement {
+  return (
+    <div className="deck-picks" onPointerLeave={() => onFocus(-1)}>
+      <p className="eyebrow text-[9.5px]">
+        {date ? `Today\u2019s picks · ${date}` : 'Today\u2019s picks'}
+      </p>
+      <ol className="deck-picks-list mt-3">
+        {picks.map((pick, i) => {
+          const on = i <= landed;
+          return (
+            <li key={`${i}-${pick.headline}`}>
+              <a
+                href={pick.url ?? href('/blog/news-today')}
+                target={pick.url ? '_blank' : undefined}
+                rel={pick.url ? 'noopener noreferrer' : undefined}
+                className="deck-pick"
+                data-landed={on ? '' : undefined}
+                data-focus={focus === i ? '' : undefined}
+                tabIndex={on ? 0 : -1}
+                aria-hidden={on ? undefined : true}
+                onPointerEnter={() => on && onFocus(i)}
+                onFocus={() => onFocus(i)}
+                onBlur={() => onFocus(-1)}
+              >
+                <span className="deck-pick-n">{String(i + 1).padStart(2, '0')}</span>
+                <span className="deck-pick-src">{pick.kicker}</span>
+                <span className="deck-pick-h">{on ? pick.headline : ''}</span>
+              </a>
+            </li>
+          );
+        })}
+      </ol>
+    </div>
   );
 }

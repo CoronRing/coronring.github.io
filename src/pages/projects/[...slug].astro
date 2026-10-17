@@ -17,6 +17,7 @@ import PyRunner from '../../components/tools/PyRunner';
 import { findPreset, presetsFor } from '../../data/py-presets';
 import MediaFrame from '../../components/ui/MediaFrame.astro';
 import Icon from '../../components/ui/Icon.astro';
+import Emph from '../../components/ui/Emph';
 import { href } from '../../lib/url';
 
 export const getStaticPaths = (async () => {
@@ -57,25 +58,29 @@ if (data.pyPreset && !pyPreset) {
     </a>
 
     <h1 class="display mt-6 max-w-4xl text-5xl sm:text-6xl lg:text-7xl">{data.title}</h1>
-    <p class="text-muted prose-measure mt-6 text-lg leading-relaxed">{data.summary}</p>
+    <p class="text-muted project-measure mt-6 text-lg leading-relaxed">
+      <Emph text={data.summary} phrases={data.emphasis} />
+    </p>
   </div>
 
   {
     data.hero && (
       <div class="shell pb-12">
-        <MediaFrame
-          src={data.hero.src}
-          poster={data.hero.poster}
-          alt={data.hero.alt || data.title}
-          ratio={data.hero.ratio}
-          label={data.hero.label}
-          seed={project.id}
-          expects={`/media/projects/${project.id}/hero.webp`}
-          priority
-        />
-        {data.hero.caption && (
-          <p class="text-faint mt-3 font-mono text-[11px]">{data.hero.caption}</p>
-        )}
+        <div class="project-hero">
+          <MediaFrame
+            src={data.hero.src}
+            poster={data.hero.poster}
+            alt={data.hero.alt || data.title}
+            ratio={data.hero.ratio}
+            label={data.hero.label}
+            seed={project.id}
+            expects={`/media/projects/${project.id}/hero.webp`}
+            priority
+          />
+          {data.hero.caption && (
+            <p class="text-faint mt-3 font-mono text-[11px]">{data.hero.caption}</p>
+          )}
+        </div>
       </div>
     )
   }
@@ -88,63 +93,63 @@ if (data.pyPreset && !pyPreset) {
     )
   }
 
-  <div class="shell grid gap-12 pb-24 lg:grid-cols-[minmax(0,1fr)_16rem] lg:gap-16">
-    <article
-      class="[&_a]:text-accent [&_code]:bg-sunken [&_h2]:display [&_pre]:border-line max-w-[var(--prose-max)] text-[15px] leading-[1.75] [&_a]:underline [&_a]:underline-offset-4 [&_code]:rounded-sm [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:font-mono [&_code]:text-[0.85em] [&_h2]:mt-12 [&_h2]:mb-4 [&_h2]:text-2xl [&_h3]:mt-8 [&_h3]:mb-3 [&_h3]:text-lg [&_li]:my-1.5 [&_ol]:my-5 [&_ol]:list-decimal [&_ol]:pl-5 [&_p]:my-5 [&_pre]:my-6 [&_pre]:overflow-x-auto [&_pre]:border [&_pre]:p-4 [&_ul]:my-5 [&_ul]:list-disc [&_ul]:pl-5"
-    >
-      <Content />
-    </article>
+  <div class="shell">
+    <div class="project-col grid gap-12 pb-24 lg:grid-cols-[minmax(0,1fr)_16rem] lg:gap-16">
+      <article class="post-prose project-prose min-w-0">
+        <Content />
+      </article>
 
-    <aside class="lg:sticky lg:top-10 lg:self-start">
-      <dl class="divide-line border-line divide-y border-t">
-        {
-          data.role && (
-            <div class="py-4">
-              <dt class="eyebrow">Role</dt>
-              <dd class="mt-2 text-sm">{data.role}</dd>
-            </div>
-          )
-        }
-        {
-          data.period && (
-            <div class="py-4">
-              <dt class="eyebrow">Period</dt>
-              <dd class="mt-2 font-mono text-sm">{data.period}</dd>
-            </div>
-          )
-        }
-        {
-          data.tech.length > 0 && (
-            <div class="py-4">
-              <dt class="eyebrow">Stack</dt>
-              <dd class="text-muted mt-2 font-mono text-xs leading-relaxed">
-                {data.tech.join(' · ')}
-              </dd>
-            </div>
-          )
-        }
-      </dl>
+      <aside class="lg:sticky lg:top-10 lg:self-start">
+        <dl class="divide-line border-line divide-y border-t">
+          {
+            data.role && (
+              <div class="py-4">
+                <dt class="eyebrow">Role</dt>
+                <dd class="mt-2 text-sm">{data.role}</dd>
+              </div>
+            )
+          }
+          {
+            data.period && (
+              <div class="py-4">
+                <dt class="eyebrow">Period</dt>
+                <dd class="mt-2 font-mono text-sm">{data.period}</dd>
+              </div>
+            )
+          }
+          {
+            data.tech.length > 0 && (
+              <div class="py-4">
+                <dt class="eyebrow">Stack</dt>
+                <dd class="text-muted mt-2 font-mono text-xs leading-relaxed">
+                  {data.tech.join(' · ')}
+                </dd>
+              </div>
+            )
+          }
+        </dl>
 
-      {
-        data.links.length > 0 && (
-          <ul class="mt-5 space-y-2">
-            {data.links.map((link) => (
-              <li>
-                <a
-                  href={link.href}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  class="border-line hover:border-fg flex h-10 items-center justify-between border px-3 text-sm transition-colors"
-                >
-                  {link.label}
-                  <Icon name="arrow-up-right" size={13} />
-                </a>
-              </li>
-            ))}
-          </ul>
-        )
-      }
-    </aside>
+        {
+          data.links.length > 0 && (
+            <ul class="mt-5 space-y-2">
+              {data.links.map((link) => (
+                <li>
+                  <a
+                    href={link.href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    class="border-line hover:border-fg flex h-10 items-center justify-between border px-3 text-sm transition-colors"
+                  >
+                    {link.label}
+                    <Icon name="arrow-up-right" size={13} />
+                  </a>
+                </li>
+              ))}
+            </ul>
+          )
+        }
+      </aside>
+    </div>
   </div>
 
   {
@@ -193,3 +198,23 @@ if (data.pyPreset && !pyPreset) {
     )
   }
 </BaseLayout>
+
+<style>
+  /*
+   * The write-up's column: wide enough to use the screen, and capped where a
+   * line of body copy stops being comfortable to read. The hero takes the
+   * width of the text it illustrates, so a 16:9 picture never fills the
+   * screen on its own.
+   */
+  .project-col {
+    max-width: 66rem;
+  }
+  .project-measure,
+  .project-hero {
+    max-width: 46rem;
+  }
+  .project-prose {
+    max-width: 46rem;
+    font-size: 16px;
+  }
+</style>
