@@ -79,13 +79,22 @@
   --particle-size: 1.9;
 
   /*
+   * Yellow as a drawn mark on the deck's canvases: the main agent lane, the
+   * NewsRing threads, pulses and highlights. The page's own yellow is
+   * #fffa00, which on this pale ground all but disappears as a 2px line, so
+   * the light theme draws marks a few steps deeper, toward gold. Fills and
+   * buttons keep --c-accent-fill.
+   */
+  --c-mark: #ecc300;
+
+  /*
    * The agent flow on the deck (Railtracks): one hue per depth of agent, so
    * a subagent's lane reads as a different worker at a glance. The main lane
-   * is ink on paper, with the hazard yellow kept for its nodes; the two
-   * subagent hues sit either side of yellow's opposite so neither competes
-   * with it. Tools are not agents and stay neutral.
+   * is the yellow mark in both themes; the two subagent hues sit either side
+   * of yellow's opposite so neither competes with it. Tools are not agents
+   * and stay neutral.
    */
-  --c-flow-main: #191919;
+  --c-flow-main: var(--c-mark);
   --c-flow-sub: #0b8784;
   --c-flow-sub2: #6a4bd6;
   --c-flow-tool: #5c5c5c;
@@ -203,6 +212,7 @@
     --particle-opacity: 0.85;
     --particle-size: 1.8;
 
+    --c-mark: #fffa00;
     --c-flow-main: #fffa00;
     --c-flow-sub: #3ddad7;
     --c-flow-sub2: #a78bfa;
@@ -256,6 +266,7 @@
   --particle-opacity: 0.85;
   --particle-size: 1.8;
 
+  --c-mark: #fffa00;
   --c-flow-main: #fffa00;
   --c-flow-sub: #3ddad7;
   --c-flow-sub2: #a78bfa;

@@ -1,6 +1,6 @@
 # coronring.github.io — Design Document
 
-**Version:** 0.26.0
+**Version:** 0.26.1
 **Status:** Complete. Every rail entry opens its full page from a FULL tab on its row
 **Last updated:** 2026-10-15
 **Owner:** Guan Zheng Huang (`CoronRing`)
@@ -8,6 +8,8 @@
 > This document covers the Astro site only. The site is now one of three
 > deployables in this repository, and anything crossing the boundary between
 > them belongs in [`../SYSTEM.md`](../SYSTEM.md).
+>
+> **v0.26.1**: the deck's drawn marks are yellow in the light theme too. A new token, `--c-mark`, is the yellow a canvas draws with: `#fffa00` on dark, and on light a few steps deeper, `#ecc300`, because the page yellow nearly vanishes as a 2px line on the pale ground. Railtracks' main lane (`--c-flow-main` now points at it), its pulses and hover ring, and NewsRing's threads, picked ticks and highlights all use it, where light mode previously drew them in ink or olive. On paper the main lane is also drawn heavier (2.8px, its waiting dashes and sleepers stronger) and glows are kept faint, since a halo on a light ground is pigment, not light.
 >
 > **v0.26.0**: the first three exhibits, reworked from a review of v0.24.0.
 >

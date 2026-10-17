@@ -77,8 +77,8 @@ function readPalette(): FlowPalette {
     ground: readToken('--c-ground', '#0a0a0b'),
     text: readToken('--c-text', '#f5f5f5'),
     faint: readToken('--c-text-faint', '#6e6e75'),
-    // Yellow is a light source on dark; on paper the olive carries it.
-    accent: dark ? readToken('--c-accent-fill', '#fffa00') : readToken('--c-accent', '#7a7500'),
+    // The deck's drawing yellow, deeper on paper than on dark (see tokens.css).
+    accent: readToken('--c-mark', '#fffa00'),
     dark,
   };
 }

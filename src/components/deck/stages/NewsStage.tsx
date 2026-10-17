@@ -67,7 +67,7 @@ function readPalette(): DialPalette {
     faint: readToken('--c-text-faint', '#6e6e75'),
     text: readToken('--c-text', '#f5f5f5'),
     ground: readToken('--c-ground', '#0a0a0b'),
-    accent: dark ? readToken('--c-accent-fill', '#fffa00') : readToken('--c-accent', '#7a7500'),
+    accent: readToken('--c-mark', '#fffa00'),
     dark,
   };
 }

@@ -1054,6 +1054,8 @@ export class AgentFlow {
     ctx.lineJoin = 'round';
 
     const headY = this.headY();
+    // On paper, marks are ink rather than light and need more weight to read.
+    const ink = !palette.dark;
 
     // Sleepers across the main lane: it is a rail, and they show the paper moving.
     const sleeper = Math.min(9, this.laneSpacing() * 0.07);
@@ -1064,7 +1066,7 @@ export class AgentFlow {
       const end = seg.t2 === null ? this.paper : Math.min(seg.t2, this.paper);
       const x = this.slotX(seg.slot1);
       // Waiting stretches keep their sleepers, fainter, so the rail stays continuous.
-      ctx.globalAlpha = (this.dimmed(seg.laneId) ? 0.08 : 0.32) * (seg.dashed ? 0.6 : 1);
+      ctx.globalAlpha = (this.dimmed(seg.laneId) ? 0.08 : ink ? 0.5 : 0.32) * (seg.dashed ? 0.6 : 1);
       ctx.beginPath();
       for (
         let t = Math.ceil(seg.t1 / SLEEPER_PITCH) * SLEEPER_PITCH;
@@ -1085,8 +1087,9 @@ export class AgentFlow {
       const a = { x: this.slotX(seg.slot1), y: this.tauY(seg.t1, seg.run) };
       const b = this.segmentEnd(seg);
       ctx.strokeStyle = this.colour(seg.depth);
-      ctx.globalAlpha = (this.dimmed(seg.laneId) ? 0.2 : 1) * (seg.dashed ? 0.55 : 0.92);
-      ctx.lineWidth = seg.depth === 0 ? 2.2 : 1.8;
+      ctx.globalAlpha =
+        (this.dimmed(seg.laneId) ? 0.2 : 1) * (seg.dashed ? (ink ? 0.85 : 0.55) : ink ? 1 : 0.92);
+      ctx.lineWidth = seg.depth === 0 ? (ink ? 2.8 : 2.2) : 1.8;
       ctx.setLineDash(seg.dashed ? [2, 6] : []);
       ctx.beginPath();
       ctx.moveTo(a.x, a.y);
@@ -1278,7 +1281,8 @@ export class AgentFlow {
     const grad = ctx.createRadialGradient(x, y, 0, x, y, r);
     grad.addColorStop(0, colour);
     grad.addColorStop(1, 'transparent');
-    ctx.globalAlpha = 0.5;
+    // On paper a halo is pigment, not light: kept faint so it reads as a glow, not a smudge.
+    ctx.globalAlpha = this.palette.dark ? 0.5 : 0.22;
     ctx.fillStyle = grad;
     ctx.beginPath();
     ctx.arc(x, y, r, 0, Math.PI * 2);
