@@ -49,14 +49,25 @@ function period(entry: Entry): string {
   description="Experience, education, achievements, and certifications."
   lede="The condensed version. The projects page has the actual artifacts."
 >
-  <a
-    slot="action"
-    href="/resume.pdf"
-    class="border-line hover:border-fg inline-flex h-10 items-center gap-2 border px-4 text-sm transition-colors"
-  >
-    Download PDF
-    <Icon name="arrow-up-right" size={14} />
-  </a>
+  <!-- The two-page resume is the main download; the full CV sits under it for anyone who wants every entry. -->
+  <div slot="action" class="flex flex-col items-start gap-3">
+    <a
+      href="/resume.pdf"
+      class="bg-accent-fill text-accent-on-fill inline-flex h-11 items-center gap-3 px-5 text-sm font-semibold transition-opacity hover:opacity-85"
+    >
+      <Icon name="file-text" size={16} />
+      Resume
+      <span class="font-mono text-[11px] font-normal opacity-70">PDF · 2 pages</span>
+    </a>
+    <a
+      href="/cv.pdf"
+      class="border-line hover:border-fg inline-flex h-10 items-center gap-3 border px-4 text-sm transition-colors"
+    >
+      Full CV
+      <span class="text-faint font-mono text-[11px]">PDF · every entry</span>
+      <Icon name="arrow-up-right" size={14} />
+    </a>
+  </div>
 
   {
     grouped.length > 0 ? (
