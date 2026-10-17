@@ -205,6 +205,94 @@
     transform: translateX(3px);
   }
 
+  /*
+   * The "full page" tab at the trailing end of a list row (`ui/FullTab.tsx`):
+   * the site rail, the phone drawer and the tools roster.
+   *
+   * At rest it is a narrow strip reading FULL. Its leading edge is a diagonal
+   * that alternates by row (`data-slant`), and since every tab in a column has
+   * the same width the diagonals meet end to end and draw one zig-zag. On
+   * hover or keyboard focus it grows leftward over the row, stopping where the
+   * host says (`--full-tab-open-from`, normally just past the row's icon), and
+   * reads "Visit the full page".
+   *
+   * The host row must be `position: relative`. The clip-path would also clip
+   * the global focus ring, which is drawn outside the box, so focus draws its
+   * ring inside instead.
+   */
+  .full-tab {
+    position: absolute;
+    inset-block: 0;
+    right: 0;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    width: var(--full-tab-w, 4.25rem);
+    overflow: hidden;
+    background: var(--c-sunken);
+    color: var(--c-text-faint);
+    font-family: var(--font-mono);
+    transition:
+      width var(--dur-base) var(--ease-out),
+      opacity var(--dur-base) var(--ease-out),
+      background-color var(--dur-fast) var(--ease-out),
+      color var(--dur-fast) var(--ease-out);
+  }
+  .full-tab[data-slant='up'] {
+    clip-path: polygon(var(--full-tab-slant, 0.875rem) 0, 100% 0, 100% 100%, 0 100%);
+  }
+  .full-tab[data-slant='down'] {
+    clip-path: polygon(0 0, 100% 0, 100% 100%, var(--full-tab-slant, 0.875rem) 100%);
+  }
+  /* The held row's tab, set by the island or by the rail's current marker. */
+  .full-tab[data-on],
+  .is-current + .full-tab,
+  [aria-current='true'] + .full-tab {
+    background: var(--c-accent-soft);
+    color: var(--c-accent);
+  }
+  .full-tab:hover,
+  .full-tab:focus-visible {
+    width: calc(100% - var(--full-tab-open-from, 3.5rem));
+    background: var(--c-accent-fill);
+    color: var(--c-accent-on-fill);
+  }
+  .full-tab:focus-visible {
+    outline-color: var(--c-accent-on-fill);
+    outline-offset: -5px;
+    border-radius: 0;
+  }
+
+  .full-tab-rest {
+    position: absolute;
+    right: 0.9rem;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    transition: opacity var(--dur-fast) var(--ease-out);
+  }
+  .full-tab-open {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding-left: calc(var(--full-tab-slant, 0.875rem) + 0.75rem);
+    font-size: 0.8125rem;
+    font-weight: 600;
+    white-space: nowrap;
+    opacity: 0;
+    transition: opacity var(--dur-fast) var(--ease-out);
+  }
+  .full-tab:hover .full-tab-rest,
+  .full-tab:focus-visible .full-tab-rest {
+    opacity: 0;
+  }
+  .full-tab:hover .full-tab-open,
+  .full-tab:focus-visible .full-tab-open {
+    opacity: 1;
+    transition-delay: var(--dur-fast);
+  }
+
   /* ── Layout ─────────────────────────────────────────────────────── */
 
   /*
@@ -1000,6 +1088,7 @@
   background-color: transparent;
   padding: 0;
 }
+
 
 .post-prose blockquote {
   border-left: 2px solid var(--c-accent-fill);

@@ -18,8 +18,6 @@ export interface NavItem {
    * it instead of navigating away.
    */
   readonly section?: string;
-  /** Two-digit index rendered as HUD metadata. */
-  readonly index: string;
   readonly icon: IconName;
   /** One-line purpose, shown in the mobile drawer. */
   readonly blurb: string;
@@ -71,12 +69,11 @@ export const SITE: SiteConfig = {
   googleSiteVerification: 'yKwkUQOhhOpF46PPWxAq1Efu7FHAiruI1o9DuQj7XFA',
 
   nav: [
-    { label: 'Index', href: '/', section: 'top', index: '00', icon: 'home', blurb: 'Start here.' },
+    { label: 'Index', href: '/', section: 'top', icon: 'home', blurb: 'Start here.' },
     {
       label: 'Work',
       href: '/projects',
       section: 'work',
-      index: '01',
       icon: 'grid',
       blurb: 'Systems I have built.',
     },
@@ -84,7 +81,6 @@ export const SITE: SiteConfig = {
       label: 'Resume',
       href: '/resume',
       section: 'resume',
-      index: '02',
       icon: 'file-text',
       blurb: 'Experience and research.',
     },
@@ -92,7 +88,6 @@ export const SITE: SiteConfig = {
       label: 'Tools',
       href: '/tools',
       section: 'tools',
-      index: '03',
       icon: 'terminal',
       blurb: 'Utilities that run in your browser.',
     },
@@ -100,7 +95,6 @@ export const SITE: SiteConfig = {
       label: 'Posts',
       href: '/blog',
       section: 'posts',
-      index: '04',
       icon: 'pen',
       blurb: 'Writing and experiments.',
     },
@@ -108,7 +102,6 @@ export const SITE: SiteConfig = {
       label: 'Ask',
       href: '/chat',
       section: 'ask',
-      index: '05',
       icon: 'message-circle',
       blurb: 'Ask this site a question.',
     },
@@ -116,7 +109,6 @@ export const SITE: SiteConfig = {
       label: 'Resources',
       href: '/resources',
       section: 'resources',
-      index: '06',
       icon: 'book',
       blurb: 'Notes and references.',
     },

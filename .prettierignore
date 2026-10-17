@@ -11,8 +11,3 @@ src/vendor/
 dist/
 .astro/
 node_modules/
-
-# Generated price table, written by scripts/fetch-model-pricing.mjs. It is one
-# minified line on purpose: the tool fetches it at runtime, and expanding 2,400
-# records to one field per line would multiply both its size and its diff.
-public/data/model-pricing.json

@@ -43,7 +43,7 @@ export const TOOLS: readonly ToolEntry[] = [
     group: 'tokens',
     offline: false,
     network:
-      'Fetches a static price table from this site. Your text is never sent anywhere, and the request carries nothing but its own URL.',
+      'Reads LiteLLM’s public price list from GitHub, or its jsDelivr mirror, each time the page opens. Your text is never sent anywhere, and the request carries nothing but its own URL.',
   },
   {
     slug: 'text-diff',

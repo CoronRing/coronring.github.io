@@ -14,8 +14,10 @@
  *
  * Every entry that has a matching home-page band links to that band's anchor
  * (`/#tools`), never to the dedicated page, so one nav entry has one
- * destination whatever page it is clicked from. The dedicated pages are
- * reached from each band's own "all tools" / "full resume" link.
+ * destination whatever page it is clicked from. The dedicated page is the
+ * entry's FULL tab (`ui/FullTab.tsx`), on the trailing end of the row, in the
+ * rail and the drawer alike. Index has no page beyond the home page, so it has
+ * no tab. The rail's tabs show only while the rail is open.
  *
  * On the home page the rail doubles as a scroll-spy: `data-spy` links mark
  * themselves current as their section passes the viewport middle.
@@ -25,9 +27,22 @@ import { anchor, href, isActive } from '../../lib/url';
 import Icon from '../ui/Icon.astro';
 import Mark from '../ui/Mark.astro';
 import ThemeToggle from './ThemeToggle.astro';
+import FullTab, { slantAt, type FullTabSlant } from '../ui/FullTab';
 
 const path = Astro.url.pathname;
 const onHome = path === '/' || path === '';
+
+/*
+ * The FULL tab for each entry that jumps to a home band and has a page of its
+ * own. Slants count tabbed rows only, so a row without a tab does not break
+ * the zig-zag.
+ */
+let tabbed = 0;
+const fullTabs = new Map<string, { href: string; slant: FullTabSlant }>(
+  SITE.nav
+    .filter((item) => item.section && item.href !== '/')
+    .map((item) => [item.href, { href: href(item.href), slant: slantAt(tabbed++) }]),
+);
 ---
 
 <a
@@ -90,13 +105,14 @@ const onHome = path === '/' || path === '';
 
   <!-- Primary navigation -->
   <nav class="flex-1 overflow-x-hidden overflow-y-auto py-3">
-    <ul>
+    <ul class="rail-tabs">
       {
         SITE.nav.map((item) => {
           const active = isActive(path, item.href);
           const spy = onHome && item.section;
+          const full = fullTabs.get(item.href);
           return (
-            <li>
+            <li class="relative">
               <a
                 href={item.section ? anchor(item.section) : href(item.href)}
                 data-spy={spy ? item.section : undefined}
@@ -115,8 +131,8 @@ const onHome = path === '/' || path === '';
                 />
                 <Icon name={item.icon} size={19} class="shrink-0" />
                 <span class="rail-label flex-1">{item.label}</span>
-                <span class="rail-label text-faint font-mono text-[10px]">{item.index}</span>
               </a>
+              {full && <FullTab href={full.href} label={item.label} slant={full.slant} />}
             </li>
           );
         })
@@ -185,17 +201,19 @@ const onHome = path === '/' || path === '';
     </div>
 
     <nav class="flex-1 overflow-y-auto py-2">
-      <ul>
+      <ul class="drawer-tabs">
         {
           SITE.nav.map((item) => {
             const active = isActive(path, item.href);
+            const full = fullTabs.get(item.href);
             return (
-              <li>
+              <li class="relative">
                 <a
                   href={item.section ? anchor(item.section) : href(item.href)}
                   aria-current={active && !onHome ? 'true' : undefined}
                   class:list={[
                     'relative flex items-center gap-3.5 px-5 py-3.5',
+                    full && 'pr-[calc(var(--full-tab-w)+0.75rem)]',
                     active && !onHome
                       ? 'bg-raised text-fg before:bg-accent-fill before:absolute before:inset-y-0 before:left-0 before:w-[3px] before:content-[""]'
                       : 'text-muted',
@@ -207,6 +225,7 @@ const onHome = path === '/' || path === '';
                     <span class="text-faint block text-[11px]">{item.blurb}</span>
                   </span>
                 </a>
+                {full && <FullTab href={full.href} label={item.label} slant={full.slant} />}
               </li>
             );
           })
@@ -271,6 +290,36 @@ const onHome = path === '/' || path === '';
    */
   :global([data-rail]:has(:focus-visible)) {
     width: var(--rail-w-open);
+  }
+
+  /*
+   * FULL tab sizes. The open tab stops just past the row's icon, and the slant
+   * is short enough that its far end still clears the label, so the label is
+   * covered without having to fade.
+   */
+  .rail-tabs {
+    --full-tab-w: 4rem;
+    --full-tab-slant: 0.75rem;
+    --full-tab-open-from: 2.7rem; /* 1.375rem padding + 19px icon, plus air */
+  }
+  .drawer-tabs {
+    --full-tab-w: 4.25rem;
+    --full-tab-slant: 0.7rem;
+    --full-tab-open-from: 2.5rem; /* 1.25rem padding + 18px icon, plus air */
+  }
+
+  /*
+   * In the collapsed rail a tab would sit on top of the icon, so the rail's
+   * tabs appear with the labels and take no clicks until then.
+   */
+  .rail-tabs :global(.full-tab) {
+    opacity: 0;
+    pointer-events: none;
+  }
+  :global([data-rail]:hover) .rail-tabs :global(.full-tab),
+  :global([data-rail]:has(:focus-visible)) .rail-tabs :global(.full-tab) {
+    opacity: 1;
+    pointer-events: auto;
   }
 
   /* Active marker grows from the centre when current. */

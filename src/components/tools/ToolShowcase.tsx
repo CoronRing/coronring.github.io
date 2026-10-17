@@ -5,6 +5,7 @@ import StringStage from './stages/StringStage';
 import RestStage from './stages/RestStage';
 import OtherStage from './stages/OtherStage';
 import ToolIcon from './ToolIcon';
+import FullTab, { slantAt } from '../ui/FullTab';
 
 export interface ShowcaseTool {
   readonly slug: string;
@@ -21,7 +22,6 @@ interface Props {
 
 interface CuratedTool {
   id: string;
-  index: string;
   name: string;
   slug: string;
   href: string;
@@ -32,7 +32,6 @@ interface CuratedTool {
 const CURATED_TOOLS: CuratedTool[] = [
   {
     id: 'token-counter',
-    index: '01',
     name: 'Token Counter',
     slug: 'token-counter',
     href: '/tools/token-counter',
@@ -41,7 +40,6 @@ const CURATED_TOOLS: CuratedTool[] = [
   },
   {
     id: 'mcp-tester',
-    index: '02',
     name: 'MCP Tester',
     slug: 'mcp-tester',
     href: '/tools/mcp-tester',
@@ -50,7 +48,6 @@ const CURATED_TOOLS: CuratedTool[] = [
   },
   {
     id: 'string-kit',
-    index: '03',
     name: 'String Kit',
     slug: 'string-kit',
     href: '/tools/string-kit',
@@ -59,7 +56,6 @@ const CURATED_TOOLS: CuratedTool[] = [
   },
   {
     id: 'rest-reminder',
-    index: '04',
     name: 'Rest Reminder',
     slug: 'rest-reminder',
     href: '/tools/rest-reminder',
@@ -68,7 +64,6 @@ const CURATED_TOOLS: CuratedTool[] = [
   },
   {
     id: 'other',
-    index: '05',
     name: 'Other Instruments',
     slug: 'all-tools',
     href: '/tools',
@@ -192,53 +187,60 @@ export default function ToolShowcase({ tools = [], indexHref }: Props): React.Re
               {CURATED_TOOLS.map((item, i) => {
                 const on = i === active;
                 return (
-                  <button
-                    key={item.id}
-                    ref={(el) => {
-                      itemRefs.current[i] = el;
-                    }}
-                    type="button"
-                    role="tab"
-                    aria-selected={on}
-                    tabIndex={on ? 0 : -1}
-                    onClick={() => go(i)}
-                    className={`kit-item group relative flex w-full items-center gap-3 p-4 text-left transition-colors sm:px-5 lg:py-5 ${
-                      on ? 'bg-raised/70' : 'hover:bg-raised/30'
-                    }`}
-                  >
-                    {/* Leading indicator bar */}
-                    <span
-                      aria-hidden="true"
-                      className={`bg-accent-fill absolute inset-y-0 left-0 w-1 transition-transform duration-300 ${
-                        on ? 'scale-y-100' : 'scale-y-0'
-                      }`}
-                    />
-
-                    <span
-                      className={`font-mono text-xs tracking-wider tabular-nums transition-colors ${
-                        on ? 'text-accent font-semibold' : 'text-faint group-hover:text-fg'
+                  <div key={item.id} role="presentation" className="kit-entry relative">
+                    <button
+                      ref={(el) => {
+                        itemRefs.current[i] = el;
+                      }}
+                      type="button"
+                      role="tab"
+                      aria-selected={on}
+                      tabIndex={on ? 0 : -1}
+                      onClick={() => go(i)}
+                      className={`kit-item group relative flex w-full items-center gap-3 p-4 pr-[calc(var(--full-tab-w)+0.75rem)] text-left transition-colors sm:px-5 sm:pr-[calc(var(--full-tab-w)+0.75rem)] lg:py-5 ${
+                        on ? 'bg-raised/70' : 'hover:bg-raised/30'
                       }`}
                     >
-                      {item.index}
-                    </span>
-
-                    <span
-                      className={`flex min-w-0 flex-1 items-center gap-3 transition-colors ${
-                        on ? 'text-fg' : 'text-muted group-hover:text-fg'
-                      }`}
-                    >
-                      <ToolIcon
-                        slug={item.slug}
-                        size={22}
-                        className={`shrink-0 transition-colors ${on ? 'text-accent' : ''}`}
-                      />
+                      {/* Leading indicator bar */}
                       <span
-                        className={`font-mono text-sm sm:text-base ${on ? 'font-semibold' : 'font-medium'}`}
+                        aria-hidden="true"
+                        className={`bg-accent-fill absolute inset-y-0 left-0 w-1 transition-transform duration-300 ${
+                          on ? 'scale-y-100' : 'scale-y-0'
+                        }`}
+                      />
+
+                      <span
+                        className={`flex min-w-0 flex-1 items-center gap-3 transition-colors ${
+                          on ? 'text-fg' : 'text-muted group-hover:text-fg'
+                        }`}
                       >
-                        {item.name}
+                        <ToolIcon
+                          slug={item.slug}
+                          size={22}
+                          className={`shrink-0 transition-colors ${on ? 'text-accent' : ''}`}
+                        />
+                        <span
+                          className={`kit-entry-name truncate font-mono text-sm sm:text-base ${on ? 'font-semibold' : 'font-medium'}`}
+                        >
+                          {item.name}
+                        </span>
                       </span>
-                    </span>
-                  </button>
+                    </button>
+
+                    {/*
+                      The way to the tool's own page, on its row. Rows alternate
+                      the slant of the tab's leading edge, so the column of tabs
+                      draws one zig-zag down the roster. Only the held row's tab
+                      is in the tab order: arrow to a tool, then Tab to open it.
+                    */}
+                    <FullTab
+                      href={item.href}
+                      label={item.name}
+                      slant={slantAt(i)}
+                      on={on}
+                      tabIndex={on ? 0 : -1}
+                    />
+                  </div>
                 );
               })}
 

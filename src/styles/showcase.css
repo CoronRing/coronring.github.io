@@ -75,6 +75,21 @@
     overflow-wrap: anywhere;
   }
 
+  /* Sizes for the roster's full-page tabs (`.full-tab` in global.css). */
+  .kit {
+    --full-tab-w: 4.25rem;
+    --full-tab-slant: 0.875rem;
+    /* Where the open tab's edge stops: row padding plus the 22px icon, plus air. */
+    --full-tab-open-from: 3.5rem;
+  }
+  /* The slanted edge leaves a sliver of the name showing, so the name steps aside. */
+  .kit-entry-name {
+    transition: opacity var(--dur-fast) var(--ease-out);
+  }
+  .kit-entry:has(.full-tab:hover, .full-tab:focus-visible) .kit-entry-name {
+    opacity: 0;
+  }
+
   /* The held row is marked on its leading edge, which survives at a glance. */
   .kit-item-bar {
     position: absolute;
