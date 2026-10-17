@@ -348,6 +348,21 @@
   }
 
   /*
+   * On a phone the exhibit is a short band and the statement can only sit on
+   * top of the drawing, where it reads as noise over the flow. It stays the
+   * document's h1 for assistive tech and search, and is not drawn.
+   */
+  @media (max-width: 39.999rem) {
+    .deck-ghost {
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      clip-path: inset(50%);
+      white-space: nowrap;
+    }
+  }
+
+  /*
    * The cut. A bright band crosses the stage once whenever the frame changes,
    * which is what makes a swap read as a deliberate transition rather than as
    * the page having repainted. Replays because `.deck-stage-inner` is keyed on

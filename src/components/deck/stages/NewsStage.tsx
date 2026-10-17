@@ -283,13 +283,48 @@ export default function NewsStage({ active, onSnapshot, listHost }: Props): Reac
     return () => window.clearInterval(id);
   }, [active]);
 
-  const onPointerEnter = useCallback(() => dialRef.current?.setPaused(true), []);
-  const onPointerLeave = useCallback(() => dialRef.current?.setPaused(false), []);
-
-  const pickOut = useCallback((story: number) => {
-    setFocus(story);
-    dialRef.current?.setPaused(story >= 0);
+  /*
+   * The cycle holds while the cursor is in the middle of the ring, where the
+   * headline is being read, or on a row of the list. Anywhere else over the
+   * box it keeps running: the dial is most of the right half of the screen,
+   * and a pause on the whole of it stopped the exhibit for any cursor that
+   * happened to be resting there.
+   */
+  const inCore = useRef(false);
+  const inList = useRef(false);
+  const holdIfReading = useCallback(() => {
+    dialRef.current?.setPaused(inCore.current || inList.current);
   }, []);
+
+  const onPointerMove = useCallback(
+    (event: React.PointerEvent<HTMLDivElement>) => {
+      const box = boxRef.current;
+      if (!box || !layout || event.pointerType === 'touch') return;
+      const rect = box.getBoundingClientRect();
+      const d = Math.hypot(
+        event.clientX - rect.left - layout.cx,
+        event.clientY - rect.top - layout.cy,
+      );
+      const next = d <= layout.inner;
+      if (next === inCore.current) return;
+      inCore.current = next;
+      holdIfReading();
+    },
+    [layout, holdIfReading],
+  );
+  const onPointerLeave = useCallback(() => {
+    inCore.current = false;
+    holdIfReading();
+  }, [holdIfReading]);
+
+  const pickOut = useCallback(
+    (story: number) => {
+      setFocus(story);
+      inList.current = story >= 0;
+      holdIfReading();
+    },
+    [holdIfReading],
+  );
 
   /** The middle shows the story picked out from the list, else the latest to land until all have. */
   const middle = focus >= 0 ? focus : complete ? -1 : shown;
@@ -326,7 +361,7 @@ export default function NewsStage({ active, onSnapshot, listHost }: Props): Reac
       <div
         ref={boxRef}
         className="relative size-full"
-        onPointerEnter={onPointerEnter}
+        onPointerMove={onPointerMove}
         onPointerLeave={onPointerLeave}
       >
         <canvas

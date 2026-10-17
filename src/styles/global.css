@@ -816,6 +816,28 @@
   animation: ask-hail-line var(--dur-slow) var(--ease-out) both;
 }
 
+/* The narrow-screen nudge: three flashes of the accent, then back to rest. */
+.ask-hail-beckon {
+  animation: ask-hail-beckon 900ms var(--ease-in-out) 3;
+}
+.ask-hail-beckon .ask-hail-mark {
+  color: var(--c-accent);
+}
+
+@keyframes ask-hail-beckon {
+  0%,
+  100% {
+    border-color: var(--c-line);
+    box-shadow: var(--shadow-lift);
+  }
+  45% {
+    border-color: var(--c-accent-fill);
+    box-shadow:
+      0 0 0 3px color-mix(in srgb, var(--c-accent-fill) 45%, transparent),
+      var(--shadow-lift);
+  }
+}
+
 @keyframes ask-hail-line {
   from {
     opacity: 0;

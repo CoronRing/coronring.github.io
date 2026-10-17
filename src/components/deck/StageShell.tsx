@@ -49,7 +49,7 @@ export function StageShell({ controls, readout, hint, children }: ShellProps): R
       <div className="deck-stage-art">{children}</div>
 
       {readout && (
-        <div className="text-faint pointer-events-none absolute top-4 right-4 z-20 font-mono text-[10px] tracking-[0.14em] tabular-nums lg:top-6 lg:right-8">
+        <div className="text-faint pointer-events-none absolute top-4 right-4 z-20 hidden font-mono text-[10px] tracking-[0.14em] tabular-nums sm:block lg:top-6 lg:right-8">
           {readout}
         </div>
       )}

@@ -252,6 +252,8 @@ const LABEL_MARGIN = 0.12;
 
 /** Head line, as a share of the box height from the top. */
 const HEAD_AT = 0.74;
+/** The same on a phone, whose box is short and has no control row over its foot. */
+const HEAD_AT_NARROW = 0.84;
 /** Where the history has fully faded in, as a share of the box height from the top. */
 const FADE_TO = 0.3;
 
@@ -977,7 +979,7 @@ export class AgentFlow {
   }
 
   private headY(): number {
-    return this.height * HEAD_AT;
+    return this.height * (this.width < NARROW ? HEAD_AT_NARROW : HEAD_AT);
   }
 
   private slotX(slot: number): number {

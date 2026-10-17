@@ -32,6 +32,11 @@ import { useChat } from './useChat';
  *     as a section; while that is on screen the dock hides entirely rather
  *     than floating a second copy of itself over the first.
  *
+ * Below the desktop breakpoint the panel would cover most of the screen, so
+ * the nudge does not open it there. The collapsed button flashes three times
+ * instead (`ask-hail-beckon`) and the visitor decides. On a phone the button
+ * itself is only the mark, so it never sits over the page's own links.
+ *
  * `prefers-reduced-motion` suppresses the nudge altogether: an interface that
  * moves on its own is exactly what that setting is asking us not to do.
  *
@@ -57,6 +62,8 @@ const DESKTOP = '(min-width: 64rem)';
 const NUDGE_AFTER_MS = 14_000;
 /** How long an unattended nudge stays up before it withdraws. */
 const NUDGE_WITHDRAW_MS = 15_000;
+/** How long the narrow-screen beckon runs: three flashes, matched to the CSS. */
+const BECKON_MS = 2_700;
 const NUDGE_KEY = 'coronring:asked';
 
 /**
@@ -107,6 +114,10 @@ export default function ChatDock(): ReactElement {
   const [nudged, setNudged] = useState(false);
   /** Hidden while the page's own assistant section is on screen. */
   const [eclipsed, setEclipsed] = useState(false);
+  /** The narrow-screen nudge: the collapsed button flashing, the panel shut. */
+  const [beckon, setBeckon] = useState(false);
+  /** Held back on a phone while the home page's first screen is showing. */
+  const [covering, setCovering] = useState(false);
   const chat = useChat(open);
   const mood = useMood();
   const panelRef = useRef<HTMLDivElement>(null);
@@ -161,9 +172,28 @@ export default function ChatDock(): ReactElement {
     return () => io.disconnect();
   }, []);
 
+  /*
+   * On a phone the home page's first screen ends in the name and its links,
+   * and the button in the corner would sit on them. It waits off screen until
+   * the visitor has scrolled past that screen; the nudge waits with it.
+   */
+  useEffect(() => {
+    if (!document.querySelector('section.deck')) return;
+    const narrow = window.matchMedia(DESKTOP);
+    const check = (): void =>
+      setCovering(!narrow.matches && window.scrollY < window.innerHeight * 0.55);
+    check();
+    window.addEventListener('scroll', check, { passive: true });
+    narrow.addEventListener('change', check);
+    return () => {
+      window.removeEventListener('scroll', check);
+      narrow.removeEventListener('change', check);
+    };
+  }, []);
+
   // ── The nudge: open once, unprompted ──────────────────────────────
   useEffect(() => {
-    if (open || eclipsed) return;
+    if (open || eclipsed || covering) return;
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
     try {
       if (sessionStorage.getItem(NUDGE_KEY) === '1') return;
@@ -172,18 +202,27 @@ export default function ChatDock(): ReactElement {
       return;
     }
 
+    let beckonId = 0;
     const id = window.setTimeout(() => {
       try {
         sessionStorage.setItem(NUDGE_KEY, '1');
       } catch {
         /* Nothing to do; the nudge is a nicety, not a feature. */
       }
+      if (!window.matchMedia(DESKTOP).matches) {
+        setBeckon(true);
+        beckonId = window.setTimeout(() => setBeckon(false), BECKON_MS);
+        return;
+      }
       setOpen(true);
       setNudged(true);
     }, NUDGE_AFTER_MS);
 
-    return () => window.clearTimeout(id);
-  }, [open, eclipsed]);
+    return () => {
+      window.clearTimeout(id);
+      window.clearTimeout(beckonId);
+    };
+  }, [open, eclipsed, covering]);
 
   // ── …and withdraw if it is ignored ────────────────────────────────
   useEffect(() => {
@@ -214,7 +253,7 @@ export default function ChatDock(): ReactElement {
     if (chat.messages.length > 0) setNudged(false);
   }, [chat.messages.length]);
 
-  if (eclipsed && !open) {
+  if ((eclipsed || covering) && !open) {
     return <div data-corpus-skip hidden />;
   }
 
@@ -318,13 +357,16 @@ export default function ChatDock(): ReactElement {
             ref={buttonRef}
             type="button"
             onClick={() => setOpen(true)}
-            aria-label={`Open CoronChat — ${mood.line}`}
-            className="ask-hail panel corner-ticks text-fg pointer-events-auto absolute right-4 bottom-4 flex items-center gap-3 px-4 py-3 text-left shadow-[var(--shadow-lift)] sm:right-5 sm:bottom-5 sm:gap-3.5 sm:px-5 sm:py-3.5"
+            aria-label={`Open CoronChat: ${mood.line}`}
+            className={`ask-hail panel corner-ticks text-fg pointer-events-auto absolute right-3 bottom-3 flex items-center gap-3 p-3 text-left shadow-[var(--shadow-lift)] sm:right-5 sm:bottom-5 sm:gap-3.5 sm:px-5 sm:py-3.5 ${
+              beckon ? 'ask-hail-beckon' : ''
+            }`}
           >
             <span aria-hidden="true" className="ask-hail-mark">
               <Crown energy={mood.energy} className="size-7 sm:size-8" />
             </span>
-            <span className="min-w-0">
+            {/* The words go on a phone: the mark alone is the button there. */}
+            <span className="hidden min-w-0 sm:block">
               <span className="text-fg block text-sm font-semibold tracking-tight sm:text-[15px]">
                 CoronChat
               </span>

@@ -1,6 +1,6 @@
 # coronring.github.io — Design Document
 
-**Version:** 0.26.1
+**Version:** 0.26.2
 **Status:** Complete. Every rail entry opens its full page from a FULL tab on its row
 **Last updated:** 2026-10-15
 **Owner:** Guan Zheng Huang (`CoronRing`)
@@ -8,6 +8,8 @@
 > This document covers the Astro site only. The site is now one of three
 > deployables in this repository, and anything crossing the boundary between
 > them belongs in [`../SYSTEM.md`](../SYSTEM.md).
+>
+> **v0.26.2**: hover and phones. NewsRing holds its cycle only while the cursor is inside the inner ring, where the headline is read, or on a row of the picks list; anywhere else over the dial it keeps running. On a phone (below 40rem) the ghost statement is not drawn (it stays the page's `h1`), the stage readout is hidden, Railtracks' head sits 84% down its short box, and the mobile top bar is 95% opaque so the stage does not read through it. CoronChat below `lg` never opens itself: the one-time nudge flashes the collapsed button three times instead (`.ask-hail-beckon`). On a phone the button is only the mark, and on the home page it waits off screen until the visitor scrolls past the first screen, where it would sit on the name's links; the nudge waits with it (§6.2.1).
 >
 > **v0.26.1**: the deck's drawn marks are yellow in the light theme too. A new token, `--c-mark`, is the yellow a canvas draws with: `#fffa00` on dark, and on light a few steps deeper, `#ecc300`, because the page yellow nearly vanishes as a 2px line on the pale ground. Railtracks' main lane (`--c-flow-main` now points at it), its pulses and hover ring, and NewsRing's threads, picked ticks and highlights all use it, where light mode previously drew them in ink or olive. On paper the main lane is also drawn heavier (2.8px, its waiting dashes and sleepers stronger) and glows are kept faint, since a halo on a light ground is pigment, not light.
 >
