@@ -35,7 +35,7 @@ import { useChat } from './useChat';
  * Below the desktop breakpoint the panel would cover most of the screen, so
  * the nudge does not open it there. The collapsed button flashes three times
  * instead (`ask-hail-beckon`) and the visitor decides. On a phone the button
- * itself is only the mark, so it never sits over the page's own links.
+ * itself is only the mark, and on the home page it stays off the deck.
  *
  * `prefers-reduced-motion` suppresses the nudge altogether: an interface that
  * moves on its own is exactly what that setting is asking us not to do.
@@ -173,15 +173,19 @@ export default function ChatDock(): ReactElement {
   }, []);
 
   /*
-   * On a phone the home page's first screen ends in the name and its links,
-   * and the button in the corner would sit on them. It waits off screen until
-   * the visitor has scrolled past that screen; the nudge waits with it.
+   * On a phone the home page opens on the deck, a pinned screen whose foot is
+   * the name's links and then the project strip, and the button in the corner
+   * would sit on both. It waits off screen until the deck has scrolled mostly
+   * away; the nudge waits with it.
    */
   useEffect(() => {
-    if (!document.querySelector('section.deck')) return;
+    const deck = document.querySelector<HTMLElement>('section.deck');
+    if (!deck) return;
     const narrow = window.matchMedia(DESKTOP);
     const check = (): void =>
-      setCovering(!narrow.matches && window.scrollY < window.innerHeight * 0.55);
+      setCovering(
+        !narrow.matches && deck.getBoundingClientRect().bottom > window.innerHeight * 0.4,
+      );
     check();
     window.addEventListener('scroll', check, { passive: true });
     narrow.addEventListener('change', check);

@@ -524,8 +524,15 @@ export function PasteButton({
   label?: string;
 }): React.ReactElement | null {
   const [failed, setFailed] = useState(false);
-  const supported =
-    typeof navigator !== 'undefined' && typeof navigator.clipboard?.readText === 'function';
+  /*
+   * Read after hydration, not during render: the server has no `navigator`,
+   * so deciding during render drew nothing there and a button in the browser,
+   * and React threw the tree away on every page that has one.
+   */
+  const [supported, setSupported] = useState(false);
+  useEffect(() => {
+    setSupported(typeof navigator.clipboard?.readText === 'function');
+  }, []);
 
   if (!supported || failed) return null;
 

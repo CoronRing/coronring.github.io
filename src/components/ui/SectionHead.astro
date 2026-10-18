@@ -4,6 +4,10 @@
  *
  * Three elements, fixed: a mono index, a marked eyebrow, and a display title.
  * Anything more competes with the media the section exists to show.
+ *
+ * The "see all" link is part of the heading from lg only. On a phone the band
+ * sets it at its foot instead, with `BandMore`, so every band that passes
+ * `moreHref` here passes the same link to one of those.
  */
 import Icon from './Icon.astro';
 import Reveal from './Reveal.astro';
@@ -52,7 +56,7 @@ const {
 
   {
     moreHref && (
-      <a href={href(moreHref)} class="cta-outline">
+      <a href={href(moreHref)} class="cta-outline max-lg:hidden">
         {moreLabel ?? 'See all'}
         <Icon name="arrow-right" size={15} />
       </a>

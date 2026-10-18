@@ -82,6 +82,21 @@
     /* Where the open tab's edge stops: row padding plus the 22px icon, plus air. */
     --full-tab-open-from: 3.5rem;
   }
+  /* An icon strip below lg: no room for a tab per row, and the screen header names the tool. */
+  @media (max-width: 63.999rem) {
+    .kit .full-tab {
+      display: none;
+    }
+    .kit-entry .kit-item {
+      justify-content: center;
+    }
+    .kit-entry .kit-item > span:first-child {
+      inset: auto 0 0 0;
+      width: auto;
+      height: 3px;
+    }
+  }
+
   /* The slanted edge leaves a sliver of the name showing, so the name steps aside. */
   .kit-entry-name {
     transition: opacity var(--dur-fast) var(--ease-out);
@@ -202,10 +217,10 @@
 /*
  * The "Myself" band.
  *
- * From lg it is taller than the screen and its screen, heading included, is
- * pinned and centred, so scrolling past it steps through the three
- * capabilities. Below lg it is an ordinary block and the names are the only
- * control.
+ * Taller than the screen, with its screen, heading included, pinned and
+ * centred, so scrolling past it steps through the three capabilities. From lg
+ * the capabilities are an accordion beside the proof; below it they are a row
+ * of tabs over the held one and its proof, so the band is one phone screen.
  */
 @layer components {
   @media (min-width: 64rem) {
@@ -321,6 +336,62 @@
   }
   .cap-proof > *:nth-child(3) {
     animation-delay: 160ms;
+  }
+
+  /* Below lg: tabs over the held capability (after the accordion, which it overrides). */
+  @media (max-width: 63.999rem) {
+    .cap-band {
+      min-height: calc(100svh + 120svh);
+    }
+    .cap-pin {
+      position: sticky;
+      top: 3.5rem;
+      display: flex;
+      flex-direction: column;
+      justify-content: safe center;
+      height: calc(100svh - 3.5rem);
+      padding-block: 1.25rem;
+      overflow: hidden;
+    }
+
+    /* The names as tabs, the held one underlined in the accent. */
+    .cap-list {
+      display: flex;
+      border-bottom: var(--hairline) solid var(--c-line);
+    }
+    .cap-item {
+      flex: 1 1 auto;
+      min-width: 0;
+      padding: 0.7rem 0.35rem 0.75rem;
+      border-top: 0;
+    }
+    .cap-item:last-child {
+      border-bottom: 0;
+    }
+    .cap-item::before {
+      inset: auto 0 -1px 0;
+      width: auto;
+      height: 3px;
+      transform: scaleX(0);
+      transform-origin: left;
+    }
+    .cap-item[data-active]::before {
+      transform: scaleX(1);
+    }
+    .cap-trigger {
+      justify-content: center;
+      text-align: center;
+    }
+    .cap-body {
+      display: none;
+    }
+    .cap-now {
+      animation: cap-in var(--dur-reveal) var(--ease-out) both;
+    }
+    .cap-logo {
+      height: 2rem;
+      max-width: 4.5rem;
+    }
   }
 }
 
@@ -461,6 +532,52 @@
     }
     .work-row-over .work-card[data-landed] {
       pointer-events: auto;
+    }
+  }
+
+  /*
+   * Below lg: one pinned stack of the first three cards. The second hand is
+   * not shown; the band's foot links to all of them.
+   */
+  @media (max-width: 63.999rem) {
+    .work-row-over {
+      display: none;
+    }
+  }
+  @media (max-width: 63.999rem) and (prefers-reduced-motion: no-preference) {
+    .work-band {
+      /* The pinned screen, plus scroll for two deals. */
+      min-height: calc(100svh + 110svh);
+    }
+    .work-pin {
+      position: sticky;
+      top: 3.5rem;
+      display: flex;
+      flex-direction: column;
+      justify-content: safe center;
+      height: calc(100svh - 3.5rem);
+      padding-block: 0.75rem;
+      overflow: hidden;
+    }
+    .work-stack {
+      grid-template-columns: minmax(0, 1fr);
+    }
+    .work-row[data-row='under'] {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr);
+    }
+    .work-row[data-row='under'] .work-card {
+      --deal: 1;
+      --cover: 0;
+      grid-area: 1 / 1;
+      transform-origin: 50% 0;
+      transform: translateY(calc((1 - var(--deal)) * 100svh))
+        translateY(calc(var(--cover) * -0.9rem)) scale(calc(1 - var(--cover) * 0.05));
+      filter: brightness(calc(1 - var(--cover) * 0.4));
+      box-shadow: 0 -1.25rem 2.5rem -1.5rem rgb(0 0 0 / calc(var(--deal) * 0.8));
+    }
+    .work-card[data-waiting] {
+      pointer-events: none;
     }
   }
 }

@@ -23,8 +23,8 @@ import Emph from '../ui/Emph';
  *
  * ## Scrolling is the control
  *
- * From `lg` the band (`.cap-band`, in the page) is taller than the viewport and
- * its screen is pinned, and the selection advances as it passes: one capability
+ * The band (`.cap-band`, in the page) is taller than the viewport and its
+ * screen is pinned, and the selection advances as it passes: one capability
  * per third of the pinned range. The band is found with `closest()` so the
  * section heading can sit inside the pinned screen without crossing the island
  * boundary.
@@ -33,9 +33,12 @@ import Emph from '../ui/Emph';
  * would fight the scroll handler on the very next frame; scrolling makes the
  * two agree by construction.
  *
- * Below `lg` there is no pin, since a long pinned section on a phone is the
- * pattern people complain about most, so a click sets the selection and that
- * is all.
+ * ## On a phone
+ *
+ * The same pinned screen, laid out for one column: the names become a row of
+ * tabs, the held capability's sentence and tags sit under them (`cap-now`),
+ * and the proof is a compact list below. Heading, capability and proof are on
+ * one screen, which an accordion over a stacked proof column was not.
  */
 
 /**
@@ -84,8 +87,6 @@ interface Props {
   label: string;
 }
 
-const PINNED = '(min-width: 64rem)';
-
 export default function Capabilities({ pillars, label }: Props): React.ReactElement | null {
   const [active, setActive] = useState(0);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -107,7 +108,6 @@ export default function Capabilities({ pillars, label }: Props): React.ReactElem
   useEffect(() => {
     const el = band();
     if (!el) return;
-    if (!window.matchMedia(PINNED).matches) return;
 
     let raf = 0;
     const measure = (): void => {
@@ -132,16 +132,16 @@ export default function Capabilities({ pillars, label }: Props): React.ReactElem
     };
   }, [band, count]);
 
-  /** Select a capability: scroll to its third of the band, or just switch on a phone. */
+  /** Select a capability: scroll to its third of the band. */
   const go = useCallback(
     (i: number) => {
       const el = band();
-      if (!el || !window.matchMedia(PINNED).matches) {
+      const rect = el?.getBoundingClientRect();
+      const span = rect ? rect.height - window.innerHeight : 0;
+      if (!rect || span <= 0) {
         setActive(i);
         return;
       }
-      const rect = el.getBoundingClientRect();
-      const span = rect.height - window.innerHeight;
       const top = window.scrollY + rect.top + span * ((i + 0.5) / count);
       window.scrollTo({ top, behavior: 'smooth' });
     },
@@ -155,7 +155,7 @@ export default function Capabilities({ pillars, label }: Props): React.ReactElem
   return (
     <div
       ref={rootRef}
-      className="grid gap-12 lg:grid-cols-[minmax(0,1fr)_minmax(0,30rem)] lg:gap-20"
+      className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,30rem)] lg:gap-20"
     >
       {/* ── The capabilities ─────────────────────────────────────── */}
       <ul aria-label={label} className="cap-list">
@@ -172,8 +172,10 @@ export default function Capabilities({ pillars, label }: Props): React.ReactElem
                   aria-controls={`${bodyId} ${proofId}`}
                   className="cap-trigger group"
                 >
-                  <span className="cap-index font-mono text-[11px] tabular-nums">{item.index}</span>
-                  <span className="cap-title display text-2xl sm:text-3xl xl:text-4xl">
+                  <span className="cap-index font-mono text-[11px] tabular-nums max-lg:hidden">
+                    {item.index}
+                  </span>
+                  <span className="cap-title display text-[0.78rem] sm:text-lg lg:text-3xl xl:text-4xl">
                     {item.title}
                   </span>
                 </button>
@@ -200,17 +202,36 @@ export default function Capabilities({ pillars, label }: Props): React.ReactElem
         })}
       </ul>
 
+      {/* ── On a phone: the held capability, under its tab ───────── */}
+      <div key={`now-${pillar.id}`} className="cap-now lg:hidden">
+        <p className="text-muted text-[15px] leading-relaxed">
+          <Emph text={pillar.body} phrases={pillar.emphasis} />
+        </p>
+        <ul className="mt-3 flex flex-wrap gap-1.5">
+          {pillar.tags.map((t) => (
+            <li
+              key={t}
+              className="border-line text-muted border px-2 py-0.5 font-mono text-[9.5px] tracking-wide uppercase"
+            >
+              {t}
+            </li>
+          ))}
+        </ul>
+      </div>
+
       {/* ── The proof ────────────────────────────────────────────── */}
       <div id={proofId} className="min-w-0" aria-live="polite">
-        <p className="eyebrow">Proof</p>
-        <ul key={pillar.id} className="divide-line cap-proof mt-4 divide-y">
+        <p className="eyebrow max-lg:hidden">Proof</p>
+        <ul key={pillar.id} className="divide-line cap-proof divide-y lg:mt-4">
           {pillar.proof.map((p) => (
             <li
               key={p.claim}
-              className="grid grid-cols-[6.5rem_minmax(0,1fr)] items-center gap-x-5 py-5"
+              className="grid grid-cols-[4.5rem_minmax(0,1fr)] items-center gap-x-4 py-3 lg:grid-cols-[6.5rem_minmax(0,1fr)] lg:gap-x-5 lg:py-5"
             >
               {p.mark.kind === 'figure' ? (
-                <span className="display text-3xl leading-none normal-case">{p.mark.text}</span>
+                <span className="display text-2xl leading-none normal-case lg:text-3xl">
+                  {p.mark.text}
+                </span>
               ) : (
                 <span
                   role="img"
@@ -225,11 +246,11 @@ export default function Capabilities({ pillars, label }: Props): React.ReactElem
                 />
               )}
               <span className="min-w-0">
-                <span className="text-muted block text-[15px] leading-snug">
+                <span className="text-muted block text-sm leading-snug lg:text-[15px]">
                   <Emph text={p.claim} phrases={p.emphasis} />
                 </span>
                 {p.source && (
-                  <span className="text-faint mt-2 block font-mono text-[10px] tracking-wide uppercase">
+                  <span className="text-faint mt-1 block font-mono text-[9.5px] tracking-wide uppercase lg:mt-2 lg:text-[10px]">
                     {p.source}
                   </span>
                 )}

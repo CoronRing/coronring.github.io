@@ -42,13 +42,17 @@ import type { IconName } from '../ui/icons';
  *
  * ## The scroll walks the deck
  *
- * From `lg` the section is several screens tall with the frame pinned, and
- * the scroll position past the handoff picks the frame: each one holds for a
- * fixed share of the section, the way the Myself and Tools bands step through
+ * At every width the section is several screens tall with the frame pinned,
+ * and the scroll position past the handoff picks the frame: each one holds for
+ * a fixed share of the section, the way the Myself and Tools bands step through
  * their entries. A click, an arrow key or the rail's own arrows *scroll* to the
  * frame rather than setting it, so the two can never disagree; the jump is
- * instant, which inside a pinned screen is invisible except as the cut. Below
- * `lg` nothing is pinned and the controls set the frame directly.
+ * instant, which inside a pinned screen is invisible except as the cut.
+ *
+ * On a phone the pinned screen is one column (see the phone section of
+ * deck.css): the name and its sentence on the landing card, then, after one
+ * small scroll, the name folded to a line, the exhibit, the frame's copy, and
+ * the roster as a strip along the bottom, which keeps the held token centred.
  *
  * ## Cutting between drawn exhibits
  *
@@ -116,9 +120,6 @@ type Phase = 'intro' | 'moving' | 'deck';
  */
 const ENTER_PX = 90;
 const EXIT_PX = 36;
-
-/** Where the deck is pinned and scroll-driven. Below this it stacks and only clicks drive it. */
-const PINNED = '(min-width: 64rem)';
 
 /**
  * Scroll before the first frame starts counting, as a share of the viewport.
@@ -191,6 +192,7 @@ export default function ProjectDeck({
   /** False while the deck is scrolled away — stages pause rather than run blind. */
   const [onScreen, setOnScreen] = useState(true);
   const sectionRef = useRef<HTMLElement | null>(null);
+  const mastRef = useRef<HTMLDivElement | null>(null);
   const tokenRefs = useRef<Array<HTMLButtonElement | null>>([]);
 
   const frame = frames[index] ?? frames[0]!;
@@ -234,7 +236,7 @@ export default function ProjectDeck({
   const frameTop = useCallback(
     (i: number): number | null => {
       const section = sectionRef.current;
-      if (!section || !window.matchMedia(PINNED).matches) return null;
+      if (!section) return null;
       const lead = window.innerHeight * LEAD_VH;
       const span = section.offsetHeight - window.innerHeight - lead;
       if (span <= 0) return null;
@@ -356,8 +358,6 @@ export default function ProjectDeck({
       settleId = window.setTimeout(() => setPhase(next ? 'deck' : 'intro'), swapMs());
     };
 
-    const pinned = window.matchMedia(PINNED);
-
     const read = (): void => {
       frameId = 0;
       const travelled = window.scrollY - section.offsetTop;
@@ -365,7 +365,6 @@ export default function ProjectDeck({
       if (travelled >= ENTER_PX) apply(true);
       else if (travelled <= EXIT_PX) apply(false);
 
-      if (!pinned.matches) return;
       const lead = window.innerHeight * LEAD_VH;
       const span = section.offsetHeight - window.innerHeight - lead;
       if (span <= 0) return;
@@ -398,12 +397,41 @@ export default function ProjectDeck({
     };
   }, [select, total]);
 
+  /*
+   * On a phone the roster is a strip wider than the screen; whichever frame is
+   * held is scrolled to its middle, so the strip shows where the walk is.
+   */
+  useEffect(() => {
+    const token = tokenRefs.current[index];
+    const strip = token?.parentElement;
+    if (!token || !strip || strip.scrollWidth <= strip.clientWidth) return;
+    const left = token.offsetLeft - (strip.clientWidth - token.offsetWidth) / 2;
+    strip.scrollTo({ left, behavior: 'smooth' });
+  }, [index]);
+
   /** The cue does what the scroll it stands in for would do: trip the latch. */
   const advance = useCallback(() => {
     const section = sectionRef.current;
     if (!section) return;
     window.scrollTo({ top: section.offsetTop + ENTER_PX * 2 });
   }, []);
+
+  /*
+   * On a phone the landing card's exhibit starts under the name and its
+   * sentence, however many lines those wrap to (see `--m-intro` in deck.css).
+   * Measured only on the landing card itself: mid-handoff the name is changing
+   * size, and following it would move the exhibit's target while it travels.
+   */
+  useEffect(() => {
+    const section = sectionRef.current;
+    const mast = mastRef.current;
+    if (!section || !mast || phase !== 'intro') return;
+    const write = (): void => section.style.setProperty('--m-intro', `${mast.offsetHeight}px`);
+    write();
+    const ro = new ResizeObserver(write);
+    ro.observe(mast);
+    return () => ro.disconnect();
+  }, [phase]);
 
   // Pause every stage while the deck is off screen or the tab is hidden.
   useEffect(() => {
@@ -528,7 +556,7 @@ export default function ProjectDeck({
         <span aria-hidden="true" className="deck-scrim" />
 
         {/* ── The masthead, in both states ────────────────────────── */}
-        <div className="deck-mast">
+        <div ref={mastRef} className="deck-mast">
           <p className="deck-mast-name display">{name}</p>
           <div className="deck-mast-under">
             <p className="eyebrow eyebrow-marked mt-3">{role}</p>
@@ -640,8 +668,8 @@ export default function ProjectDeck({
             NewsRing uses it, for the list of today's picks; see NewsStage.
           */}
           <div ref={setNewsHost} className="deck-aside" />
-          <div className="mt-auto">
-            <div className="border-line flex items-baseline gap-4 border-t pt-4">
+          <div className="mt-auto max-lg:mt-0">
+            <div className="deck-copy-head border-line flex items-baseline gap-4 border-t pt-4 max-lg:hidden">
               <span className="eyebrow">Building</span>
               <span aria-hidden="true" className="bg-line h-px flex-1" />
               <span className="text-faint font-mono text-[11px] tabular-nums">
@@ -653,7 +681,7 @@ export default function ProjectDeck({
               Keyed on the frame, so the whole readout re-enters on a cut. The
               stagger is CSS (`.deck-enter > *`), not five delayed states.
             */}
-            <div key={frame.id} className="deck-enter mt-5">
+            <div key={frame.id} className="deck-enter mt-5 max-lg:mt-0">
               <h2 className={`deck-title display break-words ${titleSize(frame.title)}`}>
                 <span aria-hidden="true" className="deck-bracket">
                   [
@@ -664,17 +692,17 @@ export default function ProjectDeck({
                 </span>
               </h2>
 
-              <div aria-hidden="true" className="deck-rule mt-4" />
+              <div aria-hidden="true" className="deck-rule mt-4 max-lg:hidden" />
 
-              <div className="mt-4">
+              <div className="mt-4 max-lg:mt-2.5">
                 <MetaPair label={frame.meta.label} value={frame.meta.value} />
               </div>
 
-              <p className="text-muted prose-measure mt-4 text-[15px] leading-relaxed">
+              <p className="text-muted prose-measure mt-4 text-[15px] leading-relaxed max-lg:mt-2.5">
                 <Emph text={frame.blurb} phrases={frame.emphasis} />
               </p>
 
-              <div className="mt-6 flex flex-wrap items-center gap-x-5 gap-y-3">
+              <div className="mt-6 flex flex-wrap items-center gap-x-5 gap-y-3 max-lg:mt-3">
                 {frame.href ? (
                   <a href={frame.href} className="deck-cta group">
                     Open blueprint

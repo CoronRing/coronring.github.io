@@ -72,6 +72,14 @@ const CURATED_TOOLS: CuratedTool[] = [
   },
 ];
 
+/**
+ * ToolShowcase: the tools band, a roster beside a screen that plays the held
+ * tool. From lg the roster is a column of named rows, each ending in its FULL
+ * tab, and the band's scroll steps through them. Below lg the roster is one
+ * strip of icons over the screen, so the tool itself is on the first screen
+ * of the band rather than under five rows of names; the screen's own header
+ * names the held tool, and the band's foot links to the rest.
+ */
 export default function ToolShowcase({ tools = [], indexHref }: Props): React.ReactElement {
   const [active, setActive] = useState(0);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -183,11 +191,15 @@ export default function ToolShowcase({ tools = [], indexHref }: Props): React.Re
             onKeyDown={onKeyDown}
             className="border-line bg-surface/90 flex flex-col justify-between border-b lg:border-r lg:border-b-0"
           >
-            <div className="divide-line/60 divide-y">
+            <div className="divide-line/60 max-lg:divide-line/60 divide-y max-lg:flex max-lg:divide-x max-lg:divide-y-0">
               {CURATED_TOOLS.map((item, i) => {
                 const on = i === active;
                 return (
-                  <div key={item.id} role="presentation" className="kit-entry relative">
+                  <div
+                    key={item.id}
+                    role="presentation"
+                    className="kit-entry relative max-lg:flex-1"
+                  >
                     <button
                       ref={(el) => {
                         itemRefs.current[i] = el;
@@ -197,7 +209,8 @@ export default function ToolShowcase({ tools = [], indexHref }: Props): React.Re
                       aria-selected={on}
                       tabIndex={on ? 0 : -1}
                       onClick={() => go(i)}
-                      className={`kit-item group relative flex w-full items-center gap-3 p-4 pr-[calc(var(--full-tab-w)+0.75rem)] text-left transition-colors sm:px-5 sm:pr-[calc(var(--full-tab-w)+0.75rem)] lg:py-5 ${
+                      aria-label={item.name}
+                      className={`kit-item group relative flex w-full items-center gap-3 p-4 pr-[calc(var(--full-tab-w)+0.75rem)] text-left transition-colors max-lg:justify-center max-lg:px-2 max-lg:py-3.5 sm:px-5 sm:pr-[calc(var(--full-tab-w)+0.75rem)] max-lg:sm:px-2 lg:py-5 ${
                         on ? 'bg-raised/70' : 'hover:bg-raised/30'
                       }`}
                     >
@@ -220,7 +233,7 @@ export default function ToolShowcase({ tools = [], indexHref }: Props): React.Re
                           className={`shrink-0 transition-colors ${on ? 'text-accent' : ''}`}
                         />
                         <span
-                          className={`kit-entry-name truncate font-mono text-sm sm:text-base ${on ? 'font-semibold' : 'font-medium'}`}
+                          className={`kit-entry-name truncate font-mono text-sm max-lg:hidden sm:text-base ${on ? 'font-semibold' : 'font-medium'}`}
                         >
                           {item.name}
                         </span>
@@ -248,7 +261,7 @@ export default function ToolShowcase({ tools = [], indexHref }: Props): React.Re
               The way to the whole kit, in the roster itself. The last stage
               has a link too, but only for someone who scrolls that far.
             */}
-              <div className="p-4">
+              <div className="p-4 max-lg:hidden">
                 <a
                   href={indexHref}
                   className="bg-accent-fill text-accent-on-fill group flex h-11 w-full items-center justify-between px-4 text-sm font-semibold transition-opacity hover:opacity-85"
@@ -273,7 +286,7 @@ export default function ToolShowcase({ tools = [], indexHref }: Props): React.Re
             </div>
 
             {/* Scrub Indicator & Step Counter */}
-            <div className="border-line/80 bg-surface flex items-center justify-between border-t px-4 py-3">
+            <div className="border-line/80 bg-surface flex items-center justify-between border-t px-4 py-3 max-lg:hidden">
               <div className="flex gap-1.5">
                 {CURATED_TOOLS.map((item, i) => (
                   <button

@@ -1,6 +1,6 @@
 # coronring.github.io — Design Document
 
-**Version:** 0.26.2
+**Version:** 0.27.0
 **Status:** Complete. Every rail entry opens its full page from a FULL tab on its row
 **Last updated:** 2026-10-15
 **Owner:** Guan Zheng Huang (`CoronRing`)
@@ -8,6 +8,16 @@
 > This document covers the Astro site only. The site is now one of three
 > deployables in this repository, and anything crossing the boundary between
 > them belongs in [`../SYSTEM.md`](../SYSTEM.md).
+>
+> **v0.27.0**: the home page designed for a phone, not fitted to one. Below `lg` every band is one composition on one screen, and the scroll drives it the way it does on a desktop.
+>
+> - **The deck is pinned at every width.** On a phone it is one column with fixed shares of the screen (`--m-top`, `--m-stage`, `--m-copy`, `--m-rail` in the phone section of `deck.css`): the landing card is the name, its sentence and links over the exhibit; one small scroll folds the name to a line, slides the exhibit up under it, and brings in the frame's title, stack and a three-line blurb, with the roster as a strip of tokens along the foot that keeps the held one centred and shows the walk's progress on its top edge. The scroll then walks the frames, 30svh each. Only transforms and opacity move during the handoff, so the exhibit's canvases are never resized mid-transition; when the landing text wraps taller than its space on a small phone the exhibit starts below it (`--m-intro`, measured by `ProjectDeck`). Short screens (under 44rem tall) drop the stack line and clamp the blurb to two lines. The ghost statement is not drawn below `lg`.
+> - **Read the blueprints** is a pinned stack of the first three cards, the second and third dealt onto the first as the band scrolls (`--deal` and `--cover`, from `WorkStack`); the cards are compact there (two lines of summary, no stack line).
+> - **Myself** is pinned too: the three capabilities are a row of tabs, the held one's sentence and tags sit under them, and its proof is a compact list, all on one screen; the scroll steps through them as on desktop.
+> - **Tools** shows its roster as one strip of icons over the tool, so the tool is on the band's first screen rather than under five rows of names.
+> - **Every band's "see all" link is at its foot on a phone** (`ui/BandMore.astro`); from `lg` it stays in the heading. Nobody scrolls back up to find the way on.
+> - **CoronChat stays off the deck on a phone**, where it would sit on the links and the roster strip.
+> - The paste button no longer breaks hydration: whether the clipboard can be read is decided after hydration, so server and browser render the same tree.
 >
 > **v0.26.2**: hover and phones. NewsRing holds its cycle only while the cursor is inside the inner ring, where the headline is read, or on a row of the picks list; anywhere else over the dial it keeps running. On a phone (below 40rem) the ghost statement is not drawn (it stays the page's `h1`), the stage readout is hidden, Railtracks' head sits 84% down its short box, and the mobile top bar is 95% opaque so the stage does not read through it. CoronChat below `lg` never opens itself: the one-time nudge flashes the collapsed button three times instead (`.ask-hail-beckon`). On a phone the button is only the mark, and on the home page it waits off screen until the visitor scrolls past the first screen, where it would sit on the name's links; the nudge waits with it (§6.2.1).
 >

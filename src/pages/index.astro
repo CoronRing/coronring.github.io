@@ -24,6 +24,7 @@ import { getCollection } from 'astro:content';
 import BaseLayout from '../layouts/BaseLayout.astro';
 import ParticleField from '../components/decor/ParticleField.astro';
 import SectionHead from '../components/ui/SectionHead.astro';
+import BandMore from '../components/ui/BandMore.astro';
 import ProjectDeck from '../components/deck/ProjectDeck';
 import WorkStack from '../components/ui/WorkStack.astro';
 import ChatPage from '../components/chat/ChatPage';
@@ -302,7 +303,11 @@ const showcaseTools: ShowcaseTool[] = liveTools.map((t) => ({
       `order`: from lg the band is pinned and the second three are dealt onto
       the first as it scrolls. See `components/ui/WorkStack.astro`. */
   }
-  <section id="work" aria-labelledby="work-h" class="border-line work-band border-t py-24 lg:py-0">
+  <section
+    id="work"
+    aria-labelledby="work-h"
+    class="border-line work-band border-t py-24 motion-safe:py-0"
+  >
     <div class="work-pin">
       <div class="shell">
         <Reveal>
@@ -316,9 +321,10 @@ const showcaseTools: ShowcaseTool[] = liveTools.map((t) => ({
           />
         </Reveal>
 
-        <div class="mt-12">
+        <div class="mt-5 lg:mt-12">
           <WorkStack projects={projects.slice(0, 6)} />
         </div>
+        <BandMore href="/projects" label={`All ${projects.length} projects`} class="mt-4" />
       </div>
     </div>
   </section>
@@ -334,7 +340,7 @@ const showcaseTools: ShowcaseTool[] = liveTools.map((t) => ({
   <section
     id="resume"
     aria-labelledby="resume-h"
-    class="border-line cap-band border-t py-24 lg:py-0"
+    class="border-line cap-band border-t"
   >
     <div class="cap-pin">
       <div class="shell">
@@ -349,9 +355,10 @@ const showcaseTools: ShowcaseTool[] = liveTools.map((t) => ({
           />
         </Reveal>
 
-        <div class="mt-12">
+        <div class="mt-6 lg:mt-12">
           <Capabilities client:visible pillars={PILLARS} label="Capabilities" />
         </div>
+        <BandMore href="/resume" label="Full resume" class="mt-5" />
       </div>
     </div>
   </section>
@@ -385,6 +392,7 @@ const showcaseTools: ShowcaseTool[] = liveTools.map((t) => ({
         <div class="mt-10">
           <ToolShowcase client:visible tools={showcaseTools} indexHref={href('/tools')} />
         </div>
+        <BandMore href="/tools" label={`All ${liveTools.length} tools`} />
       </div>
     </div>
   </section>
@@ -484,6 +492,7 @@ const showcaseTools: ShowcaseTool[] = liveTools.map((t) => ({
       <div class="mt-12">
         <ChatPage client:visible />
       </div>
+      <BandMore href="/chat" label="Full page" />
     </div>
   </section>
 
@@ -534,6 +543,7 @@ const showcaseTools: ShowcaseTool[] = liveTools.map((t) => ({
               </Reveal>
             ))}
           </ul>
+          <BandMore href="/resources" label="All resources" />
         </div>
       </section>
     )

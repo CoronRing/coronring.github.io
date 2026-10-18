@@ -17,9 +17,15 @@ import { href } from '../../lib/url';
 
 interface Props {
   project: CollectionEntry<'projects'>;
+  /**
+   * Below lg, a card that has to share one phone screen with its band's
+   * heading and link (the home page's stack): two lines of summary and no
+   * stack line. The project page carries both.
+   */
+  compact?: boolean;
 }
 
-const { project } = Astro.props;
+const { project, compact = false } = Astro.props;
 const { data } = project;
 
 const STATUS_LABEL = {
@@ -77,9 +83,21 @@ const STATUS_LABEL = {
       {data.title}
     </h3>
 
-    <p class="text-muted mt-2.5 flex-1 text-sm leading-relaxed"><Emph text={data.summary} phrases={data.emphasis} /></p>
+    <p
+      class:list={[
+        'text-muted mt-2.5 flex-1 text-sm leading-relaxed',
+        compact ? 'max-lg:line-clamp-2' : 'max-lg:line-clamp-3',
+      ]}
+    >
+      <Emph text={data.summary} phrases={data.emphasis} />
+    </p>
 
-    <ul class="text-faint mt-4 flex flex-wrap gap-x-3 gap-y-1 font-mono text-[10px] uppercase">
+    <ul
+      class:list={[
+        'text-faint mt-4 flex flex-wrap gap-x-3 gap-y-1 font-mono text-[10px] uppercase',
+        compact && 'max-lg:hidden',
+      ]}
+    >
       {data.tech.slice(0, 3).map((t) => <li>{t}</li>)}
     </ul>
 
@@ -89,7 +107,10 @@ const STATUS_LABEL = {
       decoration rather than a way in.
     -->
     <div
-      class="border-line group-hover:border-fg mt-5 flex items-center justify-between gap-4 border-t pt-4 transition-colors duration-[var(--dur-base)]"
+      class:list={[
+        'border-line group-hover:border-fg mt-5 flex items-center justify-between gap-4 border-t pt-4 transition-colors duration-[var(--dur-base)]',
+        compact && 'max-lg:mt-3 max-lg:pt-3',
+      ]}
     >
       <span class="group-hover:text-accent text-sm font-semibold transition-colors">
         Open blueprint

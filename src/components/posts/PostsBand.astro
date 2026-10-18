@@ -66,6 +66,7 @@ import type { CollectionEntry } from 'astro:content';
 import Mark from '../ui/Mark.astro';
 import Icon from '../ui/Icon.astro';
 import SectionHead from '../ui/SectionHead.astro';
+import BandMore from '../ui/BandMore.astro';
 import Reveal from '../ui/Reveal.astro';
 import PostCover from './PostCover.astro';
 import { assignTints, type PostTint } from '../../lib/post-tint';
@@ -294,6 +295,7 @@ function pad(n: number): string {
               </li>
             ))}
           </ul>
+          <BandMore href="/blog" label={posts.length > 1 ? `All ${posts.length} posts` : 'All posts'} />
         </Reveal>
       </div>
     </div>

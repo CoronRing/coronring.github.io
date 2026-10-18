@@ -15,8 +15,15 @@
  * Tools bands use, written to each card as `--deal` (0 waiting, 1 landed).
  * Everything visual is CSS off that one number.
  *
- * Below `lg`, or under `prefers-reduced-motion`, nothing is pinned: the rows
- * dissolve (`display: contents`) and the six cards are one ordinary grid.
+ * Below `lg` the band is pinned too, as one stack: only the first three cards,
+ * all in one cell, the second and third dealt onto the first in turn as the
+ * band scrolls (`--deal` for a card's own arrival, `--cover` for how far the
+ * next one has landed on it). A phone shows one card at a time, so six in a
+ * column was six screens of scrolling for a band that is a glance.
+ *
+ * Under `prefers-reduced-motion` nothing is pinned at any width: the rows
+ * dissolve (`display: contents`) into one ordinary grid, of all six from lg
+ * and of the first three below it.
  *
  * Keyboard: tabbing onto a card that is covered scrolls the band back to the
  * point where it is on top, so focus never lands on something hidden.
@@ -38,7 +45,7 @@ const second = projects.slice(3, 6);
     {
       first.map((project, i) => (
         <li class="work-card min-w-0" data-col={i}>
-          <ProjectCard project={project} />
+          <ProjectCard project={project} compact />
         </li>
       ))
     }
@@ -58,6 +65,11 @@ const second = projects.slice(3, 6);
 
 <script>
   const PINNED = '(min-width: 64rem) and (prefers-reduced-motion: no-preference)';
+  const STACKED = '(max-width: 63.999rem) and (prefers-reduced-motion: no-preference)';
+  /** The phone stack: when each of its two deals starts, and how long each takes. */
+  const PHONE_LEAD = 0.08;
+  const PHONE_SPAN = 0.36;
+  const PHONE_STAGGER = 0.46;
   /** Share of the band's scroll before the first card starts to move. */
   const LEAD = 0.08;
   /** Share each card's own deal takes. */
@@ -72,6 +84,7 @@ const second = projects.slice(3, 6);
     const under = [...stack.querySelectorAll<HTMLElement>('[data-row="under"] .work-card')];
     const over = [...stack.querySelectorAll<HTMLElement>('[data-row="over"] .work-card')];
     const media = window.matchMedia(PINNED);
+    const stacked = window.matchMedia(STACKED);
     let raf = 0;
 
     const progress = (): number => {
@@ -80,8 +93,32 @@ const second = projects.slice(3, 6);
       return span > 0 ? Math.min(1, Math.max(0, -rect.top / span)) : 0;
     };
 
+    /** The phone stack: card k (from 1) is dealt onto card k - 1. */
+    const updateStack = (p: number): void => {
+      under.forEach((card, k) => {
+        const own =
+          k === 0
+            ? 1
+            : ease(
+                Math.min(1, Math.max(0, (p - PHONE_LEAD - (k - 1) * PHONE_STAGGER) / PHONE_SPAN)),
+              );
+        const next = under[k + 1];
+        const cover = next
+          ? ease(Math.min(1, Math.max(0, (p - PHONE_LEAD - k * PHONE_STAGGER) / PHONE_SPAN)))
+          : 0;
+        card.style.setProperty('--deal', own.toFixed(4));
+        card.style.setProperty('--cover', cover.toFixed(4));
+        card.toggleAttribute('data-waiting', own < 0.6);
+        card.toggleAttribute('data-covered', cover > 0.6);
+      });
+    };
+
     const update = (): void => {
       raf = 0;
+      if (stacked.matches) {
+        updateStack(progress());
+        return;
+      }
       const pinned = media.matches;
       const p = progress();
       over.forEach((card, i) => {
@@ -93,7 +130,9 @@ const second = projects.slice(3, 6);
         const beneath = under[i];
         if (beneath) {
           beneath.style.setProperty('--deal', pinned ? deal.toFixed(4) : '0');
+          beneath.style.removeProperty('--cover');
           beneath.toggleAttribute('data-covered', pinned && deal > 0.6);
+          beneath.removeAttribute('data-waiting');
         }
       });
     };
@@ -104,6 +143,19 @@ const second = projects.slice(3, 6);
 
     /** Scroll so a covered card is on top again, or a waiting one has landed. */
     const reveal = (card: HTMLElement): void => {
+      if (stacked.matches) {
+        const k = under.indexOf(card);
+        const rect = band.getBoundingClientRect();
+        const span = rect.height - window.innerHeight;
+        if (k < 0 || span <= 0) return;
+        // Where card k has landed and the next has not yet started.
+        const at = k === 0 ? 0 : PHONE_LEAD + (k - 1) * PHONE_STAGGER + PHONE_SPAN;
+        window.scrollTo({
+          top: window.scrollY + rect.top + span * Math.min(1, at + 0.02),
+          behavior: 'instant',
+        });
+        return;
+      }
       if (!media.matches) return;
       const rect = band.getBoundingClientRect();
       const span = rect.height - window.innerHeight;
@@ -134,5 +186,6 @@ const second = projects.slice(3, 6);
     window.addEventListener('scroll', schedule, { passive: true });
     window.addEventListener('resize', schedule);
     media.addEventListener('change', schedule);
+    stacked.addEventListener('change', schedule);
   }
 </script>

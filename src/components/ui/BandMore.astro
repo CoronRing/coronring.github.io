@@ -1,0 +1,28 @@
+---
+/**
+ * BandMore: a band's "see all" link, at the foot of the band on a phone.
+ *
+ * From lg the link sits in the section heading, beside the title (see
+ * `SectionHead`), where the eye meets it with the band's first screen. On a
+ * phone the heading is the top of a column the visitor reads downward and
+ * then leaves; nobody scrolls back up to find the way on, so the same link is
+ * set at the foot, full width, and the heading's copy is hidden there.
+ */
+import Icon from './Icon.astro';
+import { href as url } from '../../lib/url';
+
+interface Props {
+  href: string;
+  label: string;
+  class?: string;
+}
+
+const { href, label, class: className } = Astro.props;
+---
+
+<div class:list={['mt-8 lg:hidden', className]}>
+  <a href={url(href)} class="cta-outline w-full justify-between">
+    {label}
+    <Icon name="arrow-right" size={15} />
+  </a>
+</div>
