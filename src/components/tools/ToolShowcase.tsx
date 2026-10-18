@@ -23,6 +23,8 @@ interface Props {
 interface CuratedTool {
   id: string;
   name: string;
+  /** One word under the icon in the phone strip. */
+  short: string;
   slug: string;
   href: string;
   offline: boolean;
@@ -33,14 +35,16 @@ const CURATED_TOOLS: CuratedTool[] = [
   {
     id: 'token-counter',
     name: 'Token Counter',
+    short: 'Tokens',
     slug: 'token-counter',
     href: '/tools/token-counter',
     offline: false,
-    statusLabel: 'Static Pricing DB',
+    statusLabel: 'Live price list',
   },
   {
     id: 'mcp-tester',
     name: 'MCP Tester',
+    short: 'MCP',
     slug: 'mcp-tester',
     href: '/tools/mcp-tester',
     offline: false,
@@ -49,6 +53,7 @@ const CURATED_TOOLS: CuratedTool[] = [
   {
     id: 'string-kit',
     name: 'String Kit',
+    short: 'Strings',
     slug: 'string-kit',
     href: '/tools/string-kit',
     offline: true,
@@ -57,6 +62,7 @@ const CURATED_TOOLS: CuratedTool[] = [
   {
     id: 'rest-reminder',
     name: 'Rest Reminder',
+    short: 'Breaks',
     slug: 'rest-reminder',
     href: '/tools/rest-reminder',
     offline: true,
@@ -65,6 +71,7 @@ const CURATED_TOOLS: CuratedTool[] = [
   {
     id: 'other',
     name: 'Other Instruments',
+    short: 'More',
     slug: 'all-tools',
     href: '/tools',
     offline: true,
@@ -100,15 +107,21 @@ export default function ToolShowcase({ tools = [], indexHref }: Props): React.Re
    * Scroll drives the selection while the band is pinned on desktop.
    * Progress is measured from the point the band's top passes the top of the
    * viewport to the point its bottom does.
+   *
+   * The listener is always attached and the breakpoint is checked on every
+   * frame. Deciding once at hydration left a window that was narrow when the
+   * band loaded, then widened, with a pinned band the scroll no longer drove
+   * until the page was reloaded.
    */
   useEffect(() => {
     const el = band();
     if (!el) return;
-    if (!window.matchMedia('(min-width: 64rem)').matches) return;
+    const desktop = window.matchMedia('(min-width: 64rem)');
 
     let raf = 0;
     const measure = (): void => {
       raf = 0;
+      if (!desktop.matches) return;
       const rect = el.getBoundingClientRect();
       const span = rect.height - window.innerHeight;
       if (span <= 0) return;
@@ -122,11 +135,14 @@ export default function ToolShowcase({ tools = [], indexHref }: Props): React.Re
       if (!raf) raf = requestAnimationFrame(measure);
     };
 
+    measure();
     window.addEventListener('scroll', onScroll, { passive: true });
     window.addEventListener('resize', onScroll);
+    desktop.addEventListener('change', onScroll);
     return () => {
       window.removeEventListener('scroll', onScroll);
       window.removeEventListener('resize', onScroll);
+      desktop.removeEventListener('change', onScroll);
       if (raf) cancelAnimationFrame(raf);
     };
   }, [band, count]);
@@ -223,7 +239,7 @@ export default function ToolShowcase({ tools = [], indexHref }: Props): React.Re
                       />
 
                       <span
-                        className={`flex min-w-0 flex-1 items-center gap-3 transition-colors ${
+                        className={`flex min-w-0 flex-1 items-center gap-3 transition-colors max-lg:flex-col max-lg:gap-1.5 ${
                           on ? 'text-fg' : 'text-muted group-hover:text-fg'
                         }`}
                       >
@@ -236,6 +252,12 @@ export default function ToolShowcase({ tools = [], indexHref }: Props): React.Re
                           className={`kit-entry-name truncate font-mono text-sm max-lg:hidden sm:text-base ${on ? 'font-semibold' : 'font-medium'}`}
                         >
                           {item.name}
+                        </span>
+                        <span
+                          aria-hidden="true"
+                          className="font-mono text-[10px] tracking-[0.08em] uppercase lg:hidden"
+                        >
+                          {item.short}
                         </span>
                       </span>
                     </button>

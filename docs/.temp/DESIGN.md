@@ -1,6 +1,6 @@
 # coronring.github.io — Design Document
 
-**Version:** 0.27.0
+**Version:** 0.27.1
 **Status:** Complete. Every rail entry opens its full page from a FULL tab on its row
 **Last updated:** 2026-10-15
 **Owner:** Guan Zheng Huang (`CoronRing`)
@@ -8,6 +8,8 @@
 > This document covers the Astro site only. The site is now one of three
 > deployables in this repository, and anything crossing the boundary between
 > them belongs in [`../SYSTEM.md`](../SYSTEM.md).
+>
+> **v0.27.1**: the way to a full page is one button, `.more-btn` in `global.css`, used by `SectionHead` from `lg` and by `BandMore` on a phone: a raised plate with a short `--c-mark` bar on its leading edge and the page's drafting grid fading in from the far end; on hover the bar runs the full height, the grid spreads and the arrow steps forward. The phone tools strip names each icon in one word. The tools band's scroll handler is always attached and checks the breakpoint per frame, so a window that loads narrow and is then widened still steps through the tools (it needed a reload before). The mobile bar and drawer sit above every other fixed layer.
 >
 > **v0.27.0**: the home page designed for a phone, not fitted to one. Below `lg` every band is one composition on one screen, and the scroll drives it the way it does on a desktop.
 >

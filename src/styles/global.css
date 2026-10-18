@@ -175,6 +175,95 @@
    * reads as a control at a glance. It inverts on hover rather than turning
    * yellow, because yellow is rationed (see DESIGN.md §5.2).
    */
+  /*
+   * The way from a band to its full page.
+   *
+   * A raised plate with the accent as a short bar on its leading edge and a
+   * drafting grid that fades in from the far end, the same grid the page is
+   * drawn on, so the button reads as a sheet of the site rather than a box
+   * around a word. The bar runs the full height on hover and the arrow
+   * steps forward. Both themes from tokens: `--c-mark` is the yellow that
+   * holds up as a thin mark on paper.
+   */
+  .more-btn {
+    --more-grid: color-mix(in srgb, var(--c-text) 13%, transparent);
+    position: relative;
+    isolation: isolate;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.6rem;
+    min-width: 11rem;
+    height: 3rem;
+    padding-inline: 2.25rem 1.75rem;
+    overflow: hidden;
+    border: var(--hairline) solid var(--c-line);
+    border-radius: 6px;
+    background: var(--c-raised);
+    color: var(--c-text);
+    font-size: 0.9375rem;
+    font-weight: 600;
+    white-space: nowrap;
+    transition:
+      border-color var(--dur-base) var(--ease-out),
+      background-color var(--dur-base) var(--ease-out);
+  }
+  .more-btn::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    background-image:
+      linear-gradient(var(--more-grid) 1px, transparent 1px),
+      linear-gradient(90deg, var(--more-grid) 1px, transparent 1px);
+    background-size: 12px 12px;
+    background-position: right -1px top -1px;
+    mask-image: linear-gradient(to left, #000 0%, rgb(0 0 0 / 0.6) 30%, transparent 72%);
+    transition: mask-position var(--dur-slow) var(--ease-out);
+    mask-size: 160% 100%;
+    mask-position: right center;
+    mask-repeat: no-repeat;
+  }
+  .more-btn::after {
+    content: '';
+    position: absolute;
+    left: 0.85rem;
+    top: 28%;
+    bottom: 28%;
+    width: 3px;
+    border-radius: 1px;
+    background: var(--c-mark);
+    transition:
+      top var(--dur-base) var(--ease-out),
+      bottom var(--dur-base) var(--ease-out);
+  }
+  .more-btn svg {
+    flex: none;
+    color: var(--c-text-muted);
+    transition:
+      transform var(--dur-base) var(--ease-out),
+      color var(--dur-base) var(--ease-out);
+  }
+  .more-btn:hover,
+  .more-btn:focus-visible {
+    border-color: var(--c-line-strong);
+    background: color-mix(in srgb, var(--c-raised), var(--c-text) 4%);
+  }
+  .more-btn:hover::before,
+  .more-btn:focus-visible::before {
+    mask-position: left center;
+  }
+  .more-btn:hover::after,
+  .more-btn:focus-visible::after {
+    top: 18%;
+    bottom: 18%;
+  }
+  .more-btn:hover svg,
+  .more-btn:focus-visible svg {
+    color: var(--c-text);
+    transform: translateX(3px);
+  }
+
   .cta-outline {
     display: inline-flex;
     align-items: center;

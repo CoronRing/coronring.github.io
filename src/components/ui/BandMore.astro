@@ -21,7 +21,7 @@ const { href, label, class: className } = Astro.props;
 ---
 
 <div class:list={['mt-8 lg:hidden', className]}>
-  <a href={url(href)} class="cta-outline w-full justify-between">
+  <a href={url(href)} class="more-btn w-full">
     {label}
     <Icon name="arrow-right" size={15} />
   </a>

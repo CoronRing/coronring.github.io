@@ -54,7 +54,7 @@ const fullTabs = new Map<string, { href: string; slant: FullTabSlant }>(
 
 {/* ── Mobile top bar (below lg) ─────────────────────────────────── */}
 <div
-  class="bg-ground/95 border-line fixed inset-x-0 top-0 z-50 flex h-14 items-center justify-between border-b px-4 backdrop-blur-xl lg:hidden"
+  class="bg-ground/95 border-line fixed inset-x-0 top-0 z-[70] flex h-14 items-center justify-between border-b px-4 backdrop-blur-xl lg:hidden"
 >
   <a href={href('/')} class="flex items-center gap-2.5" aria-label={`${SITE.name}, home`}>
     <Mark size={24} class="text-accent" />
@@ -178,7 +178,7 @@ const fullTabs = new Map<string, { href: string; slant: FullTabSlant }>(
 <div
   id="mobile-nav"
   hidden
-  class="fixed inset-0 z-[60] lg:hidden"
+  class="fixed inset-0 z-[80] lg:hidden"
   role="dialog"
   aria-modal="true"
   aria-label="Navigation"
