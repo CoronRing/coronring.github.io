@@ -58,7 +58,9 @@ export default function DocViewer({
 }: DocViewerProps): React.ReactElement {
   const inputId = useId();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const markdownRef = useRef<HTMLElement>(null);
   const dragCounter = useRef<number>(0);
+  const [themeTick, setThemeTick] = useState<number>(0);
 
   // Helper to read initial doc from window.location if in browser, else fallback to initialDoc
   const getInitialDoc = (): string => {
@@ -402,6 +404,134 @@ export default function DocViewer({
       isMounted = false;
     };
   }, [resolvedDoc, localDoc, activeKind]);
+
+  // Listen for theme changes to automatically refresh Mermaid diagram themes
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const observer = new MutationObserver((mutations) => {
+      for (const mutation of mutations) {
+        if (mutation.attributeName === 'data-theme') {
+          setThemeTick((t) => t + 1);
+        }
+      }
+    });
+
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['data-theme'],
+    });
+
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+    const handleMediaChange = () => setThemeTick((t) => t + 1);
+    mediaQuery.addEventListener('change', handleMediaChange);
+
+    return () => {
+      observer.disconnect();
+      mediaQuery.removeEventListener('change', handleMediaChange);
+    };
+  }, []);
+
+  // Render Mermaid diagrams whenever Markdown HTML or theme changes
+  useEffect(() => {
+    if (activeKind !== 'markdown' || !markdownRef.current) return;
+
+    let isMounted = true;
+
+    const renderMermaid = async () => {
+      const container = markdownRef.current;
+      if (!container) return;
+
+      // Find code blocks marked with mermaid or previously rendered containers needing re-render
+      const allElements = container.querySelectorAll<HTMLElement>(
+        'code[class*="mermaid" i], pre[class*="mermaid" i], div[data-mermaid-source]',
+      );
+
+      if (allElements.length === 0) return;
+
+      try {
+        const mermaid = (await import('mermaid')).default;
+        const isDark =
+          document.documentElement.dataset.theme === 'dark' ||
+          (!document.documentElement.dataset.theme &&
+            window.matchMedia('(prefers-color-scheme: dark)').matches);
+
+        mermaid.initialize({
+          startOnLoad: false,
+          theme: isDark ? 'dark' : 'neutral',
+          securityLevel: 'loose',
+          fontFamily: 'JetBrains Mono, ui-monospace, monospace',
+        });
+
+        const elementList = Array.from(allElements);
+        for (let i = 0; i < elementList.length; i++) {
+          if (!isMounted) break;
+          const el = elementList[i];
+          if (!el) continue;
+
+          let rawCode = '';
+          let targetToReplace: HTMLElement | null = null;
+
+          if (el.hasAttribute('data-mermaid-source')) {
+            rawCode = el.getAttribute('data-mermaid-source') || '';
+            targetToReplace = el;
+          } else {
+            rawCode = el.textContent?.trim() || '';
+            const pre = el.tagName.toLowerCase() === 'pre' ? el : el.closest('pre');
+            targetToReplace = pre;
+          }
+
+          if (!rawCode || !targetToReplace) continue;
+
+          const uniqueId = `mermaid-${Date.now()}-${i}-${Math.random().toString(36).slice(2, 7)}`;
+
+          try {
+            const { svg, bindFunctions } = await mermaid.render(uniqueId, rawCode);
+            if (!isMounted) break;
+
+            const diagramWrapper = document.createElement('div');
+            diagramWrapper.className =
+              'mermaid-container my-6 flex flex-col items-center justify-center overflow-x-auto rounded-md border border-[var(--c-line)] bg-[var(--c-raised)]/35 p-6 shadow-xs';
+            diagramWrapper.setAttribute('data-mermaid-source', rawCode);
+            diagramWrapper.innerHTML = svg;
+
+            const svgElement = diagramWrapper.querySelector('svg');
+            if (svgElement) {
+              svgElement.style.maxWidth = '100%';
+              svgElement.style.height = 'auto';
+            }
+
+            if (bindFunctions) {
+              bindFunctions(diagramWrapper);
+            }
+
+            targetToReplace.replaceWith(diagramWrapper);
+          } catch (err: unknown) {
+            console.warn('Failed to render Mermaid diagram:', err);
+            const stray =
+              document.getElementById(uniqueId) || document.getElementById(`d${uniqueId}`);
+            if (stray) stray.remove();
+
+            if (targetToReplace && !targetToReplace.querySelector('.mermaid-err-notice')) {
+              const notice = document.createElement('div');
+              notice.className =
+                'mermaid-err-notice mb-2 font-mono text-[11px] font-semibold text-[var(--c-alert)]';
+              notice.textContent = '⚠️ Mermaid diagram syntax error (showing raw source):';
+              targetToReplace.prepend(notice);
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('Failed to initialize mermaid:', err);
+      }
+    };
+
+    void renderMermaid();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [renderedMarkdownHtml, activeKind, themeTick]);
 
   // Compute canonical share link for copying (only available for remote docs)
   const shareableUrl = useMemo(() => {
@@ -780,6 +910,7 @@ export default function DocViewer({
           {activeKind === 'markdown' && (
             <div className="mx-auto max-w-4xl p-6 sm:p-10">
               <article
+                ref={markdownRef}
                 className="doc-prose text-[15px] leading-relaxed text-[var(--c-text)]"
                 dangerouslySetInnerHTML={{ __html: renderedMarkdownHtml }}
               />
