@@ -31,9 +31,15 @@ export interface ResolvedDoc {
   repoUrl?: string;
   /** Base directory URL for resolving relative links/images. */
   baseUrl: string;
+  /** True if the user provided an OS local filesystem path (e.g. C:\... or /Users/...). */
+  isLocalFsPath?: boolean;
+  /** True if loaded directly in-memory from a local File object via input or drag-and-drop. */
+  isLocalFile?: boolean;
+  /** Optional file size in bytes for local files. */
+  fileSize?: number;
 }
 
-const EXT_TO_KIND: Record<string, DocKind> = {
+export const EXT_TO_KIND: Record<string, DocKind> = {
   // Markdown
   '.md': 'markdown',
   '.markdown': 'markdown',
@@ -165,19 +171,83 @@ export function getFileName(input: string): string {
 }
 
 /**
+ * Detects whether an input string is an OS local filesystem path.
+ * Matches:
+ *  - Windows drive paths: `C:\...`, `D:/...`
+ *  - file:// URIs: `file:///...`
+ *  - Windows UNC paths: `\\server\share\...`
+ *  - POSIX filesystem roots: `/Users/...`, `/home/...`, `/root/...`, `/var/...`, `/tmp/...`, `/private/...`, `/Volumes/...`
+ *  - Paths with backslashes that are not HTTP/HTTPS URLs (e.g. Windows paths like `docs\agent.md`)
+ */
+export function isLocalFileSystemPath(input: string): boolean {
+  const trimmed = input.trim();
+  if (/^[a-zA-Z]:[\\/]/.test(trimmed)) return true;
+  if (/^file:\/\//i.test(trimmed)) return true;
+  if (/^\\\\[^\\]+/.test(trimmed)) return true;
+  if (/^\/(Users|home|root|private|Volumes|var|tmp|opt|etc)\//i.test(trimmed)) return true;
+  if (trimmed.includes('\\') && !/^[a-z]+:\/\//i.test(trimmed)) return true;
+  return false;
+}
+
+/**
+ * Creates a ResolvedDoc for an in-memory local file loaded via file picker or drag-and-drop.
+ */
+export function createLocalFileDoc(file: File, objectUrl = ''): ResolvedDoc {
+  const ext = getExtension(file.name);
+  return {
+    rawUrl: objectUrl,
+    sourceUrl: file.name,
+    fileName: file.name,
+    extension: ext,
+    kind: EXT_TO_KIND[ext] ?? (ext ? 'text' : 'markdown'),
+    isGitHub: false,
+    isLocalFile: true,
+    fileSize: file.size,
+    baseUrl: '',
+  };
+}
+
+/**
+ * Formats a byte count into a human-readable string (e.g. 1.2 KB, 3.4 MB).
+ */
+export function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+/**
  * Normalises any input document string into a `ResolvedDoc`.
  *
  * Supported inputs:
+ * 0. OS local path: `C:\...` or `/Users/...` or `file:///...` (flagged for file picker guidance)
  * 1. GitHub blob: `https://github.com/RailtownAI/railtracks/blob/main/AGENTS.md`
  * 2. Raw GitHub: `https://raw.githubusercontent.com/RailtownAI/railtracks/main/AGENTS.html`
  * 3. Shorthand path: `/RailtownAI/railtracks/main/AGENTS.mp4` or `RailtownAI/railtracks/blob/main/AGENTS.md`
  * 4. Camo proxy URL: `https://pypi-camo.freetls.fastly.net/...`
- * 5. General web URL: `https://example.com/file.md` or `https://.../image.svg`
- * 6. Local site doc: `/docs/demo.md` or `demo.md`
+ * 5. Local site doc: `/docs/demo.md` or `demo.md`
+ * 6. General web URL: `https://example.com/file.md` or `https://.../image.svg`
  */
 export function resolveDocSource(rawInput: string, siteOrigin = ''): ResolvedDoc | null {
   const trimmed = rawInput.trim();
   if (!trimmed) return null;
+
+  // 0. OS Local File System Path (e.g. C:\Users\... or /Users/... or file://...)
+  // Flagged so the UI can provide clear instructions instead of attempting an impossible HTTP fetch.
+  if (isLocalFileSystemPath(trimmed)) {
+    const ext = getExtension(trimmed);
+    const fileName = getFileName(trimmed);
+    return {
+      rawUrl: trimmed,
+      sourceUrl: trimmed,
+      fileName,
+      extension: ext,
+      kind: EXT_TO_KIND[ext] ?? (ext ? 'text' : 'markdown'),
+      isGitHub: false,
+      isLocalFsPath: true,
+      baseUrl: '',
+    };
+  }
 
   // 1. GitHub Web UI blob URL: https://github.com/:owner/:repo/blob/:branch/:filePath...
   const githubBlobMatch = trimmed.match(
@@ -292,12 +362,17 @@ export function resolveDocSource(rawInput: string, siteOrigin = ''): ResolvedDoc
   }
 
   // 5. Local site doc path (e.g. /docs/demo.md or docs/manual.md or demo_old.md)
-  const isLocal =
-    trimmed.startsWith('/') ||
-    trimmed.startsWith('./') ||
-    (!trimmed.includes('://') && !trimmed.includes('/'));
+  const isSiteDoc =
+    !isLocalFileSystemPath(trimmed) &&
+    (trimmed.startsWith('/docs/') ||
+      trimmed.startsWith('docs/') ||
+      trimmed.startsWith('./docs/') ||
+      trimmed === 'demo.md' ||
+      trimmed === 'preview.html' ||
+      (trimmed.startsWith('/') && !trimmed.includes('://')) ||
+      (trimmed.startsWith('./') && !trimmed.includes('://')));
 
-  if (isLocal) {
+  if (isSiteDoc) {
     let localPath = trimmed;
     if (!localPath.startsWith('/') && !localPath.startsWith('./')) {
       localPath = `/docs/${localPath}`;
