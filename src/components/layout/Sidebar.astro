@@ -79,7 +79,7 @@ const fullTabs = new Map<string, { href: string; slant: FullTabSlant }>(
 {/* ── Desktop rail (lg and up) ──────────────────────────────────── */}
 <aside
   data-rail
-  class="group/rail border-line bg-surface/95 fixed inset-y-0 left-0 z-50 hidden w-[var(--rail-w)] flex-col overflow-hidden border-r backdrop-blur-xl transition-[width] duration-[var(--dur-base)] ease-[var(--ease-out)] hover:w-[var(--rail-w-open)] hover:shadow-[var(--shadow-lift)] lg:flex"
+  class="group/rail border-line bg-surface/95 fixed inset-y-0 left-0 z-50 hidden w-[var(--rail-w)] flex-col overflow-hidden border-r backdrop-blur-xl transition-[width] duration-[var(--dur-base)] ease-[var(--ease-out)] lg:flex"
   aria-label="Primary"
 >
   {/* Page progress, pinned to the rail's trailing edge. */}
@@ -282,14 +282,22 @@ const fullTabs = new Map<string, { href: string; slant: FullTabSlant }>(
   }
 
   /*
+   * The rail opens on exactly the condition that shows its labels and tabs.
+   * Tailwind's `hover:` variant sits behind `@media (hover: hover)`, which a
+   * touch-capable laptop or tablet can report as false while a mouse still
+   * hovers; the plain `:hover` here and the label rule above can never
+   * disagree, so the labels never show inside a closed rail.
+   *
    * Keyboard focus must expand the rail too, or tabbing into it lands on
    * unlabelled icons. `:has(:focus-visible)` rather than `:focus-within`:
    * the latter also fires on *mouse* clicks, so clicking the theme toggle
    * (which lives in the rail) left the rail pinned open after the cursor had
    * already moved away.
    */
+  :global([data-rail]:hover),
   :global([data-rail]:has(:focus-visible)) {
     width: var(--rail-w-open);
+    box-shadow: var(--shadow-lift);
   }
 
   /*
