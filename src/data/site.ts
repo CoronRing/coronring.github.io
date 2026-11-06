@@ -52,7 +52,7 @@ export interface SiteConfig {
   readonly cta: { readonly label: string; readonly href: string };
 }
 
-const EMAIL = 'guanzheng.huang@hotmail.com';
+const EMAIL = 'guanzheng66.huang@gmail.com';
 
 export const SITE: SiteConfig = {
   name: 'Guan Zheng Huang',
