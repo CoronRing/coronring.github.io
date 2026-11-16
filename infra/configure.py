@@ -58,7 +58,16 @@ def ssh_base(info: dict) -> list[str]:
         "-o",
         "StrictHostKeyChecking=accept-new",
         "-o",
-        "UserKnownHostsFile=" + str(HERE / "known_hosts"),
+        # Quoted inside the option value, not just passed as one argv element.
+        # OpenSSH reads this option as a *whitespace-separated list* of files,
+        # so a checkout under a path containing a space (as this one is) made
+        # ssh look for two files that do not exist and silently write accepted
+        # host keys into the first fragment of the path instead — a file at
+        # `~/Desktop/project-py-NLP` rather than this directory's
+        # `known_hosts`. With `accept-new` that is a real hole: the pinned key
+        # here was never being consulted, so a host whose key had changed
+        # would have been accepted without a word.
+        f'UserKnownHostsFile="{HERE / "known_hosts"}"',
         "-o",
         "ConnectTimeout=15",
         f"{info['ssh_user']}@{info['public_ip']}",
