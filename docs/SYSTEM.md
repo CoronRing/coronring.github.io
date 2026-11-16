@@ -1,6 +1,6 @@
 # System map
 
-**Version 1.0.0** · 2026-08-18 · Owner: Guan Zheng Huang (`CoronRing`)
+**Version 1.1.0** · 2026-11-16 · Owner: Guan Zheng Huang (`CoronRing`)
 
 Read this first if you are changing anything that crosses a component
 boundary. It covers what the other documents assume you already know: which
@@ -15,6 +15,8 @@ Component-level detail lives elsewhere and is not repeated here:
 | [`../backend/docs/design.md`](../backend/docs/design.md) | The Python service: API, security, cost, history   |
 | [`../backend/README.md`](../backend/README.md)           | Running and configuring the service                |
 | [`../infra/README.md`](../infra/README.md)               | Provisioning and deploying the host                |
+| [`../chat/README.md`](../chat/README.md)                 | The site-chat assistant                            |
+| [`../news/README.md`](../news/README.md)                 | NewsRing subscriptions: the public mailing list    |
 
 ---
 
@@ -39,6 +41,33 @@ src/                           Astro site on GitHub Pages
 | Service          | `coronring.github.io/backend`       | same repo, not built by the Pages workflow |
 | Operator tooling | `coronring.github.io/infra`         | same repo, run by hand only                |
 | Engine source    | `nlp_application_toolbox/SenseRing` | **none** (see section 6)                   |
+
+
+### Three services share the host
+
+`backend/` was the first and the diagram above is still its shape, but two more
+services now run beside it in the same compose stack, behind the same Caddy and
+the same certificate. Caddy routes by prefix, stripping it before the service
+sees the request:
+
+| Prefix | Service | Source | State |
+|---|---|---|---|
+| `/chat/*` | site-chat assistant | `chat/` | none; the corpus is refetched from the published site |
+| `/news/*` | NewsRing subscriptions | `news/` | **SQLite on a named volume** |
+| `/*` | particle-wave converter | `backend/` | none |
+
+`news/` is the first stateful thing in this deployment. Its `news_data` volume
+holds the subscriber list, which is the only file on the host that cannot be
+rebuilt from a repository: lose it and every reader has to subscribe again.
+`infra/configure.py` replaces the source trees wholesale on each deploy but
+never touches the volumes, so a redeploy keeps both the certificate and the
+list.
+
+A service is mounted under a prefix it is not told about by the request, since
+`handle_path` has already stripped it. That is harmless for the two that only
+answer JSON, and not for `news/`, which has to put absolute links into email —
+hence `NEWS_PUBLIC_BASE` in `infra/compose.yml`. If the host moves, that value
+moves with it or every confirmation link in flight breaks.
 
 The website repository is nested inside the `nlp_application_toolbox`
 repository, which does not track it. Do not `git add coronring.github.io` from
@@ -160,7 +189,10 @@ rather than `traced in this tab`.
 | OCI API signing key      | `~/.oci/particle-wave.pem`    | outside the repo on purpose                             |
 | SSH key for the host     | `~/.ssh/oracle_particle_wave` | outside the repo on purpose                             |
 | Provisioning state       | `infra/state.json`            | gitignored                                              |
-| Runtime service settings | `infra/compose.yml`           | committed; `PW_*` variables only                        |
+| Runtime service settings | `infra/compose.yml`           | committed; non-secret variables for all three services  |
+| Chat keys on the host    | `~/particle-wave/chat.env`    | written by `configure.py` from `.env`, mode 0600        |
+| News secrets on the host | `~/particle-wave/news.env`    | written by `configure.py` from `.env`, mode 0600        |
+| Subscriber list          | `news_data` Docker volume     | **not in any repository and not in any backup**         |
 
 The service reads nothing from `.env`. Its configuration is entirely `PW_*`
 environment variables set on the host, which is why the same image runs

@@ -82,6 +82,16 @@ class Service(NamedTuple):
     summary: str
     """One line for the generated DEPLOY.md."""
 
+    volume: str | None = None
+    """
+    Container path that must survive a restart, or None for a stateless image.
+
+    Only one service has one, and it is the reason this field exists rather
+    than being left implicit: a platform that gives every deploy a fresh
+    filesystem will silently lose a subscriber list, and the generated
+    DEPLOY.md has to say so where the operator will read it.
+    """
+
 
 # Values mirror infra/compose.yml so a zip deploy behaves like the live host.
 # Divergences are commented where they exist.
@@ -120,6 +130,35 @@ SERVICES: Final[tuple[Service, ...]] = (
         },
         secrets=("CHAT_GEMINI_API_KEYS",),
         summary="Site assistant. Streams answers over SSE from a corpus fetched off the site.",
+    ),
+    Service(
+        key="news",
+        source=ROOT / "news",
+        zip_stem="newsring-subscriptions",
+        port=7880,
+        health="/api/health",
+        env={
+            "NEWS_DIGEST_URL": "https://coronring.github.io/NewsRing/broadcast_today.json",
+            # On Oracle this carries the `/news` prefix Caddy strips. On a
+            # platform that gives the service its own hostname there is no
+            # prefix, so this is the bare origin — see the note in DEPLOY.md.
+            "NEWS_PUBLIC_BASE": "https://129-146-25-154.sslip.io/news",
+            "NEWS_SITE_URL": "https://coronring.github.io/newsring",
+            "NEWS_ALLOWED_ORIGINS": (
+                "https://coronring.github.io,http://localhost:4321,http://127.0.0.1:4321"
+            ),
+            "NEWS_MAX_SUBSCRIBERS": "50",
+            "NEWS_TRUST_FORWARDED_FOR": "1",
+            "NEWS_LOG_LEVEL": "info",
+        },
+        secrets=(
+            "NEWS_SMTP_USER",
+            "NEWS_SMTP_PASSWORD",
+            "NEWS_TOKEN_SECRET",
+            "NEWS_BROADCAST_TOKEN",
+        ),
+        summary="The NewsRing mailing list: signups, confirmations, and the daily send.",
+        volume="/data",
     ),
 )
 
@@ -354,6 +393,14 @@ def stack_compose() -> str:
                 f"      - path: ./{service.key}.env",
                 "        required: false",
             ]
+        if service.volume:
+            body += [
+                "    # Named so the subscriber list survives `docker compose down`.",
+                "    # A platform with an ephemeral filesystem needs its own",
+                "    # persistent disk here, or the list is lost on every deploy.",
+                "    volumes:",
+                f"      - {service.key}_data:{service.volume}",
+            ]
         body += [
             "    ports:",
             f'      - "{service.port}:{service.port}"',
@@ -367,6 +414,11 @@ def stack_compose() -> str:
             "      start_period: 20s",
             "",
         ]
+    named = [service for service in SERVICES if service.volume]
+    if named:
+        body.append("volumes:")
+        body += [f"  {service.key}_data:" for service in named]
+        body.append("")
     return "\n".join(body)
 
 

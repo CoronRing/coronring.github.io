@@ -1,0 +1,1 @@
+"""NewsRing subscriptions service package."""

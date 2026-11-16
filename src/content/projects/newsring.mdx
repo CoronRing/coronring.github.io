@@ -5,6 +5,9 @@ emphasis: ['personal AI news agent', 'picks what matters to you', 'each morning'
 order: 15
 status: live
 featured: true
+# The demo is the product: today's real digest, and the form that sends it.
+interactive: true
+demo: newsring
 role: Design and implementation
 period: 2026 – present
 tech: ['Python', 'Railtracks', 'Gemini', 'GitHub Actions']
@@ -14,6 +17,8 @@ highlights:
   - 'Runs every morning on GitHub Actions and publishes to GitHub Pages and email, on free Gemini keys that fail over from model to model and key to key.'
   - 'Publishes today at fixed URLs, so this site, a GitHub profile and an inbox all show the newest digest with no rebuild.'
 links:
+  - label: Get it by email
+    href: /newsring
   - label: GitHub
     href: https://github.com/CoronRing/NewsRing
   - label: Today's digest
@@ -27,6 +32,8 @@ hero:
 ---
 
 NewsRing writes me a news digest every morning: the stories I care about, as many as I asked for, in the tone I asked for, from sources I chose. It is not sponsored and has no feed algorithm. The digest is the whole product, and the setup is a single configuration file. The [News Today](/blog/news-today) post on this site is today's edition, loaded when you open it.
+
+The same digest now goes out as a public mailing list. [Put your address in](/newsring) and you get exactly what I get, the next morning and every morning after, with a one-click unsubscribe in every message. One list, one digest, no personalisation yet — the demo above is both the preview and the signup.
 
 ## What it takes as input
 

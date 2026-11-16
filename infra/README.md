@@ -98,6 +98,19 @@ Point a real domain at the host later and only `SITE_ADDRESS` changes.
 The Caddy data volume is named so the certificate survives a redeploy.
 Recreating it every time would walk into Let's Encrypt's rate limit.
 
+### The one volume that holds real data
+
+`news_data` holds the NewsRing subscriber list, and it is the only thing on
+this host that cannot be rebuilt from a repository. `configure.py` replaces the
+source trees wholesale on every deploy but never touches volumes, so an
+ordinary redeploy keeps it. `docker compose down -v` does not, and neither does
+rebuilding the instance.
+
+There is no backup of it today. If that matters, the cheap version is
+`docker compose exec news sqlite3 /data/news.db .dump` into a file kept
+somewhere off the host; the expensive version is a service that is not a single
+SQLite file on a free-tier box.
+
 ## Capacity
 
 `VM.Standard.A1.Flex` is frequently unobtainable in busy regions; Oracle
@@ -109,21 +122,27 @@ fallback. Note that 1 GB is tight for numpy + scipy + OpenCV, which is why
 
 ## Taking the services somewhere else
 
-Both services are ordinary containers — nothing in either image knows about
+All three services are ordinary containers — nothing in any image knows about
 Oracle. `package_zip.py` packages them for a provider that wants an upload
 rather than an SSH host:
 
 ```bash
-python infra/package_zip.py            # all three, into dist-docker/
+python infra/package_zip.py            # all four artefacts, into dist-docker/
 python infra/package_zip.py --only app # just the particle-wave zip
 python infra/package_zip.py --tag git  # suffix filenames with the short commit
 ```
 
-| Artefact                    | Shape                            | For                                      |
-| --------------------------- | -------------------------------- | ---------------------------------------- |
-| `particle-wave-backend.zip` | `Dockerfile` at the zip root     | a provider that builds one image per app |
-| `site-chat.zip`             | `Dockerfile` at the zip root     | same, for the other service              |
-| `coronring-be-stack.zip`    | `compose.yml` + `app/` + `chat/` | a provider that accepts a compose file   |
+| Artefact                       | Shape                                       | For                                      |
+| ------------------------------ | ------------------------------------------- | ---------------------------------------- |
+| `particle-wave-backend.zip`    | `Dockerfile` at the zip root                | a provider that builds one image per app |
+| `site-chat.zip`                | `Dockerfile` at the zip root                | same, for the assistant                  |
+| `newsring-subscriptions.zip`   | `Dockerfile` at the zip root                | same, for the mailing list               |
+| `coronring-be-stack.zip`       | `compose.yml` + `app/`, `chat/` and `news/` | a provider that accepts a compose file   |
+
+The news service is the one that cannot be deployed statelessly: it needs a
+persistent disk at `/data`, and the generated `compose.yml` and `DEPLOY.md`
+both say so. A platform that gives each deploy a fresh filesystem will lose the
+subscriber list on every push without anything reporting an error.
 
 Each carries a generated `DEPLOY.md` with the port, the health path, and the
 environment variables to paste into the provider's form — the same values
@@ -133,9 +152,11 @@ Two things the zips deliberately drop:
 
 **Caddy.** A managed platform terminates TLS itself. Ours would be a second
 certificate manager in the path, and it could not bind `:443` anyway. Caddy is
-also what mounts the chat service under `/chat` and strips the prefix, so on a
-platform that gives each service its own hostname the chat service answers at
-its root and `PUBLIC_SITE_CHAT_API` loses that suffix.
+also what mounts the chat service under `/chat` and the news service under
+`/news` and strips those prefixes, so on a platform that gives each service its
+own hostname both answer at their root: `PUBLIC_SITE_CHAT_API` loses its
+suffix, and `NEWS_PUBLIC_BASE` has to be reset to the bare origin or every link
+in every email points at a path that does not exist.
 
 **Secrets.** `CHAT_GEMINI_API_KEYS` is never written into an artefact. The
 generated docs name it; setting it is the operator's job in the provider's UI.

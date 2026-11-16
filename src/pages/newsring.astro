@@ -1,0 +1,128 @@
+---
+/**
+ * The NewsRing signup page.
+ *
+ * Also the landing page for the two links in every email: confirming a
+ * subscription and unsubscribing both end here with a `?state=` parameter, so
+ * a reader always lands somewhere that looks like this site rather than on a
+ * bare response from the backend. `SubscribePanel` reads that parameter in the
+ * browser, because this page is static.
+ *
+ * `client:load` rather than `client:visible`: the form is the page and sits
+ * above the fold, and a reader arriving from an unsubscribe link must see the
+ * confirmation immediately rather than after a scroll.
+ *
+ * The page is deliberately plain about what subscribing gets you — one email
+ * a morning, the same for everyone, capped list, one-click out. A reader who
+ * knows what they signed up for does not report it as spam later, and a spam
+ * report costs the sending mailbox far more than a lost subscriber.
+ */
+import PageLayout from '../layouts/PageLayout.astro';
+import SubscribePanel from '../components/news/SubscribePanel';
+import Icon from '../components/ui/Icon.astro';
+import { NEWSRING } from '../data/newsring';
+---
+
+<PageLayout
+  title="NewsRing"
+  eyebrow="Daily digest"
+  description="One email each morning: the AI stories worth reading, picked and written up by NewsRing."
+  lede="One email each morning: the AI stories worth reading, chosen from thirty-five sources and written up overnight. Free, no sponsors, unsubscribe in one click."
+>
+  <div class="grid gap-12 lg:grid-cols-[minmax(0,1fr)_18rem] lg:gap-16">
+    <div class="min-w-0">
+      <SubscribePanel client:load source="signup-page" />
+
+      <div class="mt-14">
+        <p class="eyebrow eyebrow-marked">What arrives</p>
+        <div class="post-prose prose-measure mt-6">
+          <p>
+            The same digest goes to everyone. It is the one written for my own reading: a handful of
+            stories picked from the day's candidates, each with a short write-up and a line on why
+            it matters, plus the three biggest stories across AI and a few one-line mentions.
+            Nothing is picked because someone paid for it, and a story is never sent twice.
+          </p>
+          <p>
+            It is produced by <a href={NEWSRING.repo}>NewsRing</a>, which is open source and runs
+            itself every morning on free infrastructure. You can read
+            <a href={NEWSRING.page}>today's edition</a> before deciding, and the
+            <a href="/projects/newsring">project page</a> explains how it chooses.
+          </p>
+        </div>
+      </div>
+
+      <div class="mt-14">
+        <p class="eyebrow eyebrow-marked">What happens to your address</p>
+        <div class="post-prose prose-measure mt-6">
+          <p>
+            Nothing is stored when you submit the form. You get one email with a link in it, and
+            your address is only written down once you click that link — so if somebody else types
+            your address in here, there is no record of it anywhere and nothing further is sent.
+          </p>
+          <p>
+            Every digest carries a one-click unsubscribe, and unsubscribing deletes the address
+            rather than flagging it. The list is never shared, never sold, and each morning's digest
+            is sent as a separate message, so nobody on it can see anyone else.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <aside class="lg:sticky lg:top-10 lg:self-start">
+      <dl class="divide-line border-line divide-y border-t">
+        <div class="py-4">
+          <dt class="eyebrow">Frequency</dt>
+          <dd class="mt-2 text-sm">One email, each morning</dd>
+        </div>
+        <div class="py-4">
+          <dt class="eyebrow">Sent at</dt>
+          <dd class="mt-2 font-mono text-sm">09:00 Pacific</dd>
+        </div>
+        <div class="py-4">
+          <dt class="eyebrow">Cost</dt>
+          <dd class="mt-2 text-sm">Free, and no sponsors</dd>
+        </div>
+        <div class="py-4">
+          <dt class="eyebrow">List size</dt>
+          <dd class="text-muted mt-2 text-sm leading-relaxed">
+            Capped at 50 while it runs on one ordinary mailbox
+          </dd>
+        </div>
+      </dl>
+
+      <ul class="mt-5 space-y-2">
+        <li>
+          <a
+            href={NEWSRING.page}
+            target="_blank"
+            rel="noopener noreferrer"
+            class="border-line hover:border-fg flex h-10 items-center justify-between border px-3 text-sm transition-colors"
+          >
+            Today's digest
+            <Icon name="arrow-up-right" size={13} />
+          </a>
+        </li>
+        <li>
+          <a
+            href="/projects/newsring"
+            class="border-line hover:border-fg flex h-10 items-center justify-between border px-3 text-sm transition-colors"
+          >
+            How it works
+            <Icon name="arrow-up-right" size={13} />
+          </a>
+        </li>
+        <li>
+          <a
+            href={NEWSRING.repo}
+            target="_blank"
+            rel="noopener noreferrer"
+            class="border-line hover:border-fg flex h-10 items-center justify-between border px-3 text-sm transition-colors"
+          >
+            Source on GitHub
+            <Icon name="arrow-up-right" size={13} />
+          </a>
+        </li>
+      </ul>
+    </aside>
+  </div>
+</PageLayout>

@@ -18,6 +18,15 @@ export const NEWSRING = {
   /** Today's digest as a page on the NewsRing site. */
   page: `${BASE}today.html`,
   repo: 'https://github.com/CoronRing/NewsRing',
+  /**
+   * The signup page on this site.
+   *
+   * Also where the subscriptions service sends a reader back to after they
+   * confirm or unsubscribe, with a `?state=` parameter. If this path moves,
+   * `NEWS_SITE_URL` in `infra/compose.yml` has to move with it or both links
+   * in every email land on a 404.
+   */
+  signup: '/newsring',
 } as const;
 
 /** One source on the dial. */

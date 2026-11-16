@@ -16,6 +16,7 @@ import PlaceholderDemo from './PlaceholderDemo';
 import ParticleWaveDemo from './ParticleWaveDemo';
 import FeatherRingAgentDemo from './FeatherRingAgentDemo';
 import PromptManagerDemo from './PromptManagerDemo';
+import NewsRingDemo from './NewsRingDemo';
 
 interface Props {
   /** Registry key from project frontmatter. */
@@ -56,5 +57,6 @@ if (!isDemoName(demo)) {
     {demo === 'particle-wave' && <ParticleWaveDemo client:visible title={title} />}
     {demo === 'featherring' && <FeatherRingAgentDemo client:visible title={title} />}
     {demo === 'gs-prompt-manager' && <PromptManagerDemo client:visible title={title} />}
+    {demo === 'newsring' && <NewsRingDemo client:visible title={title} />}
   </div>
 </div>

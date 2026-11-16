@@ -57,13 +57,31 @@ export interface DeckFrame {
   sigil: SigilKey;
   /** Absent on reserved frames — there is nothing to open yet. */
   href?: string;
+  /**
+   * One optional second action, beside "Open blueprint".
+   *
+   * For a project whose point is something a visitor can do right now rather
+   * than read about. Kept to one, and to a link: the stage below it is an
+   * animated exhibit with its own three-control budget, and a form in the
+   * middle of it would fight both.
+   */
+  action?: { label: string; href: string };
 }
 
 /** Presentation-only additions, keyed by project id. */
-const DECK_META: Record<string, { code: string; stage: StageKey; sigil: SigilKey }> = {
+const DECK_META: Record<
+  string,
+  { code: string; stage: StageKey; sigil: SigilKey; action?: { label: string; href: string } }
+> = {
   railtracks: { code: 'RT', stage: 'railtracks', sigil: 'rail' },
   'particle-wave': { code: 'PW', stage: 'particle', sigil: 'particle' },
-  newsring: { code: 'NR', stage: 'news', sigil: 'news' },
+  newsring: {
+    code: 'NR',
+    stage: 'news',
+    sigil: 'news',
+    // The digest on the stage is today's real one; this is how to get it.
+    action: { label: 'Get it by email', href: '/newsring' },
+  },
   featherring: { code: 'FR', stage: 'agent', sigil: 'agent' },
   'gs-prompt-manager': { code: 'GS', stage: 'prompt', sigil: 'prompt' },
 };
@@ -132,6 +150,7 @@ export function buildFrames(projects: readonly DeckProject[]): DeckFrame[] {
         stage: meta.stage,
         sigil: meta.sigil,
         href: project.href,
+        action: meta.action,
       },
     ];
   });

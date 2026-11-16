@@ -29,6 +29,7 @@ export const DEMO_NAMES = [
   'particle-wave',
   'featherring',
   'gs-prompt-manager',
+  'newsring',
 ] as const;
 
 export type DemoName = (typeof DEMO_NAMES)[number];

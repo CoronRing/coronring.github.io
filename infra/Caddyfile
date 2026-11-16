@@ -1,8 +1,9 @@
 # Caddy obtains and renews the certificate itself; there is nothing to run by
 # hand. SITE_ADDRESS is the sslip.io hostname for the instance's public IP.
 #
-# Two backends share the certificate and the hostname:
+# Three backends share the certificate and the hostname:
 #   /chat/*   the site-chat assistant
+#   /news/*   NewsRing subscriptions
 #   /*        the particle-wave service (the original occupant)
 
 {$SITE_ADDRESS} {
@@ -21,6 +22,16 @@
 			# turning a streaming UI into a long pause followed by a wall of
 			# text. -1 flushes each write straight through.
 			flush_interval -1
+		}
+	}
+
+	# The NewsRing mailing list. Same arrangement as /chat: the prefix is
+	# stripped, so the service sees its own `/api/...` routes. It is told its
+	# own public URL through NEWS_PUBLIC_BASE, because a link in an email has
+	# to carry the prefix that was stripped here.
+	handle_path /news/* {
+		reverse_proxy news:7880 {
+			header_up X-Real-IP {remote_host}
 		}
 	}
 

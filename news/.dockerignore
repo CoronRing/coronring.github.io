@@ -1,0 +1,20 @@
+# As next door in chat/ and backend/. None of this is COPYed by the
+# Dockerfile; without this file it is uploaded to the daemon as build context
+# and then discarded.
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.git/
+
+# Real secrets never belong in an image layer.
+.env
+
+# The subscriber list is host state on a volume, never part of an image.
+*.db
+*.db-wal
+*.db-shm
+
+tests/
+*.md

@@ -1,0 +1,6 @@
+# Deliberately tiny, as next door. The mailer is `smtplib`, the store is
+# `sqlite3`, and the digest is fetched with `urllib` — all standard library.
+# Nothing here needs an SMTP library, an ORM, or an HTTP client package on a
+# free-tier ARM box.
+fastapi>=0.115,<1
+uvicorn[standard]>=0.32,<1

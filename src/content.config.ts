@@ -17,9 +17,18 @@ import { missingPhrases } from './lib/emphasis';
  * correctly laid out before any art lands.
  */
 
+/**
+ * One link in a project's sidebar.
+ *
+ * `href` is either an absolute URL or a root-relative path on this site. The
+ * second case exists because a project can have a destination here — a signup,
+ * a tool page — and forcing it to be written as an absolute URL would both
+ * hardcode the domain and make it open in a new tab, which is wrong for a page
+ * the visitor is already on this site to reach.
+ */
 const linkSchema = z.object({
   label: z.string(),
-  href: z.string().url(),
+  href: z.union([z.string().url(), z.string().startsWith('/')]),
 });
 
 /** One media slot: image or video under `public/`, plus its caption. */
@@ -36,53 +45,55 @@ const mediaSchema = z.object({
 
 const projects = defineCollection({
   loader: glob({ base: './src/content/projects', pattern: '**/*.{md,mdx}' }),
-  schema: z.object({
-    title: z.string(),
-    /** One-line hook shown on the card. */
-    summary: z.string().max(200),
-    /**
-     * Phrases of the summary to pick out wherever it is shown as copy, written
-     * exactly as they appear in it. See `lib/emphasis.ts`.
-     */
-    emphasis: z.array(z.string()).default([]),
-    /** Sorts listings; lower surfaces first. */
-    order: z.number().default(100),
-    status: z.enum(['live', 'in-progress', 'archived']).default('live'),
-    /** Drives the "Interactive" badge and the demo slot. */
-    interactive: z.boolean().default(false),
-    /** Registry key resolved in `src/components/demos/registry.ts`. */
-    demo: z.string().optional(),
-    /**
-     * Environment id from `src/data/py-presets.ts`.
-     *
-     * Set it and the project page grows a runnable Python console with that
-     * package installed. Most of the work here is a package with no interface,
-     * and letting a reader run it is worth more than another paragraph about
-     * what it does. Validated at render time rather than here, so the error
-     * names the preset registry rather than a Zod path.
-     */
-    pyPreset: z.string().optional(),
-    tech: z.array(z.string()).default([]),
-    role: z.string().optional(),
-    period: z.string().optional(),
-    /** Short outcome bullets — what shipped, what it moved. */
-    highlights: z.array(z.string()).default([]),
-    links: z.array(linkSchema).default([]),
-    /** Lead visual for the card and the top of the detail page. */
-    hero: mediaSchema.optional(),
-    /** Further stills/clips shown on the detail page. */
-    gallery: z.array(mediaSchema).default([]),
-    featured: z.boolean().default(false),
-    draft: z.boolean().default(false),
-  }).superRefine((data, ctx) => {
-    for (const phrase of missingPhrases(data.summary, data.emphasis)) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ['emphasis'],
-        message: `"${phrase}" is not in the summary`,
-      });
-    }
-  }),
+  schema: z
+    .object({
+      title: z.string(),
+      /** One-line hook shown on the card. */
+      summary: z.string().max(200),
+      /**
+       * Phrases of the summary to pick out wherever it is shown as copy, written
+       * exactly as they appear in it. See `lib/emphasis.ts`.
+       */
+      emphasis: z.array(z.string()).default([]),
+      /** Sorts listings; lower surfaces first. */
+      order: z.number().default(100),
+      status: z.enum(['live', 'in-progress', 'archived']).default('live'),
+      /** Drives the "Interactive" badge and the demo slot. */
+      interactive: z.boolean().default(false),
+      /** Registry key resolved in `src/components/demos/registry.ts`. */
+      demo: z.string().optional(),
+      /**
+       * Environment id from `src/data/py-presets.ts`.
+       *
+       * Set it and the project page grows a runnable Python console with that
+       * package installed. Most of the work here is a package with no interface,
+       * and letting a reader run it is worth more than another paragraph about
+       * what it does. Validated at render time rather than here, so the error
+       * names the preset registry rather than a Zod path.
+       */
+      pyPreset: z.string().optional(),
+      tech: z.array(z.string()).default([]),
+      role: z.string().optional(),
+      period: z.string().optional(),
+      /** Short outcome bullets — what shipped, what it moved. */
+      highlights: z.array(z.string()).default([]),
+      links: z.array(linkSchema).default([]),
+      /** Lead visual for the card and the top of the detail page. */
+      hero: mediaSchema.optional(),
+      /** Further stills/clips shown on the detail page. */
+      gallery: z.array(mediaSchema).default([]),
+      featured: z.boolean().default(false),
+      draft: z.boolean().default(false),
+    })
+    .superRefine((data, ctx) => {
+      for (const phrase of missingPhrases(data.summary, data.emphasis)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['emphasis'],
+          message: `"${phrase}" is not in the summary`,
+        });
+      }
+    }),
 });
 
 const resources = defineCollection({

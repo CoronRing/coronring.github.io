@@ -12,6 +12,7 @@ import ReservedStage from './stages/ReservedStage';
 import Icon from '../ui/Icon';
 import Emph from '../ui/Emph';
 import type { IconName } from '../ui/icons';
+import { href } from '../../lib/url';
 
 /**
  * ProjectDeck — the landing page.
@@ -721,6 +722,14 @@ export default function ProjectDeck({
                   <span className="border-line text-faint inline-flex h-11 items-center border border-dashed px-5 font-mono text-xs">
                     Write-up in progress
                   </span>
+                )}
+                {frame.action && (
+                  <a
+                    href={href(frame.action.href)}
+                    className="border-line hover:border-fg inline-flex h-11 items-center border px-4 font-mono text-xs tracking-wide uppercase transition-colors"
+                  >
+                    {frame.action.label}
+                  </a>
                 )}
                 <a
                   href={indexHref}

@@ -115,6 +115,62 @@ services:
       retries: 3
       start_period: 20s
 
+  news:
+    logging: *logging
+    build:
+      context: ./news
+      dockerfile: Dockerfile
+    image: newsring-subscriptions:local
+    restart: unless-stopped
+    # Smaller than either neighbour. It holds no corpus and no image buffers:
+    # a SQLite file, one fetched digest, and an SMTP session.
+    mem_limit: 512m
+    # The mailbox password, the link-signing secret and the broadcast token.
+    # `news.env` is written onto the host by `infra/configure.py` from the
+    # operator's local .env, mode 0600, and is not in the repo — same
+    # arrangement as `chat.env` above.
+    env_file:
+      - ./news.env
+    environment:
+      # NewsRing renders the whole message once and publishes it here, so this
+      # service never needs to know what a digest looks like.
+      NEWS_DIGEST_URL: 'https://coronring.github.io/NewsRing/broadcast_today.json'
+      # Its own public URL, including the prefix Caddy mounts it at. Links in
+      # email are built from this and cannot be inferred from a request,
+      # because `handle_path` has already stripped the prefix by then.
+      NEWS_PUBLIC_BASE: 'https://129-146-25-154.sslip.io/news'
+      NEWS_SITE_URL: 'https://coronring.github.io/newsring'
+      NEWS_ALLOWED_ORIGINS: 'https://coronring.github.io,http://localhost:4321,http://127.0.0.1:4321'
+      # Capped deliberately low: the mailbox behind this is an ordinary
+      # consumer account. Raising it is a decision to move to a real sending
+      # service first — see news/README.md.
+      NEWS_MAX_SUBSCRIBERS: '50'
+      NEWS_TRUST_FORWARDED_FOR: '1'
+      NEWS_LOG_LEVEL: 'info'
+      PORT: '7880'
+    volumes:
+      # The subscriber list. The only state in this deployment that cannot be
+      # rebuilt from the repository, so it is a named volume and survives
+      # `docker compose down` and every redeploy.
+      - news_data:/data
+    expose:
+      - '7880'
+    healthcheck:
+      # As with chat: /api/health answers `degraded` rather than failing when
+      # a variable is unset, so this probes liveness only. Restarting a
+      # container that is honestly reporting a misconfiguration fixes nothing.
+      test:
+        [
+          'CMD',
+          'python',
+          '-c',
+          "import urllib.request;urllib.request.urlopen('http://127.0.0.1:7880/api/health')",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
   caddy:
     logging: *logging
     image: caddy:2-alpine
@@ -123,6 +179,7 @@ services:
     depends_on:
       - app
       - chat
+      - news
     ports:
       - '80:80'
       - '443:443'
@@ -139,3 +196,4 @@ services:
 volumes:
   caddy_data:
   caddy_config:
+  news_data:

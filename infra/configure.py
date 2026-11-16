@@ -28,6 +28,7 @@ ROOT = HERE.parent
 STATE_FILE = HERE / "state.json"
 SOURCE = ROOT / "backend"
 CHAT_SOURCE = ROOT / "chat"
+NEWS_SOURCE = ROOT / "news"
 REMOTE = "/home/ubuntu/particle-wave"
 
 # Never ship local build output or virtualenvs to the host: they are large,
@@ -131,6 +132,7 @@ def make_archive() -> Path:
     with tarfile.open(tmp, "w:gz") as archive:
         archive.add(SOURCE, arcname="app", filter=keep)
         archive.add(CHAT_SOURCE, arcname="chat", filter=keep)
+        archive.add(NEWS_SOURCE, arcname="news", filter=keep)
         for extra in ("compose.yml", "Caddyfile", "bootstrap.sh"):
             add_unix_text(archive, HERE / extra, extra)
 
@@ -150,12 +152,13 @@ def upload(info: dict, archive: Path) -> None:
         raise SystemExit(f"upload failed: {result.stderr.decode().strip()}")
 
     # Replace the source trees wholesale so deleted files do not linger, but
-    # keep the compose volumes (and therefore the TLS certificate) untouched.
-    # `chat.env` lives alongside them and is deliberately not in the archive,
-    # so it survives every redeploy — see `upload_secrets`.
+    # keep the compose volumes (and therefore the TLS certificate and the
+    # subscriber list) untouched. `chat.env` and `news.env` live alongside
+    # them and are deliberately not in the archive, so they survive every
+    # redeploy — see `upload_secrets`.
     run_remote(
         info,
-        f"cd {REMOTE} && rm -rf app chat && tar xzf src.tar.gz && rm src.tar.gz",
+        f"cd {REMOTE} && rm -rf app chat news && tar xzf src.tar.gz && rm src.tar.gz",
         quiet=True,
     )
 
@@ -181,6 +184,42 @@ LOCAL_ENV = ROOT.parent / ".env"
 #: cheaper than a silent misconfiguration.
 KEY_NAMES = ("CHAT_GEMINI_API_KEYS", "GOOGLE_AI_API_KEYS")
 
+#: What the news service needs, and the names each value may appear under in
+#: the operator's .env, in priority order.
+#:
+#: The mailbox is the one NewsRing already sends the author's own digest from,
+#: so the password is the same `GOOGLE_APP_PASSWORD` that is already there.
+#: The two secrets below it are this service's own and have no default: see
+#: `news/README.md` for what each one protects.
+NEWS_NAMES: dict[str, tuple[str, ...]] = {
+    "NEWS_SMTP_USER": ("NEWSRING_MAIL_ADDRESS", "EMALIA_ADDRESS"),
+    "NEWS_SMTP_PASSWORD": ("NEWSRING_MAIL_PASSWORD", "GOOGLE_APP_PASSWORD", "EMALIA_PASSWORD"),
+    "NEWS_TOKEN_SECRET": ("NEWS_TOKEN_SECRET",),
+    "NEWS_BROADCAST_TOKEN": ("NEWS_BROADCAST_TOKEN", "NEWSRING_BROADCAST_TOKEN"),
+}
+
+
+def env_value(names: tuple[str, ...]) -> tuple[str, str]:
+    """First non-empty value among `names` in the operator's .env.
+
+    Values are returned verbatim, never reformatted: an app password contains
+    spaces in the form Google prints it, and a signing secret is bytes that
+    happen to be printable.
+
+    :returns: ``(value, name)``, or ``("", "")`` when none is present.
+    """
+    if not LOCAL_ENV.is_file():
+        return "", ""
+    lines = LOCAL_ENV.read_text(encoding="utf-8", errors="replace").splitlines()
+    for name in names:
+        prefix = f"{name}="
+        for line in lines:
+            if line.startswith(prefix):
+                value = line.split("=", 1)[1].strip()
+                if value:
+                    return value, name
+    return "", ""
+
 
 def read_gemini_keys() -> tuple[str, str]:
     """
@@ -205,6 +244,56 @@ def read_gemini_keys() -> tuple[str, str]:
                 if value:
                     return value, name
     return "", ""
+
+
+def write_env_file(info: dict, name: str, body: str) -> None:
+    """Write one env file onto the host, readable only by the owner.
+
+    Written over SSH stdin rather than scp'd from a temp file, so secrets never
+    touch the local disk outside the .env they came from. `chmod` runs before
+    the content is written, closing the window where the file exists with a
+    default mode.
+    """
+    remote_path = f"{REMOTE}/{name}"
+    command = (
+        f"umask 077 && touch {remote_path} && chmod 600 {remote_path} && cat > {remote_path}"
+    )
+    result = subprocess.run(  # noqa: S603
+        [*ssh_base(info), command],
+        input=body,
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        raise SystemExit(f"could not write {name}: {result.stderr.strip()}")
+
+
+def upload_news_secrets(info: dict) -> bool:
+    """Write `news.env`: the mailbox, the link-signing secret, the broadcast token.
+
+    A missing value is written as an empty one rather than omitted, because
+    compose's `env_file` fails hard on a missing file and the service is built
+    to start, report `degraded`, and name what is unset. That is a far more
+    diagnosable outcome than a container that will not boot.
+
+    :returns: True if every value was found.
+    """
+    lines = []
+    missing = []
+    for target, names in NEWS_NAMES.items():
+        value, source = env_value(names)
+        if not value:
+            missing.append(f"{target} (looked for {' or '.join(names)})")
+        else:
+            print(f"  {target} <- {source}")
+        lines.append(f"{target}={value}")
+    write_env_file(info, "news.env", "\n".join(lines) + "\n")
+    if missing:
+        print(f"  news.env written, but unset: {', '.join(missing)}")
+        print(f"  add them to {LOCAL_ENV} and redeploy; subscriptions stay off until then")
+    else:
+        print("  news.env written")
+    return not missing
 
 
 def upload_secrets(info: dict) -> bool:
@@ -382,6 +471,7 @@ def main() -> int:
 
     print("\nwriting secrets")
     upload_secrets(info)
+    upload_news_secrets(info)
 
     deploy(info)
     return verify(info)
