@@ -97,3 +97,19 @@ uv pip install -r requirements.txt pytest httpx
 ```
 
 The tests replace the mailer and the digest fetch, so nothing is sent and nothing is fetched. What they check is who gets mail, what headers it carries, and what the service refuses.
+
+## Checking it against the real thing
+
+```bash
+.venv/Scripts/python.exe live_check.py --no-mail
+```
+
+```bash
+.venv/Scripts/python.exe live_check.py
+```
+
+`live_check.py` runs the actual service on localhost and walks one reader through the whole journey: signup, confirmation, the welcome digest, a broadcast that skips a reader who already has today's digest, a broadcast that sends to one who does not, an unsubscribe, a second click on the same link, and a forged token. It runs in the same environment as the tests above, `httpx` included, and reads credentials from the environment or from the operator's `.env` — the same file `infra/configure.py` reads, parsed by the same rule.
+
+It exists because the suite above is blind in one place. A stand-in database has no opinion about whether a query is well formed and a stand-in mailer never logs in, so neither can fail the way the real ones do. Two bugs have lived in exactly that gap: a filter that matched no rows and reported success, which made an unsubscribe a no-op that told the reader otherwise; and a password that reached the host with the `.env` comment still attached, which the provider answers with `535` and the service reports as a type name. Both passed every unit test.
+
+What a run costs: it writes to the live table, and without `--no-mail` it sends three real messages. The subscriber it creates is the sending mailbox's own `+newsring-e2e` tag, so the mail lands back where it came from, and the row is deleted again even when a check fails. **It will not broadcast while anyone else is on the list** — a broadcast goes to every reader who has not had today's digest, so on a populated list those two steps are skipped with a note rather than mailing real people because someone ran a test.

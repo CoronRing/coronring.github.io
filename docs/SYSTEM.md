@@ -1,6 +1,6 @@
 # System map
 
-**Version 1.2.0** · 2026-11-16 · Owner: Guan Zheng Huang (`CoronRing`)
+**Version 1.2.1** · 2026-11-17 · Owner: Guan Zheng Huang (`CoronRing`)
 
 Read this first if you are changing anything that crosses a component
 boundary. It covers what the other documents assume you already know: which
@@ -180,11 +180,19 @@ view (the island is `client:visible`, so it does not hydrate before that),
 upload an image, and confirm the readout says `traced by the Python service`
 rather than `traced in this tab`.
 
+The same reasoning gives the subscriptions service its own live check,
+`news/live_check.py`: it runs the real app against the real table and the real
+mailbox, because the two bugs that have actually shipped there — a database
+filter that matched nothing and reported success, and a password that reached
+the host with its `.env` comment attached — were both invisible to a suite that
+replaces the database and the mailer. `--no-mail` keeps the database half and
+sends nothing. It refuses to broadcast while anyone else is on the list.
+
 ## 5. Configuration and secrets
 
 | Thing                    | Lives at                      | Notes                                                   |
 | ------------------------ | ----------------------------- | ------------------------------------------------------- |
-| Operator config          | `coronring.github.io/.env`    | gitignored; needed only by `infra/` and `sync_wheel.py` |
+| Operator config          | the toolbox `.env`, one level above this repository | gitignored; read by `infra/configure.py`, `backend/scripts/sync_wheel.py` and `news/live_check.py`. The repository's own `.env` is separate and holds the site's build-time `PUBLIC_*` values |
 | OCI API signing key      | `~/.oci/particle-wave.pem`    | outside the repo on purpose                             |
 | SSH key for the host     | `~/.ssh/oracle_particle_wave` | outside the repo on purpose                             |
 | Provisioning state       | `infra/state.json`            | gitignored                                              |
