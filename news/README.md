@@ -50,7 +50,11 @@ Everything is an environment variable. The deployed values are in `infra/compose
 | `NEWS_MAIL_REPLY_TO` | unset | |
 | `NEWS_PUBLIC_BASE` | — | This service's public URL **including** `/news`. Links in email are built from it; it cannot be inferred, because Caddy strips the prefix. |
 | `NEWS_SITE_URL` | the signup page | Where confirm and unsubscribe redirect to. |
-| `NEWS_DATABASE_PATH` | `/data/news.db` | On a named volume. |
+| `NEWS_SUPABASE_URL` | unset | The Postgres project holding the list, e.g. `https://abcdefgh.supabase.co`. Must be `https`. |
+| `NEWS_SUPABASE_KEY` | unset | That project's **service-role** key. Bypasses row-level security, so it stays on the host and never reaches a browser. |
+| `NEWS_SUPABASE_TABLE` | `newsring_subscribers` | |
+| `NEWS_SUPABASE_TIMEOUT_S` | `10` | Per attempt; three attempts per call. |
+| `NEWS_DATABASE_PATH` | `/data/news.db` | The local fallback, used only when the two Supabase variables are not both set. |
 | `NEWS_MAX_SUBSCRIBERS` | `50` | |
 | `NEWS_CONFIRM_TTL_S` | `172800` | 48 hours. |
 | `NEWS_ADDRESS_COOLDOWN_S` | `900` | One confirmation per address per window. |
@@ -63,9 +67,26 @@ With any required variable unset the service starts, answers `degraded`, names w
 
 ## The data
 
-One SQLite file on a named volume, one table, one row per confirmed reader: address, when they joined, and the date of the last digest they were sent. That last column is what makes a re-run of the workflow harmless.
+One table, one row per confirmed reader: address, when they joined, and the date of the last digest they were sent. That last column is what makes a re-run of the workflow harmless — the broadcast asks for everyone whose last date is not today's, so a workflow dispatched twice mails nobody twice.
 
-It is the only state in this deployment that cannot be rebuilt from the repository. Losing the volume means everyone has to subscribe again.
+It is the only state in this deployment that cannot be rebuilt from the repository, and you do not get to ask people to subscribe twice. So it does not live on the host. The host is a free-tier box that its provider can reclaim without notice, disks and named volumes included, and that has already happened here once. The list lives in Postgres instead, in the site's own Supabase project, and the box stays disposable.
+
+The table is `public.newsring_subscribers`, created by `supabase/migrations/` at the repository root. The project offers four keys, and `NEWS_SUPABASE_KEY` must be the legacy `service_role` one: as of November 2026 the newer `secret` key is listed but answers 401 on this project, so it is not a drop-in replacement yet. Supabase intends to retire the legacy pair, so expect to swap this once the new key works — the only change is the value of that one variable. The project is the site's rather than this service's: one database for whatever the site comes to keep, with each table named for the project that owns it. Row-level security is on with no policies at all, which denies every anon and authenticated caller outright while the service-role key this backend holds bypasses it. Verified rather than assumed: with the publishable key a select returns `[]` and an insert is refused with `42501`, so the key that ships in a browser bundle cannot read the list even if it leaks.
+
+SQLite remains for the tests and for a local run, where a network database would mean every test needed credentials and an internet connection. `GET /api/health` reports which backend actually answered, under `store`, so a deployment that quietly fell back to local disk is visible rather than discovered later.
+
+### When the database is unreachable
+
+It is across the internet now, so it can fail, and each endpoint fails in the way that costs the reader least:
+
+| | What happens |
+|---|---|
+| `/api/health` | Still answers 200, with `store.reachable: false` and `status: degraded`. A health check that dies with its dependency cannot tell you which one broke. |
+| `POST /api/subscribe` | 503, and the form says to try again shortly. |
+| `GET /api/confirm` | Redirects to the signup page with `?state=error`. Nothing is claimed; the link is stateless and still valid for its full 48 hours. |
+| `GET /api/unsubscribe` | The same. An unsubscribe is never reported as done when it was not — somebody told they are off the list and then sent tomorrow's digest reports it as spam rather than clicking again. |
+| `POST /api/unsubscribe` | 503, so the mail provider retries. The one-click endpoint's usual "always answer 200" does not apply when the removal did not happen. |
+| `POST /api/broadcast` | 503. If the failure comes from recording a send rather than reading the list, the send stops there: carrying on would mail the rest of the list without being able to record it, and the re-run would then send every one of them the same digest twice. |
 
 ## Running it locally
 

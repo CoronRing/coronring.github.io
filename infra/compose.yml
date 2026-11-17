@@ -125,10 +125,10 @@ services:
     # Smaller than either neighbour. It holds no corpus and no image buffers:
     # a SQLite file, one fetched digest, and an SMTP session.
     mem_limit: 512m
-    # The mailbox password, the link-signing secret and the broadcast token.
-    # `news.env` is written onto the host by `infra/configure.py` from the
-    # operator's local .env, mode 0600, and is not in the repo — same
-    # arrangement as `chat.env` above.
+    # The mailbox password, the link-signing secret, the broadcast token, and
+    # the Supabase project the subscriber list lives in. `news.env` is written
+    # onto the host by `infra/configure.py` from the operator's local .env,
+    # mode 0600, and is not in the repo — same arrangement as `chat.env` above.
     env_file:
       - ./news.env
     environment:
@@ -145,13 +145,19 @@ services:
       # consumer account. Raising it is a decision to move to a real sending
       # service first — see news/README.md.
       NEWS_MAX_SUBSCRIBERS: '50'
+      # One table in the site's own Supabase project, named for the project
+      # that owns it. The URL and key come from news.env, because together
+      # they are a credential; this is only a name.
+      NEWS_SUPABASE_TABLE: 'newsring_subscribers'
       NEWS_TRUST_FORWARDED_FOR: '1'
       NEWS_LOG_LEVEL: 'info'
       PORT: '7880'
     volumes:
-      # The subscriber list. The only state in this deployment that cannot be
-      # rebuilt from the repository, so it is a named volume and survives
-      # `docker compose down` and every redeploy.
+      # Where the subscriber list falls back to when Supabase is not
+      # configured. A named volume survives `docker compose down` and every
+      # redeploy, but not the host itself being reclaimed — which is why the
+      # list belongs in Postgres and `/api/health` reports which backend
+      # actually answered.
       - news_data:/data
     expose:
       - '7880'

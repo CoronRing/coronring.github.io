@@ -98,18 +98,13 @@ Point a real domain at the host later and only `SITE_ADDRESS` changes.
 The Caddy data volume is named so the certificate survives a redeploy.
 Recreating it every time would walk into Let's Encrypt's rate limit.
 
-### The one volume that holds real data
+### Nothing here holds data you would miss
 
-`news_data` holds the NewsRing subscriber list, and it is the only thing on
-this host that cannot be rebuilt from a repository. `configure.py` replaces the
-source trees wholesale on every deploy but never touches volumes, so an
-ordinary redeploy keeps it. `docker compose down -v` does not, and neither does
-rebuilding the instance.
+The subscriber list used to live in the `news_data` volume, and that was the one thing on this host worth protecting. It does not any more: it is in Postgres, in the site's own Supabase project, reached over HTTPS by the news service. See `news/README.md` for the variables and `supabase/migrations/` for the table.
 
-There is no backup of it today. If that matters, the cheap version is
-`docker compose exec news sqlite3 /data/news.db .dump` into a file kept
-somewhere off the host; the expensive version is a service that is not a single
-SQLite file on a free-tier box.
+This is not tidiness. Oracle reclaimed both instances in November 2026 without notice and reassigned the IP to another tenant, which takes every volume with it. A host you can lose at any moment is fine to build on, as long as losing it costs you a redeploy rather than your readers.
+
+`news_data` is still declared, as the fallback for a run with no Supabase credentials. A deployment that lands on it has a list that dies with the box, so `GET /news/api/health` reports which backend answered under `store`. Check it after a deploy.
 
 ## Capacity
 

@@ -42,6 +42,17 @@ def _csv(name: str, default: tuple[str, ...]) -> tuple[str, ...]:
     return tuple(item.strip() for item in raw.split(",") if item.strip())
 
 
+def _float(name: str, default: float, *, minimum: float = 0.0) -> float:
+    raw = os.environ.get(name)
+    if not raw:
+        return default
+    try:
+        value = float(raw)
+    except ValueError:
+        return default
+    return value if value >= minimum else default
+
+
 def _str(name: str, default: str = "") -> str:
     return os.environ.get(name, default).strip()
 
@@ -51,11 +62,43 @@ class Settings:
     """Immutable snapshot of the environment, built once at import time."""
 
     # ── Storage ───────────────────────────────────────────────────────
+    supabase_url: str = ""
+    """
+    The Postgres project holding the list, e.g. `https://abcdefgh.supabase.co`.
+
+    Set together with `supabase_key`, this is what takes the subscriber list
+    off the host. It is the one piece of state here that cannot be rebuilt
+    from the repository, and the host under it is a free-tier box that its
+    provider can reclaim without notice, disks included.
+    """
+
+    supabase_key: str = ""
+    """
+    The service-role key for that project.
+
+    It bypasses row-level security, which is correct for a backend that is
+    the table's only client and wrong for anything a browser can read. It
+    must never reach the site bundle.
+    """
+
+    supabase_table: str = "newsring_subscribers"
+    """
+    Where the list sits in that project.
+
+    The project is the site's, not this service's: one database for whatever
+    this site comes to keep, with each table named for the project it belongs
+    to. Hence the prefix rather than a database called `newsring`.
+    """
+
+    supabase_timeout_s: float = 10.0
+    """Per-attempt socket timeout. `postgrest.py` retries three times."""
+
     database_path: Path = Path("/data/news.db")
     """
-    The subscriber list. On a named volume, because it is the only state in
-    this whole deployment that cannot be rebuilt from the repository: lose it
-    and every reader has to subscribe again.
+    Where the list goes when Postgres is not configured: a file on a named
+    volume, used by the tests and by a local run. A deployment that lands
+    here has a list that dies with the host, which is why `/api/health`
+    reports which backend answered.
     """
 
     max_subscribers: int = 50
@@ -184,10 +227,31 @@ class Settings:
             names.append("NEWS_SMTP_PASSWORD")
         return names
 
+    def warnings(self) -> list[str]:
+        """Configuration that runs, but is probably not what was meant.
+
+        Separate from `missing()` because none of this stops the service: it
+        serves readers perfectly well and is still wrong, so it belongs
+        somewhere an operator reads rather than in the switch that refuses
+        every endpoint.
+        """
+        notes = []
+        if self.supabase_url and not self.supabase_key:
+            notes.append("NEWS_SUPABASE_URL is set but NEWS_SUPABASE_KEY is not")
+        if self.supabase_key and not self.supabase_url:
+            notes.append("NEWS_SUPABASE_KEY is set but NEWS_SUPABASE_URL is not")
+        if not (self.supabase_url and self.supabase_key):
+            notes.append("the list is on local disk and will not survive this host")
+        return notes
+
 
 def load() -> Settings:
     """Build the settings snapshot from the current environment."""
     return Settings(
+        supabase_url=_str("NEWS_SUPABASE_URL").rstrip("/"),
+        supabase_key=os.environ.get("NEWS_SUPABASE_KEY", "").strip(),
+        supabase_table=_str("NEWS_SUPABASE_TABLE", "newsring_subscribers"),
+        supabase_timeout_s=_float("NEWS_SUPABASE_TIMEOUT_S", 10.0, minimum=1.0),
         database_path=Path(_str("NEWS_DATABASE_PATH", "/data/news.db")),
         max_subscribers=_int("NEWS_MAX_SUBSCRIBERS", 50, minimum=0),
         smtp_host=_str("NEWS_SMTP_HOST", "smtp.gmail.com"),

@@ -56,7 +56,7 @@ from .schemas import (
     SubscribeResponse,
 )
 from .settings import settings
-from .store import SubscriberStore
+from .store import StoreError, open_store
 
 logging.basicConfig(
     level=settings.log_level.upper(),
@@ -64,7 +64,7 @@ logging.basicConfig(
 )
 log = logging.getLogger("newsring-subscriptions")
 
-store = SubscriberStore(settings.database_path, max_subscribers=settings.max_subscribers)
+store = open_store(settings)
 
 #: One broadcast at a time. Two overlapping sends would both read the same
 #: "not yet sent" list and mail half the readers twice.
@@ -209,12 +209,23 @@ def _broadcast(date_hint: str) -> BroadcastResponse:
 @asynccontextmanager
 async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     """Report the configuration once, loudly enough to be found in the logs."""
+    try:
+        size = str(store.count())
+    except StoreError as exc:
+        # Never fatal. A database that is asleep, slow or briefly unreachable
+        # must not stop the container booting: every endpoint reports the
+        # failure on its own, and the next request may well succeed.
+        size = "unknown"
+        log.error("The subscriber list could not be read at startup: %s", exc)
     log.info(
-        "newsring-subscriptions ready | subscribers=%d/%d | digest=%s",
-        store.count(),
+        "newsring-subscriptions ready | store=%s | subscribers=%s/%d | digest=%s",
+        store.backend,
+        size,
         settings.max_subscribers,
         settings.digest_url or "(unset)",
     )
+    for note in settings.warnings():
+        log.warning("%s", note)
     if not settings.configured:
         log.error("Unset: %s — every endpoint will refuse.", ", ".join(settings.missing()))
     if not settings.public_base:
@@ -268,6 +279,20 @@ def _require_configured() -> None:
         )
 
 
+def _store_down(exc: StoreError) -> HTTPException:
+    """The list is across the network, and the network is not cooperating.
+
+    A 503 rather than a 500: nothing is wrong with the request, and the next
+    one may well work. The detail says so in words a visitor can act on,
+    because this one does reach the form.
+    """
+    log.error("The subscriber list is unreachable: %s", exc)
+    return HTTPException(
+        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        detail="The mailing list is not answering right now. Try again in a few minutes.",
+    )
+
+
 # ──────────────────────────────────────────────────────────────────────────
 # Introspection
 # ──────────────────────────────────────────────────────────────────────────
@@ -275,17 +300,34 @@ def _require_configured() -> None:
 
 @app.get("/api/health")
 async def health() -> dict:
-    """Liveness, plus enough to tell a misconfiguration from an outage."""
-    count = await run_in_threadpool(store.count)
+    """Liveness, plus enough to tell a misconfiguration from an outage.
+
+    Answers 200 even when the list cannot be read. A health endpoint that
+    goes down with its database tells a monitor that everything is broken,
+    when in fact the service is up and one dependency is not — which is the
+    distinction the endpoint exists to draw.
+    """
+    count: int | None
+    try:
+        count = await run_in_threadpool(store.count)
+        reachable = True
+    except StoreError as exc:
+        count = None
+        reachable = False
+        log.warning("Health could not read the list: %s", exc)
+
+    healthy = settings.configured and reachable
     return {
-        "status": "ok" if settings.configured else "degraded",
+        "status": "ok" if healthy else "degraded",
         "service": "newsring-subscriptions",
         "version": app.version,
         "ready": settings.configured,
         "missing": settings.missing(),
+        "warnings": settings.warnings(),
+        "store": {"backend": store.backend, "reachable": reachable},
         "subscribers": count,
         "capacity": settings.max_subscribers,
-        "open": count < settings.max_subscribers,
+        "open": count is None or count < settings.max_subscribers,
         "digest": source.snapshot(),
     }
 
@@ -330,7 +372,12 @@ async def subscribe(payload: SubscribeRequest) -> SubscribeResponse:
     except security.InvalidAddressError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
-    if await run_in_threadpool(store.is_full):
+    try:
+        full = await run_in_threadpool(store.is_full)
+    except StoreError as exc:
+        raise _store_down(exc) from exc
+
+    if full:
         return SubscribeResponse(
             status="full",
             message=(
@@ -368,14 +415,28 @@ async def confirm(token: str = "") -> RedirectResponse:
     except tokens.TokenError:
         return RedirectResponse(_site("invalid"), status_code=status.HTTP_303_SEE_OTHER)
 
-    added = await run_in_threadpool(store.add, email)
+    try:
+        added = await run_in_threadpool(store.add, email)
+    except StoreError as exc:
+        # The reader did everything right and is not on the list. Say so, and
+        # send them back to a page that tells them the link still works —
+        # the token is stateless and good for another two days.
+        log.error("A confirmation could not be recorded: %s", exc)
+        return RedirectResponse(_site("error"), status_code=status.HTTP_303_SEE_OTHER)
+
     if not added:
         return RedirectResponse(_site("full"), status_code=status.HTTP_303_SEE_OTHER)
     _metrics["confirmed"] += 1
 
     sent = await run_in_threadpool(_send_digest_now, email)
     if sent:
-        await run_in_threadpool(store.mark_sent, email, sent)
+        try:
+            await run_in_threadpool(store.mark_sent, email, sent)
+        except StoreError as exc:
+            # They have the digest; only the record of it is missing. Left
+            # alone: the cost is one duplicate tomorrow, against telling a
+            # subscribed reader that something failed.
+            log.warning("A welcome digest could not be marked as sent: %s", exc)
         _metrics["digests_sent"] += 1
     return RedirectResponse(
         _site("confirmed" if sent else "confirmed-no-digest"),
@@ -395,7 +456,17 @@ async def unsubscribe(token: str = "") -> RedirectResponse:
         email = tokens.verify(token, UNSUBSCRIBE)
     except tokens.TokenError:
         return RedirectResponse(_site("invalid"), status_code=status.HTTP_303_SEE_OTHER)
-    if await run_in_threadpool(store.remove, email):
+
+    try:
+        gone = await run_in_threadpool(store.remove, email)
+    except StoreError as exc:
+        # Never report an unsubscribe that did not happen. Someone who is
+        # told they are off the list and then gets tomorrow's digest has been
+        # lied to, and will report it as spam rather than clicking again.
+        log.error("An unsubscribe could not be recorded: %s", exc)
+        return RedirectResponse(_site("error"), status_code=status.HTTP_303_SEE_OTHER)
+
+    if gone:
         _metrics["unsubscribed"] += 1
     return RedirectResponse(_site("unsubscribed"), status_code=status.HTTP_303_SEE_OTHER)
 
@@ -408,12 +479,22 @@ async def unsubscribe_one_click(token: str = "") -> Response:
     and it wants a 200 and nothing else. A bad token still answers 200,
     because the reader's intent is to be gone and a provider that sees an
     error here will show them a failure they cannot act on.
+
+    A list that cannot be written is the one exception, and answers 503. The
+    provider retries that; a 200 would end the attempt with the reader still
+    subscribed and believing otherwise.
     """
     try:
         email = tokens.verify(token, UNSUBSCRIBE)
     except tokens.TokenError:
         return PlainTextResponse("ok", status_code=status.HTTP_200_OK)
-    if await run_in_threadpool(store.remove, email):
+
+    try:
+        gone = await run_in_threadpool(store.remove, email)
+    except StoreError as exc:
+        raise _store_down(exc) from exc
+
+    if gone:
         _metrics["unsubscribed"] += 1
     return PlainTextResponse("ok", status_code=status.HTTP_200_OK)
 
@@ -456,6 +537,13 @@ async def broadcast(payload: BroadcastRequest, request: Request) -> BroadcastRes
             raise HTTPException(
                 status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)
             ) from exc
+        except StoreError as exc:
+            # Raised either before a single message went out, or by the
+            # `mark_sent` of one that did. The send stops there on purpose:
+            # carrying on would mail the rest of the list without being able
+            # to record it, and a re-run would then send every one of them
+            # the same digest twice.
+            raise _store_down(exc) from exc
 
 
 @app.exception_handler(404)

@@ -1,6 +1,7 @@
-# Deliberately tiny, as next door. The mailer is `smtplib`, the store is
-# `sqlite3`, and the digest is fetched with `urllib` — all standard library.
-# Nothing here needs an SMTP library, an ORM, or an HTTP client package on a
-# free-tier ARM box.
+# Deliberately tiny, as next door. The mailer is `smtplib`, the digest is
+# fetched with `urllib`, and the subscriber list is reached over PostgREST
+# with the same `urllib` — all standard library. A remote Postgres would
+# normally mean a driver and a connection pool; Supabase serving the table
+# over HTTPS is what lets this stay at two packages on a free-tier ARM box.
 fastapi>=0.115,<1
 uvicorn[standard]>=0.32,<1

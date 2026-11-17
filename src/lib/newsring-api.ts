@@ -127,7 +127,7 @@ function detail(body: unknown): string | null {
 
 /** The outcomes the service redirects back to the signup page with. */
 export type LandingState =
-  'confirmed' | 'confirmed-no-digest' | 'unsubscribed' | 'invalid' | 'full';
+  'confirmed' | 'confirmed-no-digest' | 'unsubscribed' | 'invalid' | 'full' | 'error';
 
 const STATES: readonly LandingState[] = [
   'confirmed',
@@ -135,6 +135,7 @@ const STATES: readonly LandingState[] = [
   'unsubscribed',
   'invalid',
   'full',
+  'error',
 ];
 
 /**
@@ -177,5 +178,10 @@ export const LANDING_COPY: Record<
     tone: 'warn',
     title: 'The list filled up first',
     body: 'It is capped while this runs on one ordinary mailbox. Today’s digest is on the web in the meantime.',
+  },
+  error: {
+    tone: 'warn',
+    title: 'That did not go through',
+    body: 'Something failed at our end, so nothing was changed. Your link is still good for a couple of days — open it again in a few minutes and it should work.',
   },
 };

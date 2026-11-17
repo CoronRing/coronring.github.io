@@ -1,6 +1,6 @@
 # System map
 
-**Version 1.1.0** · 2026-11-16 · Owner: Guan Zheng Huang (`CoronRing`)
+**Version 1.2.0** · 2026-11-16 · Owner: Guan Zheng Huang (`CoronRing`)
 
 Read this first if you are changing anything that crosses a component
 boundary. It covers what the other documents assume you already know: which
@@ -53,15 +53,14 @@ sees the request:
 | Prefix | Service | Source | State |
 |---|---|---|---|
 | `/chat/*` | site-chat assistant | `chat/` | none; the corpus is refetched from the published site |
-| `/news/*` | NewsRing subscriptions | `news/` | **SQLite on a named volume** |
+| `/news/*` | NewsRing subscriptions | `news/` | **none on the host**; the subscriber list is in Postgres |
 | `/*` | particle-wave converter | `backend/` | none |
 
-`news/` is the first stateful thing in this deployment. Its `news_data` volume
-holds the subscriber list, which is the only file on the host that cannot be
-rebuilt from a repository: lose it and every reader has to subscribe again.
-`infra/configure.py` replaces the source trees wholesale on each deploy but
-never touches the volumes, so a redeploy keeps both the certificate and the
-list.
+No service here keeps anything the host would be missed for. That is deliberate and was learned the hard way: the free-tier instance underneath can be reclaimed by its provider without notice, disks and named volumes included, and in November 2026 it was.
+
+The one thing that cannot be rebuilt from a repository is the NewsRing subscriber list, since a confirmed address exists nowhere else and you do not get to ask people to subscribe twice. It therefore lives in Postgres, in the site's own Supabase project, reached over PostgREST from the service. The table is `public.newsring_subscribers` and its migration is at `supabase/migrations/` in this repository. The project is the site's, not NewsRing's: one database for whatever the site comes to keep, with each table named for the project that owns it.
+
+`news_data` remains as a local fallback for a run with no Supabase credentials, and `GET /news/api/health` reports under `store` which backend actually answered, so a deployment that quietly fell back to it is visible rather than discovered later.
 
 A service is mounted under a prefix it is not told about by the request, since
 `handle_path` has already stripped it. That is harmless for the two that only
@@ -192,7 +191,7 @@ rather than `traced in this tab`.
 | Runtime service settings | `infra/compose.yml`           | committed; non-secret variables for all three services  |
 | Chat keys on the host    | `~/particle-wave/chat.env`    | written by `configure.py` from `.env`, mode 0600        |
 | News secrets on the host | `~/particle-wave/news.env`    | written by `configure.py` from `.env`, mode 0600        |
-| Subscriber list          | `news_data` Docker volume     | **not in any repository and not in any backup**         |
+| Subscriber list          | Supabase, `public.newsring_subscribers` | off the host on purpose; schema is in `supabase/migrations/` |
 
 The service reads nothing from `.env`. Its configuration is entirely `PW_*`
 environment variables set on the host, which is why the same image runs

@@ -205,6 +205,11 @@ NEWS_NAMES: dict[str, tuple[str, ...]] = {
     "NEWS_SMTP_PASSWORD": ("NEWSRING_MAIL_PASSWORD", "GOOGLE_APP_PASSWORD", "EMALIA_PASSWORD"),
     "NEWS_TOKEN_SECRET": ("NEWS_TOKEN_SECRET",),
     "NEWS_BROADCAST_TOKEN": ("NEWS_BROADCAST_TOKEN", "NEWSRING_BROADCAST_TOKEN"),
+    # The subscriber list lives in Postgres rather than on this host. The URL
+    # is not itself a credential, but it travels with the key and there is no
+    # reason to put either in the repository.
+    "NEWS_SUPABASE_URL": ("NEWS_SUPABASE_URL", "SUPABASE_URL"),
+    "NEWS_SUPABASE_KEY": ("NEWS_SUPABASE_KEY", "SUPABASE_SERVICE_ROLE_KEY"),
 }
 
 
