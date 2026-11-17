@@ -213,12 +213,33 @@ NEWS_NAMES: dict[str, tuple[str, ...]] = {
 }
 
 
+def env_scalar(line: str) -> str:
+    """The value on one `.env` line, unwrapped and nothing more.
+
+    A quoted value ends at its closing quote, and whatever follows it — the
+    `# which account this is` an operator writes beside a password — is not
+    part of the secret. An unquoted value ends at the first ` #` for the same
+    reason. Inner spaces survive both, because that is how Google prints an
+    app password and how it has to arrive at the mailbox.
+
+    Carrying the quotes or the note through is not a visible mistake: the file
+    is written, the container starts, and the mailbox answers 535 to a
+    password with a comment stuck to the end of it.
+    """
+    value = line.split("=", 1)[1].strip()
+    if value[:1] in {'"', "'"}:
+        closing = value.find(value[0], 1)
+        if closing != -1:
+            return value[1:closing]
+    return value.split(" #", 1)[0].strip()
+
+
 def env_value(names: tuple[str, ...]) -> tuple[str, str]:
     """First non-empty value among `names` in the operator's .env.
 
-    Values are returned verbatim, never reformatted: an app password contains
-    spaces in the form Google prints it, and a signing secret is bytes that
-    happen to be printable.
+    Values are otherwise returned verbatim, never reformatted: a signing
+    secret is bytes that happen to be printable, and re-encoding one here
+    would mean two parsers that have to agree forever.
 
     :returns: ``(value, name)``, or ``("", "")`` when none is present.
     """
@@ -229,7 +250,7 @@ def env_value(names: tuple[str, ...]) -> tuple[str, str]:
         prefix = f"{name}="
         for line in lines:
             if line.startswith(prefix):
-                value = line.split("=", 1)[1].strip()
+                value = env_scalar(line)
                 if value:
                     return value, name
     return "", ""
@@ -254,7 +275,7 @@ def read_gemini_keys() -> tuple[str, str]:
         prefix = f"{name}="
         for line in lines:
             if line.startswith(prefix):
-                value = line.split("=", 1)[1].strip()
+                value = env_scalar(line)
                 if value:
                     return value, name
     return "", ""
