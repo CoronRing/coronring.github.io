@@ -247,6 +247,7 @@ def launch(
         )
 
     capacity_errors = []
+    throttled = []
     for ad in ads:
         print(f"  instance       trying {spec['shape']} in {ad}")
         details = oci.core.models.LaunchInstanceDetails(
@@ -270,7 +271,25 @@ def launch(
                 print(f"                 no capacity in {ad}")
                 capacity_errors.append(ad)
                 continue
+            if exc.code == "TooManyRequests":
+                # Oracle rate limits LaunchInstance per tenancy. Anything
+                # asking often enough to win the capacity lottery will meet it,
+                # and it says nothing at all about whether a host was free —
+                # so it must not be reported as absence of capacity, and must
+                # not be retried here, because retrying is what caused it.
+                print(f"                 rate limited in {ad}")
+                throttled.append(ad)
+                continue
             raise SystemExit(f"launch failed: {exc.code} — {exc.message}") from exc
+
+    if throttled:
+        raise SystemExit(
+            f"\nRate limited by Oracle in {', '.join(throttled)}"
+            + (f" (no capacity in {', '.join(capacity_errors)})" if capacity_errors else "")
+            + ".\n\nTooManyRequests means the asking was too frequent, not that"
+            " the shape was unavailable.\nWait a few minutes before the next"
+            " attempt, and lengthen the interval if it keeps happening."
+        )
 
     raise SystemExit(
         f"\nNo capacity for {spec['shape']} in any availability domain "
