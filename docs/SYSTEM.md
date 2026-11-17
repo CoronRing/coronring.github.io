@@ -56,7 +56,7 @@ sees the request:
 | `/news/*` | NewsRing subscriptions | `news/` | **none on the host**; the subscriber list is in Postgres |
 | `/*` | particle-wave converter | `backend/` | none |
 
-No service here keeps anything the host would be missed for. That is deliberate and was learned the hard way: the free-tier instance underneath can be reclaimed by its provider without notice, disks and named volumes included, and in November 2026 it was.
+No service here keeps anything the host would be missed for. That is deliberate and was learned the hard way: the free-tier instance underneath can be reclaimed by its provider without notice, disks and named volumes included, and in October 2026 it was.
 
 The one thing that cannot be rebuilt from a repository is the NewsRing subscriber list, since a confirmed address exists nowhere else and you do not get to ask people to subscribe twice. It therefore lives in Postgres, in the site's own Supabase project, reached over PostgREST from the service. The table is `public.newsring_subscribers` and its migration is at `supabase/migrations/` in this repository. The project is the site's, not NewsRing's: one database for whatever the site comes to keep, with each table named for the project that owns it.
 
@@ -197,6 +197,8 @@ replaces the database and the mailer. `--no-mail` keeps the database half and
 sends nothing. It refuses to broadcast while anyone else is on the list.
 
 Neither check tells you anything once nobody is looking, which is how the host was lost without being noticed. `.github/workflows/uptime.yml` probes all three prefixes from a GitHub runner every half hour and opens a `backend-down` issue when they stop answering, closing it again on recovery. It needs the repository variable `BACKEND_HOST` and skips itself when that is unset, so there is nothing to clean up between provisions. It checks that the reply is the service's own health JSON rather than merely a 200, because the reclaimed address was reassigned to another tenant who answered.
+
+Half an hour is the right interval because of what the audit log shows about the last reclamation: Oracle stopped each instance and terminated it 26 to 43 hours later, and a stopped instance can still be started again. Nobody was watching, so three weeks passed before the outage was noticed at all. The watch exists to turn that into a day of warning while the machine is still recoverable, not to measure availability.
 
 ## 5. Configuration and secrets
 

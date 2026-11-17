@@ -123,10 +123,16 @@ jobs:
               "Checked three times, twenty seconds apart, from a GitHub runner." \
               "Probe run: ${RUN}" \
               "" \
-              "If the instance is gone rather than merely down, the list of" \
-              "subscribers is safe — it is in Supabase, not on the host — and" \
-              "re-provisioning is \`python infra/provision.py\` followed by" \
-              "\`python infra/configure.py\`. See infra/README.md." \
+              "**Check whether the instance is stopped before assuming it is gone.**" \
+              "When Oracle reclaimed this host in October 2026 it stopped the" \
+              "instance first and terminated it 26 to 43 hours later. A stopped" \
+              "instance still has its boot volume and can be started again;" \
+              "only the termination is final. \`python infra/provision.py --show\`" \
+              "says which it is." \
+              "" \
+              "If it is already terminated, the subscriber list is safe — it is in" \
+              "Supabase, not on the host — and recovery is \`provision.py\` then" \
+              "\`configure.py\`, followed by a new BACKEND_HOST. See infra/README.md." \
               "" \
               "This issue closes itself when the host answers again.")"
 

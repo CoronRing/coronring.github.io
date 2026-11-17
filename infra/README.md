@@ -102,13 +102,29 @@ Recreating it every time would walk into Let's Encrypt's rate limit.
 
 The subscriber list used to live in the `news_data` volume, and that was the one thing on this host worth protecting. It does not any more: it is in Postgres, in the site's own Supabase project, reached over HTTPS by the news service. See `news/README.md` for the variables and `supabase/migrations/` for the table.
 
-This is not tidiness. Oracle reclaimed both instances in November 2026 without notice and reassigned the IP to another tenant, which takes every volume with it. A host you can lose at any moment is fine to build on, as long as losing it costs you a redeploy rather than your readers.
+This is not tidiness. Oracle reclaimed both instances in October 2026 without notice and reassigned the IP to another tenant, which takes every volume with it. A host you can lose at any moment is fine to build on, as long as losing it costs you a redeploy rather than your readers.
 
 `news_data` is still declared, as the fallback for a run with no Supabase credentials. A deployment that lands on it has a list that dies with the box, so `GET /news/api/health` reports which backend answered under `store`. Check it after a deploy.
 
 ## Keeping the host
 
-Oracle reclaims Always Free compute it judges idle, and this deployment is idle by any honest measure: a personal site's API answers a handful of requests a day and sleeps the rest of the time. In November 2026 that cost both instances at once.
+Oracle reclaims Always Free compute it judges idle, and this deployment is idle by any honest measure: a personal site's API answers a handful of requests a day and sleeps the rest of the time. In October 2026 that cost both instances.
+
+The tenancy's audit log has the whole sequence, and it is worth reading closely because it is not what it looked like from outside. Every one of these events has no principal, no caller IP and no user agent: Oracle did them, nobody here did.
+
+| When (UTC) | What | To |
+| --- | --- | --- |
+| 2026-10-27 21:07 | `InstanceAction`, `instanceActionType: stop` | `particle-wave-host-2c12g` |
+| 2026-10-27 22:36 | `DetachVnic` — the public IP leaves here | `particle-wave-host-2c12g` |
+| 2026-10-29 15:42 | `InstanceAction`, `instanceActionType: stop` | `particle-wave-host` |
+| 2026-10-29 15:43 | `TerminateInstance` | `particle-wave-host-2c12g` |
+| 2026-10-30 17:41 | `TerminateInstance` | `particle-wave-host` |
+
+Two things in that table matter more than the rest.
+
+**The compliant host went first.** `particle-wave-host-2c12g` was 2 OCPU / 12 GB, inside the allowance, and it was stopped two days before the deliberately over-limit 4 OCPU / 24 GB one. So this was not enforcement of the halved A1 allowance catching a bystander. Both were taken for being idle, which is the one thing a container can do something about.
+
+**Stopping is not terminating, and the gap is long.** 43 hours for one instance, 26 for the other. A stopped instance keeps its boot volume and can be restarted from the console or with `provision.py`; only the termination is final. Nobody was watching, so three weeks passed before anyone noticed the services were down at all. That gap is the entire reason for the uptime workflow below: half-hourly probing turns a silent three-week outage into a day of warning while the machine is still recoverable.
 
 The test Oracle publishes is specific, and the specificity is the way out. Over a 7-day window an instance is idle when **all three** of these hold:
 
