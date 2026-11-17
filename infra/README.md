@@ -142,6 +142,12 @@ gh variable set BACKEND_HOST --repo CoronRing/coronring.github.io --body '129-14
 
 Unset, the job says there is no host yet and stops, which is the right behaviour between provisions. It also requires the reply to *look* like ours — the health JSON, not merely a 200 — because when this host was lost the address was handed to another tenant who answered politely with something else.
 
+### The other axis, which is not documented
+
+Instance idleness is the rule Oracle publishes. Account inactivity is a rule it does not: forum reports describe free tenancies suspended or terminated for never being signed into, on something like a 60-day clock, and Oracle support's answer in those threads is that the system did it. None of this is in the docs, and some of the accounts it happened to were running real load, so a busy host is not a defence against it.
+
+Nothing here can address that, because the signal is a human signing in rather than anything a container can produce. Sign in to the console every month or two. API calls from this machine at least leave audit events under your own principal — `python infra/provision.py --show` is enough and creates nothing — but whether Oracle counts those is a guess.
+
 ### What this still does not fix
 
 The IP changes every time the host does, and that cascades: `NEWS_PUBLIC_BASE`, `NEWS_SITE_URL`, the site's `PUBLIC_*` values and its hardcoded fallbacks, the Caddy certificate's hostname, and every confirmation link already sitting in somebody's inbox. This tenancy is allowed one reserved public IP and currently uses none; attaching one would survive the instance and make a reclaim cost a redeploy instead of a release. `provision.py` does not do that yet.
