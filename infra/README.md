@@ -177,6 +177,14 @@ up, and suggests `--micro` (AMD, 1 OCPU / 1 GB, always available) as the
 fallback. Note that 1 GB is tight for numpy + scipy + OpenCV, which is why
 `bootstrap.sh` adds swap regardless of shape.
 
+Capacity appears only when somebody else's instance is torn down, and it goes to whoever asks next, so the only lever is how often you ask. Asking from a laptop does not work: over one ten-hour stretch a retry loop here slept through eight of them, the overnight window included.
+
+So the asking happens in [`CoronRing/oracle-capacity-watch`](https://github.com/CoronRing/oracle-capacity-watch), a private repository that checks this one out every two hours and runs `provision.py` in a loop. It is private because it holds a tenancy-wide API key as a secret; that is also why its schedule is shaped around the Actions minutes a private repository is allowed. When it wins it opens an issue with the address, then disables itself. Nothing in this repository depends on it, and nothing here breaks if it is switched off.
+
+### Running the OCI scripts without a .env
+
+That poller is why `load_config()` takes credentials from the process environment as well as from `.env`: `ORACLE_CONFIGURATION` for the console block, `ORACLE_API_KEY` for the signing key as PEM text rather than a path, and `ORACLE_SSH_PUBLIC_KEY` for the key baked into a new instance. The file wins where both have a value. Only the public half of the SSH key ever leaves this machine, so a runner can create a host but cannot log into one.
+
 ## Taking the services somewhere else
 
 All three services are ordinary containers — nothing in any image knows about
