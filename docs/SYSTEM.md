@@ -1,6 +1,6 @@
 # System map
 
-**Version 1.2.1** · 2026-11-17 · Owner: Guan Zheng Huang (`CoronRing`)
+**Version 1.3.0** · 2026-11-17 · Owner: Guan Zheng Huang (`CoronRing`)
 
 Read this first if you are changing anything that crosses a component
 boundary. It covers what the other documents assume you already know: which
@@ -61,6 +61,14 @@ No service here keeps anything the host would be missed for. That is deliberate 
 The one thing that cannot be rebuilt from a repository is the NewsRing subscriber list, since a confirmed address exists nowhere else and you do not get to ask people to subscribe twice. It therefore lives in Postgres, in the site's own Supabase project, reached over PostgREST from the service. The table is `public.newsring_subscribers` and its migration is at `supabase/migrations/` in this repository. The project is the site's, not NewsRing's: one database for whatever the site comes to keep, with each table named for the project that owns it.
 
 `news_data` remains as a local fallback for a run with no Supabase credentials, and `GET /news/api/health` reports under `store` which backend actually answered, so a deployment that quietly fell back to it is visible rather than discovered later.
+
+### A fourth container that serves nobody
+
+`keepalive`, from `infra/keepalive/`, is in the stack but not in the routing table: it answers no requests and is not reachable from outside. Its job is to stop the provider taking the machine.
+
+Oracle reclaims Always Free compute it judges idle, and publishes the test: over a 7-day window, CPU 95th percentile under 20%, network under 20%, and memory under 20% on A1 shapes. The three conditions are joined by "and", so clearing any one is enough. The container clears CPU on every shape, by burning one core for 90 seconds in every 600 at nice 19 — the 95th percentile crosses 20% as soon as more than 5% of samples do, so the duty cycle is small — and clears memory on A1 by holding a ballast topped up to 30% of RAM. Network is left alone, because 20% of this instance's bandwidth sustained for a week has no honest source.
+
+It gives way rather than competing: nice 19 for the CPU, `oom_score_adj: 1000` for the memory, and a ballast sized as the gap between the target and what everything else is already using, so it shrinks as the real services grow. `KEEPALIVE_ENABLED=0` switches it off on a host with real traffic, or on an account upgraded to Pay As You Go, where idle reclamation stops applying. `infra/README.md` has the numbers and what is still unsolved.
 
 A service is mounted under a prefix it is not told about by the request, since
 `handle_path` has already stripped it. That is harmless for the two that only
@@ -187,6 +195,8 @@ filter that matched nothing and reported success, and a password that reached
 the host with its `.env` comment attached — were both invisible to a suite that
 replaces the database and the mailer. `--no-mail` keeps the database half and
 sends nothing. It refuses to broadcast while anyone else is on the list.
+
+Neither check tells you anything once nobody is looking, which is how the host was lost without being noticed. `.github/workflows/uptime.yml` probes all three prefixes from a GitHub runner every half hour and opens a `backend-down` issue when they stop answering, closing it again on recovery. It needs the repository variable `BACKEND_HOST` and skips itself when that is unset, so there is nothing to clean up between provisions. It checks that the reply is the service's own health JSON rather than merely a 200, because the reclaimed address was reassigned to another tenant who answered.
 
 ## 5. Configuration and secrets
 

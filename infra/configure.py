@@ -29,6 +29,10 @@ STATE_FILE = HERE / "state.json"
 SOURCE = ROOT / "backend"
 CHAT_SOURCE = ROOT / "chat"
 NEWS_SOURCE = ROOT / "news"
+# Not a service of the site's: it holds the host above Oracle's idle threshold
+# so the other three are still here next month. It lives beside this script
+# rather than at the repository root because it is infrastructure, not product.
+KEEPALIVE_SOURCE = HERE / "keepalive"
 REMOTE = "/home/ubuntu/particle-wave"
 
 # Never ship local build output or virtualenvs to the host: they are large,
@@ -142,6 +146,7 @@ def make_archive() -> Path:
         archive.add(SOURCE, arcname="app", filter=keep)
         archive.add(CHAT_SOURCE, arcname="chat", filter=keep)
         archive.add(NEWS_SOURCE, arcname="news", filter=keep)
+        archive.add(KEEPALIVE_SOURCE, arcname="keepalive", filter=keep)
         for extra in ("compose.yml", "Caddyfile", "bootstrap.sh"):
             add_unix_text(archive, HERE / extra, extra)
 
@@ -167,7 +172,8 @@ def upload(info: dict, archive: Path) -> None:
     # redeploy — see `upload_secrets`.
     run_remote(
         info,
-        f"cd {REMOTE} && rm -rf app chat news && tar xzf src.tar.gz && rm src.tar.gz",
+        f"cd {REMOTE} && rm -rf app chat news keepalive"
+        " && tar xzf src.tar.gz && rm src.tar.gz",
         quiet=True,
     )
 

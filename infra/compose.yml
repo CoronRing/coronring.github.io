@@ -177,6 +177,58 @@ services:
       retries: 3
       start_period: 20s
 
+  # The service that exists so the other three still exist next month. Oracle
+  # reclaims Always Free compute it judges idle, and this deployment is idle by
+  # any honest measure: a personal site's API answers a handful of requests a
+  # day. The box was taken once already, on 2026-11-16, with everything on it.
+  #
+  # It raises CPU and memory past the published thresholds and leaves network
+  # alone — see infra/keepalive/keepalive.py for which numbers and why, and
+  # infra/README.md for what to do instead if this ever feels like too much.
+  keepalive:
+    logging: *logging
+    build:
+      context: ./keepalive
+      dockerfile: Dockerfile
+    image: keepalive:local
+    restart: unless-stopped
+    # Above the ballast ceiling (KEEPALIVE_MEMORY_CAP_MB, 3584) with room for
+    # the interpreter, so the cap in the script is what actually binds and this
+    # is only a backstop. A 1 GB micro never gets near either: the top-up
+    # arithmetic finds no gap to fill and the ballast stays at zero.
+    mem_limit: 4g
+    # If this host ever runs out of memory, this process is the right one to
+    # lose. It holds nothing anybody wants and comes back on its own; the
+    # alternative is the kernel picking a converter mid-request.
+    oom_score_adj: 1000
+    environment:
+      # Oracle's bar is 20% over a 7-day window, on all three of CPU, network
+      # and memory at once. Clearing any one of them is enough, and these clear
+      # two. Raise KEEPALIVE_BUSY_S if a future shape makes 90s in 600s thin.
+      KEEPALIVE_MEMORY_TARGET: '0.30'
+      KEEPALIVE_MEMORY_CAP_MB: '3584'
+      KEEPALIVE_BUSY_S: '90'
+      KEEPALIVE_PERIOD_S: '600'
+      KEEPALIVE_WORKERS: '1'
+      # Set to 0 on a host with real traffic, or after upgrading the account to
+      # Pay As You Go, where idle reclamation stops applying.
+      KEEPALIVE_ENABLED: '1'
+    healthcheck:
+      # The age of the stamp file, not the presence of the process. A wedged
+      # loop keeps its PID and stops doing the one thing it is for, which is
+      # exactly the failure this container would otherwise hide.
+      test:
+        [
+          'CMD',
+          'python',
+          '-c',
+          "import sys,time;sys.exit(0 if time.time()-float(open('/tmp/keepalive.alive').read())<300 else 1)",
+        ]
+      interval: 60s
+      timeout: 5s
+      retries: 3
+      start_period: 90s
+
   caddy:
     logging: *logging
     image: caddy:2-alpine

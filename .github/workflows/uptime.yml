@@ -1,0 +1,143 @@
+name: Backend uptime
+
+# The host is a free-tier box its provider can reclaim without notice, and on
+# 2026-11-16 it did: both instances went, the IP was reissued to a stranger,
+# and the only reason anyone found out was that somebody happened to look. This
+# job is the somebody.
+#
+# It runs outside the host on purpose. A watchdog that lives on the machine it
+# is watching reports nothing at all about the one failure that matters.
+
+on:
+  schedule:
+    # Every half hour. Scheduled runs on a busy runner fleet can be late by
+    # several minutes, which is irrelevant here: the thing being detected is
+    # measured in days, not minutes.
+    - cron: '*/30 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+# One at a time, and let a run in flight finish. Two overlapping runs would
+# race to open the same issue and open two.
+concurrency:
+  group: uptime
+  cancel-in-progress: false
+
+jobs:
+  probe:
+    # A fork inherits the workflow but not the host, so without this it would
+    # fail every half hour forever on somebody else's account.
+    if: github.repository_owner == 'CoronRing'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Probe the three services
+        id: probe
+        env:
+          # Set this as a repository variable, not a secret: it is a public IP
+          # that appears in every page the site serves. Unset means there is no
+          # host right now, which is a normal state between provisions, so the
+          # job says so and stops rather than failing.
+          HOST: ${{ vars.BACKEND_HOST }}
+        run: |
+          set -uo pipefail
+          if [ -z "${HOST}" ]; then
+            echo "BACKEND_HOST is not set — nothing to watch yet." >> "$GITHUB_STEP_SUMMARY"
+            echo "state=skipped" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # Three attempts before calling it down. A single failed probe is a
+          # runner with a bad minute far more often than it is a dead host, and
+          # an issue opened for that teaches everyone to ignore the issues.
+          probe() {
+            local path="$1" attempt body
+            for attempt in 1 2 3; do
+              body=$(curl -fsS --max-time 20 "https://${HOST}${path}" 2>/dev/null) || body=""
+              # A reply is not enough. When this host was lost the address was
+              # handed to somebody else, who answered politely with something
+              # that was not ours — so require the shape of our own health JSON.
+              if printf '%s' "$body" | grep -q '"status"'; then
+                printf '%s' "$body"
+                return 0
+              fi
+              [ "$attempt" -lt 3 ] && sleep 20
+            done
+            return 1
+          }
+
+          failed=""
+          {
+            echo "## ${HOST}"
+            echo
+            echo "| service | result |"
+            echo "|---|---|"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          for entry in "particle-wave:/api/health" "chat:/chat/api/health" "news:/news/api/health"; do
+            name="${entry%%:*}"
+            path="${entry#*:}"
+            if body=$(probe "$path"); then
+              status=$(printf '%s' "$body" | sed -n 's/.*"status" *: *"\([^"]*\)".*/\1/p')
+              echo "| ${name} | ${status:-ok} |" >> "$GITHUB_STEP_SUMMARY"
+            else
+              failed="${failed} ${name}"
+              echo "| ${name} | **unreachable** |" >> "$GITHUB_STEP_SUMMARY"
+            fi
+          done
+
+          if [ -n "${failed}" ]; then
+            echo "state=down" >> "$GITHUB_OUTPUT"
+            echo "failed=${failed# }" >> "$GITHUB_OUTPUT"
+          else
+            echo "state=up" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Open an issue if it is down
+        if: steps.probe.outputs.state == 'down'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HOST: ${{ vars.BACKEND_HOST }}
+          FAILED: ${{ steps.probe.outputs.failed }}
+          RUN: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          # Reuse the open issue if there is one. Opening a second every half
+          # hour would bury the first, and the first is the one with the
+          # timestamp that says when this actually started.
+          existing=$(gh issue list --label backend-down --state open --limit 1 --json number \
+            --jq '.[0].number // empty')
+          if [ -n "${existing}" ]; then
+            echo "already tracked in #${existing}"
+            exit 0
+          fi
+          gh label create backend-down --color B60205 \
+            --description "The Oracle host is not answering" 2>/dev/null || true
+          gh issue create --label backend-down \
+            --title "Backend unreachable at ${HOST}" \
+            --body "$(printf '%s\n' \
+              "Unreachable: ${FAILED}" \
+              "" \
+              "Checked three times, twenty seconds apart, from a GitHub runner." \
+              "Probe run: ${RUN}" \
+              "" \
+              "If the instance is gone rather than merely down, the list of" \
+              "subscribers is safe — it is in Supabase, not on the host — and" \
+              "re-provisioning is \`python infra/provision.py\` followed by" \
+              "\`python infra/configure.py\`. See infra/README.md." \
+              "" \
+              "This issue closes itself when the host answers again.")"
+
+      - name: Close the issue if it recovered
+        if: steps.probe.outputs.state == 'up'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          for number in $(gh issue list --label backend-down --state open --json number \
+            --jq '.[].number'); do
+            gh issue close "${number}" --comment "All three services answered again. ${RUN}"
+          done

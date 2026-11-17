@@ -40,7 +40,7 @@ these and a stray second VCN is easy to miss in the console.
 | Internet gateway | `particle-wave-igw`    | default route 0.0.0.0/0                                 |
 | Security list    | _(VCN default)_        | opens 22, 80, 443 + ICMP                                |
 | Subnet           | `particle-wave-subnet` | 10.0.1.0/24, public                                     |
-| Instance         | `particle-wave-host`   | `VM.Standard.A1.Flex`, 4 OCPU / 24 GB, Ubuntu 24.04 ARM |
+| Instance         | `particle-wave-host`   | `VM.Standard.A1.Flex`, 2 OCPU / 12 GB, Ubuntu 24.04 ARM |
 
 State lands in `state.json` (gitignored). Credentials live outside the repo
 entirely: the SSH key at `~/.ssh/oracle_particle_wave`, the OCI API signing
@@ -105,6 +105,46 @@ The subscriber list used to live in the `news_data` volume, and that was the one
 This is not tidiness. Oracle reclaimed both instances in November 2026 without notice and reassigned the IP to another tenant, which takes every volume with it. A host you can lose at any moment is fine to build on, as long as losing it costs you a redeploy rather than your readers.
 
 `news_data` is still declared, as the fallback for a run with no Supabase credentials. A deployment that lands on it has a list that dies with the box, so `GET /news/api/health` reports which backend answered under `store`. Check it after a deploy.
+
+## Keeping the host
+
+Oracle reclaims Always Free compute it judges idle, and this deployment is idle by any honest measure: a personal site's API answers a handful of requests a day and sleeps the rest of the time. In November 2026 that cost both instances at once.
+
+The test Oracle publishes is specific, and the specificity is the way out. Over a 7-day window an instance is idle when **all three** of these hold:
+
+| Metric | Threshold |
+| --- | --- |
+| CPU utilization, 95th percentile | under 20% |
+| Network utilization | under 20% |
+| Memory utilization (A1 shapes only) | under 20% |
+
+They are joined by "and". Clearing any one of them is enough, so the `keepalive` container in `compose.yml` raises two and leaves the third alone.
+
+**CPU, on every shape.** The bar is the 95th percentile rather than the mean, which is much cheaper to clear than it first appears: the percentile rises above 20% as soon as more than 5% of samples do. The container burns one core for 90 seconds out of every 600, so about 15% of one-minute samples are at full tilt and the machine is genuinely unloaded in between. The burner runs at nice 19, so a visitor converting an image preempts it rather than queueing behind it.
+
+**Memory, on A1 only.** A ballast of anonymous pages, touched often enough to stay resident, sized as a *top-up* rather than an addition: each minute it asks how much memory everything else is using and claims only the difference between that and 30% of RAM. On an empty 12 GB box that is around 2 GB; on a 1 GB micro it is nothing at all, which is correct, because memory is not part of the test for that shape. `oom_score_adj: 1000` means the kernel kills this first if the arithmetic is ever wrong.
+
+**Network is deliberately untouched.** 20% of this instance's bandwidth is hundreds of megabits held for a week. There is no honest way to produce that.
+
+Check it with `docker compose logs keepalive`, which prints a line every fifteen minutes, or `docker compose ps`, where the healthcheck reads the age of a stamp file rather than the presence of the process — a loop that has wedged keeps its PID and stops doing the only thing it is for.
+
+Turn it off with `KEEPALIVE_ENABLED=0` on a host that has real traffic, or on an account upgraded to Pay As You Go, where idle reclamation stops applying.
+
+### Knowing when it happens anyway
+
+None of the above is a guarantee, so `.github/workflows/uptime.yml` probes all three services from a GitHub runner every half hour and opens an issue when they stop answering. It runs off the host on purpose: a watchdog living on the machine it watches reports nothing about the one failure that matters.
+
+It needs the repository variable `BACKEND_HOST` set to the host's sslip.io name, with no scheme and no path:
+
+```bash
+gh variable set BACKEND_HOST --repo CoronRing/coronring.github.io --body '129-146-25-154.sslip.io'
+```
+
+Unset, the job says there is no host yet and stops, which is the right behaviour between provisions. It also requires the reply to *look* like ours — the health JSON, not merely a 200 — because when this host was lost the address was handed to another tenant who answered politely with something else.
+
+### What this still does not fix
+
+The IP changes every time the host does, and that cascades: `NEWS_PUBLIC_BASE`, `NEWS_SITE_URL`, the site's `PUBLIC_*` values and its hardcoded fallbacks, the Caddy certificate's hostname, and every confirmation link already sitting in somebody's inbox. This tenancy is allowed one reserved public IP and currently uses none; attaching one would survive the instance and make a reclaim cost a redeploy instead of a release. `provision.py` does not do that yet.
 
 ## Capacity
 
