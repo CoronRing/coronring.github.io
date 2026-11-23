@@ -1,9 +1,9 @@
 ---
-organization: Railtown AI Technology Inc.
+organization: Railtown AI Technologies Inc.
 shortName: Railtown AI
-role: Applied ML Engineer
-start: 2023-05-01
-end: 2025-09-01
+role: Machine Learning Engineer
+start: 2024-01-01
+end: 2026-11-01
 kind: work
 location: Vancouver, CA
 highlights:
@@ -14,5 +14,5 @@ highlights:
 tech: ['Python', 'LLM', 'Agents', 'Azure', 'Evals']
 links:
   - label: Railtracks
-    href: https://github.com/CoronRing
+    href: https://github.com/RailtownAI/railtracks
 ---

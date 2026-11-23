@@ -1,9 +1,9 @@
 ---
-organization: Railtown AI Technology Inc.
+organization: Railtown AI Technologies Inc.
 shortName: Railtown AI
-role: Data Scientist
+role: Data Scientist Intern
 start: 2022-05-01
-end: 2023-05-01
+end: 2023-12-01
 kind: work
 location: Vancouver, CA
 highlights:
