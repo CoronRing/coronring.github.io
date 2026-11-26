@@ -11,6 +11,8 @@ import PageLayout from '../layouts/PageLayout.astro';
 import Icon from '../components/ui/Icon.astro';
 import Reveal from '../components/ui/Reveal.astro';
 import { monthYear } from '../lib/format';
+import { SITE } from '../data/site';
+import { absolute } from '../lib/url';
 
 type Entry = CollectionEntry<'experience'>;
 
@@ -41,13 +43,29 @@ function period(entry: Entry): string {
   const start = monthYear(entry.data.start);
   return `${start} – ${entry.data.end ? monthYear(entry.data.end) : 'Present'}`;
 }
+
+const resumeData = {
+  '@context': 'https://schema.org',
+  '@type': 'ProfilePage',
+  name: `Resume · ${SITE.name}`,
+  url: absolute('/resume/', SITE.url),
+  mainEntity: {
+    '@type': 'Person',
+    name: SITE.name,
+    alternateName: SITE.alternateNames,
+    jobTitle: SITE.role,
+    url: SITE.url,
+    sameAs: SITE.social.filter((s) => s.href.startsWith('https://')).map((s) => s.href),
+  },
+};
 ---
 
 <PageLayout
   eyebrow="Resume"
   title="Resume"
-  description="Experience, education, achievements, and certifications."
+  description="Resume of Guan Huang (Guan Zheng Huang), Applied ML Engineer. Experience at Railtown AI, MScAC in Artificial Intelligence at University of Toronto, and BASc in Computer Engineering at UBC."
   lede="The condensed version. The projects page has the actual artifacts."
+  structuredData={resumeData}
 >
   <!-- The two-page resume is the main download; the full CV sits under it for anyone who wants every entry. -->
   <div slot="action" class="flex flex-col items-start gap-3">

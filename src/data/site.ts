@@ -31,10 +31,15 @@ export interface SocialLink {
 
 export interface SiteConfig {
   readonly name: string;
+  readonly alternateNames: readonly string[];
+  readonly givenName: string;
+  readonly additionalName: string;
+  readonly familyName: string;
   readonly handle: string;
   readonly role: string;
   readonly title: string;
   readonly description: string;
+  readonly knowsAbout: readonly string[];
   readonly url: string;
   readonly locale: string;
   readonly location: string;
@@ -55,12 +60,22 @@ export interface SiteConfig {
 const EMAIL = 'guanzheng66.huang@gmail.com';
 
 export const SITE: SiteConfig = {
-  name: 'Guan Zheng Huang',
+  name: 'Guan Huang',
+  alternateNames: ['Guan Zheng Huang', 'CoronRing'],
+  givenName: 'Guan',
+  additionalName: 'Zheng',
+  familyName: 'Huang',
   handle: 'CoronRing',
   role: 'Applied ML Engineer',
-  title: 'Guan Zheng Huang · Applied ML Engineer',
+  title: 'Guan Huang (Guan Zheng Huang) · Applied ML Engineer',
   description:
-    'Applied ML engineer. I work on agent systems, the evaluation tooling that keeps them honest, and the infrastructure both run on. Interactive demos and open-source work.',
+    'Guan Huang (Guan Zheng Huang), Applied ML engineer. I work on agent systems, the evaluation tooling that keeps them honest, and the infrastructure both run on.',
+  knowsAbout: [
+    'Applied Machine Learning',
+    'AI Agent Systems',
+    'LLM Evaluation',
+    'ML Infrastructure',
+  ],
   url: 'https://coronring.github.io',
   locale: 'en',
   location: 'Toronto, Canada',

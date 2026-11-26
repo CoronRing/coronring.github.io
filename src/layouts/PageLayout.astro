@@ -18,13 +18,29 @@ interface Props {
   noindex?: boolean;
   /** Forwarded to BaseLayout — see the note there. */
   hideChatDock?: boolean;
+  /** Optional schema.org JSON-LD forwarded to BaseLayout. */
+  structuredData?: Record<string, unknown> | readonly Record<string, unknown>[];
 }
 
-const { title, description, lede, eyebrow, noindex = false, hideChatDock = false } = Astro.props;
+const {
+  title,
+  description,
+  lede,
+  eyebrow,
+  noindex = false,
+  hideChatDock = false,
+  structuredData,
+} = Astro.props;
 const hasAction = Astro.slots.has('action');
 ---
 
-<BaseLayout title={title} description={description} noindex={noindex} hideChatDock={hideChatDock}>
+<BaseLayout
+  title={title}
+  description={description}
+  noindex={noindex}
+  hideChatDock={hideChatDock}
+  structuredData={structuredData}
+>
   <header class="relative overflow-hidden">
     <!-- A quarter of the dial, bleeding off the right edge. -->
     <div

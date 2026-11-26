@@ -1,13 +1,15 @@
 # coronring.github.io — Design Document
 
-**Version:** 0.27.1
+**Version:** 0.27.2
 **Status:** Complete. Every rail entry opens its full page from a FULL tab on its row
-**Last updated:** 2026-10-15
-**Owner:** Guan Zheng Huang (`CoronRing`)
+**Last updated:** 2026-11-26
+**Owner:** Guan Huang (Guan Zheng Huang, `CoronRing`)
 
 > This document covers the Astro site only. The site is now one of three
 > deployables in this repository, and anything crossing the boundary between
 > them belongs in [`../SYSTEM.md`](../SYSTEM.md).
+>
+> **v0.27.2**: identity and SEO alignment. `SITE.name` is standardized to `Guan Huang`, with `Guan Zheng Huang` and `CoronRing` as `alternateName` entries in `WebSite`, `Person`, `ProfilePage` (`/resume/`), and `BlogPosting` JSON-LD schemas. The document `h1` on the home page moves from the decorative `.deck-ghost` statement (`<p aria-hidden="true">`) to `.deck-mast-name`, subpage `<title>` tags append `· Guan Huang` instead of `· CoronRing`, the footer credits `Guan Huang (Guan Zheng Huang)`, and `#veil` skips automated crawlers and headless audits unless `?veil` is forced so initial content is immediately available for indexing and LCP.
 >
 > **v0.27.1**: the way to a full page is one button, `.more-btn` in `global.css`, used by `SectionHead` from `lg` and by `BandMore` on a phone: a raised plate with a short `--c-mark` bar on its leading edge and the page's drafting grid fading in from the far end; on hover the bar runs the full height, the grid spreads and the arrow steps forward. The phone tools strip names each icon in one word. The tools band's scroll handler is always attached and checks the breakpoint per frame, so a window that loads narrow and is then widened still steps through the tools (it needed a reload before). The mobile bar and drawer sit above every other fixed layer.
 >
@@ -800,7 +802,7 @@ A cut that arrives mid-morph starts the next morph from wherever the particles a
 frames × 42vh` tall with the frame pinned: the first 12vh is the handoff, and
 after it each frame holds for an equal share of what is left, the way the
 Myself and Tools bands step through their entries. A click, an arrow key or a
-rail arrow *scrolls* to the middle of that frame's share rather than setting
+rail arrow _scrolls_ to the middle of that frame's share rather than setting
 the frame, with an instant jump, so the scroll position and the held frame can
 never disagree; inside a pinned screen the jump is invisible except as the cut.
 A 2px accent line down the rail's right edge fills with the progress
@@ -945,7 +947,7 @@ thing moving — which is the only thing that should be. `padding` also drops fr
 
 ### The ghost type
 
-The site's statement is the `h1`, set behind the exhibit at `clamp(2.25rem,
+The site's statement is decorative (`<p aria-hidden="true">` while `.deck-mast-name` holds the document `h1`), set behind the exhibit at `clamp(2.25rem,
 7vw, 8.5rem)` with a hatched fill clipped to the glyphs and a faint outline
 stroke. It is real text at a real size, not a decorative image — it just is not competing with the frame title for the same slot. `--deck-ghost-alpha` differs per theme: hatched ink on paper carries more weight than hatched paper on ink.
 

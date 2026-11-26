@@ -1,6 +1,6 @@
 # coronring.github.io
 
-Personal site of Guan Zheng Huang. Systems, agents, and the tooling around them.
+Personal site of Guan Huang (Guan Zheng Huang). Systems, agents, and the tooling around them.
 
 Live at **<https://coronring.github.io>**.
 

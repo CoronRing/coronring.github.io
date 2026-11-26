@@ -35,7 +35,7 @@ import PostsBand from '../components/posts/PostsBand.astro';
 import Icon from '../components/ui/Icon.astro';
 import { SITE } from '../data/site';
 import { TOOLS } from '../data/tools';
-import { href } from '../lib/url';
+import { absolute, href } from '../lib/url';
 
 const projects = (await getCollection('projects', (p) => !p.data.draft)).sort(
   (a, b) => a.data.order - b.data.order,
@@ -89,13 +89,40 @@ const liveTools = TOOLS.filter((t) => t.status === 'live');
 
 /** Who and what this site is, for search engines: schema.org `WebSite` and `Person`. */
 const siteData = [
-  { '@context': 'https://schema.org', '@type': 'WebSite', name: SITE.name, url: SITE.url },
+  {
+    '@context': 'https://schema.org',
+    '@type': 'WebSite',
+    name: SITE.name,
+    alternateName: SITE.alternateNames,
+    url: SITE.url,
+  },
   {
     '@context': 'https://schema.org',
     '@type': 'Person',
     name: SITE.name,
+    alternateName: SITE.alternateNames,
+    givenName: SITE.givenName,
+    additionalName: SITE.additionalName,
+    familyName: SITE.familyName,
     jobTitle: SITE.role,
+    description: SITE.description,
     url: SITE.url,
+    image: absolute('/og-default.png', SITE.url),
+    email: `mailto:${SITE.email}`,
+    address: {
+      '@type': 'PostalAddress',
+      addressLocality: 'Toronto',
+      addressCountry: 'CA',
+    },
+    alumniOf: [
+      { '@type': 'CollegeOrUniversity', name: 'University of Toronto' },
+      { '@type': 'CollegeOrUniversity', name: 'University of British Columbia' },
+    ],
+    affiliation: [
+      { '@type': 'Organization', name: 'Railtown AI Technologies Inc.' },
+      { '@type': 'Organization', name: 'University of Toronto' },
+    ],
+    knowsAbout: SITE.knowsAbout,
     sameAs: SITE.social.filter((s) => s.href.startsWith('https://')).map((s) => s.href),
   },
 ];
@@ -287,7 +314,7 @@ const showcaseTools: ShowcaseTool[] = liveTools.map((t) => ({
     client:load
     projects={deckProjects}
     statement="Systems that act"
-    name="Guan Huang"
+    name={SITE.name}
     role={SITE.role}
     intro="I build agent systems, the evaluation tooling that keeps them honest, and the infrastructure both run on."
     introEmphasis={['agent systems', 'evaluation tooling', 'infrastructure']}
@@ -337,11 +364,7 @@ const showcaseTools: ShowcaseTool[] = liveTools.map((t) => ({
       The heading sits inside the pinned screen so the whole band is centred
       as one composition. See `components/resume/Capabilities.tsx`. */
   }
-  <section
-    id="resume"
-    aria-labelledby="resume-h"
-    class="border-line cap-band border-t"
-  >
+  <section id="resume" aria-labelledby="resume-h" class="border-line cap-band border-t">
     <div class="cap-pin">
       <div class="shell">
         <Reveal>

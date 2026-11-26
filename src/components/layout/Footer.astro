@@ -17,7 +17,10 @@ const year = new Date().getFullYear();
   <div
     class="shell text-faint flex flex-col gap-3 py-6 font-mono text-[11px] sm:flex-row sm:items-center sm:justify-between"
   >
-    <p>© {year} {SITE.name}</p>
+    <p>
+      © {year}
+      {SITE.name} ({SITE.alternateNames[0]})
+    </p>
 
     <dl class="flex flex-wrap items-center gap-x-5 gap-y-1">
       <div class="flex items-center gap-1.5">

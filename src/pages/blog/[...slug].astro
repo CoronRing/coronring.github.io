@@ -39,7 +39,12 @@ const blogPosting = {
   description: data.summary,
   datePublished: data.published.toISOString(),
   dateModified: (data.updated ?? data.published).toISOString(),
-  author: { '@type': 'Person', name: SITE.name, url: SITE.url },
+  author: {
+    '@type': 'Person',
+    name: SITE.name,
+    alternateName: SITE.alternateNames,
+    url: SITE.url,
+  },
   image: absolute(image, SITE.url),
   keywords: data.tags.join(', '),
   mainEntityOfPage: absolute(`/blog/${post.id}/`, SITE.url),

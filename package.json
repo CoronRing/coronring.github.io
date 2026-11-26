@@ -3,7 +3,7 @@
   "type": "module",
   "version": "0.1.0",
   "private": true,
-  "description": "Personal site of Guan Zheng Huang — agentic developer.",
+  "description": "Personal site of Guan Huang (Guan Zheng Huang), Applied ML Engineer.",
   "engines": {
     "node": ">=20.11.0"
   },

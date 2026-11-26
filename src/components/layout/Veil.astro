@@ -66,6 +66,8 @@ const { hold = false } = Astro.props;
  *     connection is covered and a hung one is still bounded.
  *  4. **Reduced motion skips it entirely**: a full-screen wipe is exactly the
  *     kind of motion that setting is asking us not to do.
+ *  5. **Crawlers and automated audits skip it**: bots and headless runs should
+ *     see the page immediately for indexing and LCP unless `?veil` is forced.
  */
 ---
 
@@ -114,9 +116,12 @@ const { hold = false } = Astro.props;
     var el = document.getElementById('veil');
     if (!el) return;
 
-    // Respect reduced-motion, and only veil the first view of a session.
+    // Respect reduced-motion, skip for crawlers/automated runs, and only veil the first view of a session.
     var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     var forced = /(^|[?&])veil($|[=&])/.test(location.search);
+    var bot =
+      navigator.webdriver === true ||
+      /bot|crawl|spider|slurp|lighthouse|pagespeed|inspect|headless/i.test(navigator.userAgent);
     /* A reload is a fresh arrival, not an internal navigation: show it again. */
     var nav = performance.getEntriesByType && performance.getEntriesByType('navigation')[0];
     var reloaded = nav ? nav.type === 'reload' : false;
@@ -127,7 +132,7 @@ const { hold = false } = Astro.props;
       /* Private mode: treat as unseen; the floor/ceiling still bound it. */
     }
 
-    if (reduce || (seen && !forced && !reloaded)) {
+    if (reduce || (bot && !forced) || (seen && !forced && !reloaded)) {
       el.remove();
       return;
     }

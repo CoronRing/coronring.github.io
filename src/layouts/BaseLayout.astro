@@ -67,7 +67,7 @@ const {
   structuredData,
 } = Astro.props;
 
-const pageTitle = title ? `${title} · ${SITE.handle}` : SITE.title;
+const pageTitle = title ? `${title} · ${SITE.name}` : SITE.title;
 const canonical = new URL(Astro.url.pathname, Astro.site ?? SITE.url).toString();
 const ogImage = absolute(image, SITE.url);
 ---

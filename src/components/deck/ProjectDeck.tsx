@@ -76,9 +76,9 @@ import { href } from '../../lib/url';
  *
  * The rail is a tab list and the stage its panel, so arrow keys,
  * `aria-selected` and focus management all come from the pattern rather than
- * from bespoke handlers. The site's statement is the `h1` — drawn as the ghost
- * type behind the exhibit, which is styling, not a trick: it is real text at a
- * real size and reads perfectly well. Each frame's title is the `h2`.
+ * from bespoke handlers. The masthead name is the document's `h1`, while the
+ * ghost statement behind the exhibit is decorative (`aria-hidden="true"`).
+ * Each frame's title is the `h2`.
  */
 
 interface Props {
@@ -508,11 +508,12 @@ export default function ProjectDeck({
             The site's statement, set behind the exhibit. The stages draw on a
             transparent canvas, so this reads through them as texture.
 
-            It sits outside the tab panel deliberately: it is the document's
-            `h1` and belongs to the page, not to whichever frame happens to be
-            held.
+            Marked `aria-hidden="true"` because the masthead name carries the
+            document's `h1` for search engines and assistive tech.
           */}
-          <h1 className="deck-ghost">{statement}</h1>
+          <p className="deck-ghost" aria-hidden="true">
+            {statement}
+          </p>
 
           <div
             key={frame.id}
@@ -558,7 +559,7 @@ export default function ProjectDeck({
 
         {/* ── The masthead, in both states ────────────────────────── */}
         <div ref={mastRef} className="deck-mast">
-          <p className="deck-mast-name display">{name}</p>
+          <h1 className="deck-mast-name display">{name}</h1>
           <div className="deck-mast-under">
             <p className="eyebrow eyebrow-marked mt-3">{role}</p>
             <div className="deck-lede" aria-hidden={landed}>
